@@ -49,7 +49,7 @@ export default function AdminApiKeys() {
   const [showForm, setShowForm] = useState(false)
   const [newLabel, setNewLabel] = useState('')
   const [newKey, setNewKey] = useState('')
-  const [newLimit, setNewLimit] = useState('1800')
+  const [newLimit, setNewLimit] = useState('500')
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
@@ -147,8 +147,9 @@ export default function AdminApiKeys() {
             <div>
               <CardTitle>Google Maps API Keys</CardTitle>
               <p className="text-xs text-hub-text-muted mt-0.5">
-                Used by the Lead Generator. Free tier gives ~$200/mo credit ≈ 1,800 search calls per key.
-                The system automatically picks the active key with the lowest usage.
+                Used by the Lead Generator. Google's $200/mo free credit covers ~500 searches per key
+                (each search = up to 20 leads). System auto-picks the active key with lowest usage and
+                skips any key that hits its limit.
               </p>
             </div>
             <Button size="sm" onClick={() => setShowForm(v => !v)}>

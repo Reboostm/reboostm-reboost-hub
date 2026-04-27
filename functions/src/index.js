@@ -536,6 +536,93 @@ exports.startCitationsJob = onCall(
   }
 )
 
+// ─── adminCreateUser ─────────────────────────────────────────────────────────
+// Admin/staff: create a new Firebase Auth user + Firestore profile in one call.
+
+exports.adminCreateUser = onCall({ timeoutSeconds: 30 }, async (request) => {
+  const callerUid = request.auth?.uid
+  if (!callerUid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const callerSnap = await db.collection('users').doc(callerUid).get()
+  const callerRole = callerSnap.data()?.role
+  if (callerRole !== 'admin' && callerRole !== 'staff') {
+    throw new HttpsError('permission-denied', 'Admin or staff role required.')
+  }
+
+  const { email, password, displayName = '', role = 'client' } = request.data
+  if (!email || !password) throw new HttpsError('invalid-argument', 'email and password are required.')
+  if (password.length < 6) throw new HttpsError('invalid-argument', 'Password must be at least 6 characters.')
+
+  const allowed = ['client', 'staff', 'admin']
+  if (!allowed.includes(role)) throw new HttpsError('invalid-argument', 'Invalid role.')
+  if ((role === 'admin' || role === 'staff') && callerRole !== 'admin') {
+    throw new HttpsError('permission-denied', 'Only admins can create staff or admin accounts.')
+  }
+
+  const auth = getAuth()
+  const user = await auth.createUser({ email, password, displayName })
+
+  await db.collection('users').doc(user.uid).set({
+    email,
+    displayName,
+    role,
+    businessName: '', phone: '', website: '', address: '',
+    city: '', state: '', zip: '', niche: '', tagline: '', currentOffer: '',
+    logoUrl: null, photoUrls: [], connectedEmail: null,
+    subscriptions: {
+      scheduler:     { active: false, tier: null, stripeSubId: null },
+      reviewManager: { active: false, stripeSubId: null },
+      rankTracker:   { active: false, stripeSubId: null },
+    },
+    purchases: {
+      citationsPackageId: null,
+      calendarNiches: [],
+      leadCredits: 0,
+      outreachTemplates: false,
+    },
+    createdAt: FieldValue.serverTimestamp(),
+    updatedAt: FieldValue.serverTimestamp(),
+  })
+
+  return { uid: user.uid }
+})
+
+// ─── adminUpdateAccess ───────────────────────────────────────────────────────
+// Admin/staff: update any user's tool access (purchases + subscriptions).
+
+exports.adminUpdateAccess = onCall({ timeoutSeconds: 30 }, async (request) => {
+  const callerUid = request.auth?.uid
+  if (!callerUid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const callerSnap = await db.collection('users').doc(callerUid).get()
+  const callerRole = callerSnap.data()?.role
+  if (callerRole !== 'admin' && callerRole !== 'staff') {
+    throw new HttpsError('permission-denied', 'Admin or staff role required.')
+  }
+
+  const { targetUid, purchases, subscriptions } = request.data
+  if (!targetUid) throw new HttpsError('invalid-argument', 'targetUid is required.')
+
+  const updates = { updatedAt: FieldValue.serverTimestamp() }
+
+  if (purchases) {
+    if (purchases.citationsPackageId !== undefined) updates['purchases.citationsPackageId'] = purchases.citationsPackageId
+    if (purchases.leadCredits       !== undefined) updates['purchases.leadCredits']       = Number(purchases.leadCredits)
+    if (purchases.outreachTemplates !== undefined) updates['purchases.outreachTemplates'] = purchases.outreachTemplates
+    if (purchases.calendarNiches    !== undefined) updates['purchases.calendarNiches']    = purchases.calendarNiches
+  }
+  if (subscriptions) {
+    const s = subscriptions
+    if (s.scheduler?.active    !== undefined) updates['subscriptions.scheduler.active']       = s.scheduler.active
+    if (s.scheduler?.tier      !== undefined) updates['subscriptions.scheduler.tier']         = s.scheduler.tier
+    if (s.reviewManager?.active !== undefined) updates['subscriptions.reviewManager.active']  = s.reviewManager.active
+    if (s.rankTracker?.active  !== undefined) updates['subscriptions.rankTracker.active']     = s.rankTracker.active
+  }
+
+  await db.collection('users').doc(targetUid).update(updates)
+  return { success: true }
+})
+
 // ─── claimAdminRole ──────────────────────────────────────────────────────────
 // One-time function: first caller becomes admin. Uses settings/adminClaimed as a lock.
 

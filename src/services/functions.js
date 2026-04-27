@@ -31,5 +31,7 @@ export const createPortalSession = call('createPortalSession')
 
 // Admin
 export const claimAdminRole = call('claimAdminRole')
+export const adminCreateUser = call('adminCreateUser')
+export const adminUpdateAccess = call('adminUpdateAccess')
 export const setUserRole = call('setUserRole')
 export const resetUserPassword = call('resetUserPassword')

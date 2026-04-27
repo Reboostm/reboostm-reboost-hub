@@ -1,11 +1,19 @@
 import { useEffect, useState } from 'react'
-import { Shield, Loader2, RotateCcw, ChevronDown, CheckCircle, AlertTriangle, Search } from 'lucide-react'
+import {
+  Shield, Loader2, RotateCcw, ChevronDown, CheckCircle,
+  Search, UserPlus, Eye, EyeOff,
+} from 'lucide-react'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
+import Button from '../../components/ui/Button'
+import Input from '../../components/ui/Input'
+import Select from '../../components/ui/Select'
+import Modal from '../../components/ui/Modal'
 import { getAllUsers } from '../../services/firestore'
-import { setUserRole, resetUserPassword } from '../../services/functions'
+import { setUserRole, resetUserPassword, adminCreateUser } from '../../services/functions'
 import { formatDate, getInitials } from '../../utils/helpers'
 import { useToast } from '../../hooks/useToast'
+import { useAuth } from '../../hooks/useAuth'
 
 const ROLE_OPTS = ['client', 'staff', 'admin']
 const ROLE_VARIANTS = { admin: 'error', staff: 'warning', client: 'info' }
@@ -17,17 +25,14 @@ function RoleDropdown({ userId, currentRole, onChanged }) {
 
   const change = async (newRole) => {
     if (newRole === currentRole) { setOpen(false); return }
-    setSaving(true)
-    setOpen(false)
+    setSaving(true); setOpen(false)
     try {
       await setUserRole({ targetUid: userId, role: newRole })
       toast(`Role updated to ${newRole}`, 'success')
       onChanged(userId, newRole)
     } catch (err) {
       toast(err.message || 'Failed to update role', 'error')
-    } finally {
-      setSaving(false)
-    }
+    } finally { setSaving(false) }
   }
 
   return (
@@ -49,17 +54,11 @@ function RoleDropdown({ userId, currentRole, onChanged }) {
       {open && (
         <div className="absolute right-0 top-full mt-1 w-28 bg-hub-card border border-hub-border rounded-lg shadow-lg z-10 overflow-hidden">
           {ROLE_OPTS.map(r => (
-            <button
-              key={r}
-              onClick={() => change(r)}
+            <button key={r} onClick={() => change(r)}
               className={`w-full text-left px-3 py-2 text-xs capitalize transition-colors ${
-                r === currentRole
-                  ? 'bg-hub-blue/10 text-hub-blue font-medium'
-                  : 'text-hub-text hover:bg-hub-input'
+                r === currentRole ? 'bg-hub-blue/10 text-hub-blue font-medium' : 'text-hub-text hover:bg-hub-input'
               }`}
-            >
-              {r}
-            </button>
+            >{r}</button>
           ))}
         </div>
       )}
@@ -87,34 +86,105 @@ function ResetButton({ email }) {
   }
 
   return (
-    <button
-      onClick={handleReset}
-      disabled={status !== 'idle'}
+    <button onClick={handleReset} disabled={status !== 'idle'}
       title="Generate & copy password reset link"
       className="flex items-center gap-1.5 text-xs text-hub-text-muted hover:text-hub-blue transition-colors disabled:opacity-50"
     >
       {status === 'loading' && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
       {status === 'done'    && <CheckCircle className="w-3.5 h-3.5 text-hub-green" />}
       {status === 'idle'    && <RotateCcw className="w-3.5 h-3.5" />}
-      <span className="hidden sm:inline">
-        {status === 'done' ? 'Copied!' : 'Reset'}
-      </span>
+      <span className="hidden sm:inline">{status === 'done' ? 'Copied!' : 'Reset'}</span>
     </button>
   )
 }
 
+function CreateUserModal({ isOpen, onClose, onCreated }) {
+  const { toast } = useToast()
+  const { userProfile } = useAuth()
+  const isAdmin = userProfile?.role === 'admin'
+
+  const [email, setEmail]             = useState('')
+  const [password, setPassword]       = useState('')
+  const [displayName, setDisplayName] = useState('')
+  const [role, setRole]               = useState('client')
+  const [showPw, setShowPw]           = useState(false)
+  const [saving, setSaving]           = useState(false)
+
+  const roleOptions = isAdmin
+    ? [{ value: 'client', label: 'Client' }, { value: 'staff', label: 'Staff' }, { value: 'admin', label: 'Admin' }]
+    : [{ value: 'client', label: 'Client' }]
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    if (!email.trim() || !password.trim()) { toast('Email and password are required.', 'error'); return }
+    if (password.length < 6) { toast('Password must be at least 6 characters.', 'error'); return }
+    setSaving(true)
+    try {
+      const result = await adminCreateUser({ email: email.trim(), password, displayName: displayName.trim(), role })
+      toast(`User ${email} created successfully.`, 'success')
+      onCreated({ id: result.uid, email: email.trim(), displayName: displayName.trim(), role, createdAt: new Date() })
+      setEmail(''); setPassword(''); setDisplayName(''); setRole('client')
+      onClose()
+    } catch (err) {
+      toast(err.message || 'Failed to create user.', 'error')
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <Modal isOpen={isOpen} onClose={onClose} title="Create New User" size="sm"
+      footer={<>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button loading={saving} onClick={handleSubmit}>Create User</Button>
+      </>}
+    >
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Input label="Email address" type="email" value={email}
+          onChange={e => setEmail(e.target.value)} placeholder="user@example.com" required />
+        <Input label="Display name (optional)" value={displayName}
+          onChange={e => setDisplayName(e.target.value)} placeholder="First Last" />
+        <div>
+          <label className="block text-xs font-medium text-hub-text-secondary mb-1.5">Password</label>
+          <div className="relative">
+            <input
+              type={showPw ? 'text' : 'password'}
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Min 6 characters"
+              className="w-full bg-hub-input border border-hub-border rounded-lg px-3 pr-9 py-2.5 text-sm text-hub-text placeholder:text-hub-text-muted focus:outline-none focus:border-hub-blue focus:ring-1 focus:ring-hub-blue/30"
+            />
+            <button type="button" onClick={() => setShowPw(v => !v)}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-hub-text-muted hover:text-hub-text">
+              {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+          <p className="text-[11px] text-hub-text-muted mt-1">Default welcome password: 123456</p>
+        </div>
+        <Select label="Role" value={role} onChange={e => setRole(e.target.value)} options={roleOptions} />
+        {role !== 'client' && (
+          <p className="text-xs text-hub-yellow bg-hub-yellow/10 border border-hub-yellow/20 rounded-lg px-3 py-2">
+            {role === 'admin' ? 'Admin accounts have full access and can see all data.' : 'Staff accounts bypass all ToolGates and can manage clients.'}
+          </p>
+        )}
+      </form>
+    </Modal>
+  )
+}
+
 export default function AdminUsers() {
-  const [users, setUsers] = useState([])
+  const [users, setUsers]   = useState([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState('')
+  const [search, setSearch]   = useState('')
+  const [showCreate, setShowCreate] = useState(false)
 
   useEffect(() => {
     getAllUsers().then(setUsers).finally(() => setLoading(false))
   }, [])
 
-  const handleRoleChanged = (uid, newRole) => {
+  const handleRoleChanged = (uid, newRole) =>
     setUsers(prev => prev.map(u => u.id === uid ? { ...u, role: newRole } : u))
-  }
+
+  const handleCreated = (newUser) =>
+    setUsers(prev => [newUser, ...prev])
 
   const filtered = search.trim()
     ? users.filter(u =>
@@ -131,23 +201,21 @@ export default function AdminUsers() {
           <h1 className="text-2xl font-semibold text-hub-text">All Users</h1>
           <p className="text-hub-text-secondary text-sm mt-0.5">{users.length} total</p>
         </div>
+        <Button onClick={() => setShowCreate(true)}>
+          <UserPlus className="w-4 h-4 mr-2" /> Create User
+        </Button>
       </div>
 
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-hub-text-muted" />
-        <input
-          type="text"
-          placeholder="Search by name, email, or business…"
-          value={search}
-          onChange={e => setSearch(e.target.value)}
+        <input type="text" placeholder="Search by name, email, or business…"
+          value={search} onChange={e => setSearch(e.target.value)}
           className="w-full bg-hub-input border border-hub-border rounded-lg pl-9 pr-3 py-2.5 text-sm text-hub-text placeholder:text-hub-text-muted focus:outline-none focus:border-hub-blue focus:ring-1 focus:ring-hub-blue/30"
         />
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12">
-          <Loader2 className="w-5 h-5 animate-spin text-hub-text-muted" />
-        </div>
+        <div className="flex justify-center py-12"><Loader2 className="w-5 h-5 animate-spin text-hub-text-muted" /></div>
       ) : filtered.length === 0 ? (
         <Card className="text-center py-12">
           <Shield className="w-8 h-8 text-hub-text-muted mx-auto mb-3 opacity-40" />
@@ -161,19 +229,13 @@ export default function AdminUsers() {
                 <div className="w-9 h-9 rounded-full bg-hub-blue/20 flex items-center justify-center flex-shrink-0">
                   <span className="text-xs font-bold text-hub-blue">{getInitials(u.displayName || u.email)}</span>
                 </div>
-
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-hub-text truncate">{u.displayName || '—'}</p>
                   <p className="text-xs text-hub-text-muted truncate">{u.email}</p>
-                  {u.businessName && (
-                    <p className="text-[10px] text-hub-text-muted truncate mt-0.5">{u.businessName}</p>
-                  )}
+                  {u.businessName && <p className="text-[10px] text-hub-text-muted truncate mt-0.5">{u.businessName}</p>}
                 </div>
-
                 <div className="flex items-center gap-3 flex-shrink-0">
-                  <p className="text-[10px] text-hub-text-muted hidden md:block">
-                    {formatDate(u.createdAt)}
-                  </p>
+                  <p className="text-[10px] text-hub-text-muted hidden md:block">{formatDate(u.createdAt)}</p>
                   <ResetButton email={u.email} />
                   <RoleDropdown userId={u.id} currentRole={u.role || 'client'} onChanged={handleRoleChanged} />
                 </div>
@@ -182,6 +244,12 @@ export default function AdminUsers() {
           </div>
         </Card>
       )}
+
+      <CreateUserModal
+        isOpen={showCreate}
+        onClose={() => setShowCreate(false)}
+        onCreated={handleCreated}
+      />
     </div>
   )
 }
