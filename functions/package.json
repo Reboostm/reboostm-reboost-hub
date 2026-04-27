@@ -2,7 +2,7 @@
   "name": "reboost-hub-functions",
   "version": "1.0.0",
   "description": "ReBoost Hub Firebase Cloud Functions",
-  "engines": { "node": "20" },
+  "engines": { "node": "22" },
   "main": "src/index.js",
   "scripts": {
     "serve": "firebase emulators:start --only functions",
