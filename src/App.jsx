@@ -67,6 +67,7 @@ import AdminUsers from './pages/admin/Users'
 import AdminContent from './pages/admin/ContentManager'
 import AdminTerritories from './pages/admin/Territories'
 import AdminPackages from './pages/admin/Packages'
+import AdminApiKeys from './pages/admin/ApiKeys'
 
 export default function App() {
   return (
@@ -144,6 +145,7 @@ export default function App() {
                     <Route path="admin/content" element={<AdminContent />} />
                     <Route path="admin/territories" element={<AdminTerritories />} />
                     <Route path="admin/packages" element={<AdminPackages />} />
+                    <Route path="admin/api-keys" element={<AdminApiKeys />} />
                   </Route>
                 </Route>
               </Route>
