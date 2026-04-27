@@ -548,7 +548,8 @@ exports.claimAdminRole = onCall({ timeoutSeconds: 30 }, async (request) => {
     throw new HttpsError('already-exists', 'Admin has already been claimed. Contact your administrator.')
   }
 
-  await db.collection('users').doc(uid).update({ role: 'admin' })
+  // Use set+merge so it works even if the users doc doesn't exist yet
+  await db.collection('users').doc(uid).set({ role: 'admin' }, { merge: true })
   await db.collection('settings').doc('adminClaimed').set({
     uid,
     claimedAt: FieldValue.serverTimestamp(),
