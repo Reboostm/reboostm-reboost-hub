@@ -1,0 +1,104 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helpers ─────────────────────────────────────────────────────────────
+    function isAuth() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    function isAdmin() {
+      return isAuth() && getRole() == 'admin';
+    }
+    function isStaff() {
+      return isAuth() && (getRole() == 'staff' || getRole() == 'admin');
+    }
+
+    // ─── Users ────────────────────────────────────────────────────────────────
+    // Users can read/write their own profile. Admins can read all.
+    match /users/{uid} {
+      allow read: if isOwner(uid) || isStaff();
+      allow create: if isOwner(uid);
+      allow update: if isOwner(uid) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // ─── Audit Results ────────────────────────────────────────────────────────
+    // Users can create and read their own audits. Admins can read all.
+    match /auditResults/{id} {
+      allow create: if isAuth();
+      allow read: if isAuth() && (
+        resource.data.userId == request.auth.uid || isStaff()
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    // ─── Calendar Content ─────────────────────────────────────────────────────
+    // All authenticated users can read. Only admins can write.
+    match /calendarContent/{id} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ─── Scheduled Posts ──────────────────────────────────────────────────────
+    // Users can CRUD their own posts. Staff can read all.
+    match /scheduledPosts/{id} {
+      allow create: if isAuth();
+      allow read: if isAuth() && (
+        resource.data.userId == request.auth.uid || isStaff()
+      );
+      allow update, delete: if isAuth() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // ─── Leads ────────────────────────────────────────────────────────────────
+    // Users can CRUD their own lead batches.
+    match /leads/{batchId} {
+      allow create: if isAuth();
+      allow read, update, delete: if isAuth() && (
+        resource.data.userId == request.auth.uid || isStaff()
+      );
+
+      match /items/{itemId} {
+        allow read: if isAuth() && (
+          get(/databases/$(database)/documents/leads/$(batchId)).data.userId == request.auth.uid
+          || isStaff()
+        );
+        allow write: if isAdmin();
+      }
+    }
+
+    // ─── Territories ──────────────────────────────────────────────────────────
+    // Anyone can read (public territory checker). Only admins can write.
+    match /territories/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ─── Rank Tracking ────────────────────────────────────────────────────────
+    match /rankTracking/{id} {
+      allow create: if isAuth();
+      allow read, update: if isAuth() && (
+        resource.data.userId == request.auth.uid || isStaff()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ─── Settings (API keys, app config) ─────────────────────────────────────
+    // Only admins can read/write sensitive settings.
+    match /settings/{doc} {
+      allow read, write: if isAdmin();
+    }
+
+    // ─── Catch-all: deny everything else ─────────────────────────────────────
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
