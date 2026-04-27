@@ -18,8 +18,7 @@ const SECTIONS = [
     badge: { text: 'FREE', variant: 'free' },
     isLocked: () => false,
     items: [
-      { label: 'My Audit Results', path: '/audit' },
-      { label: 'Run New Audit', path: '/audit/results' },
+      { label: 'My Reports', path: '/audit' },
     ],
   },
   {

@@ -129,7 +129,7 @@ export default function Signup() {
               <Input
                 label="Password"
                 type="password"
-                placeholder="Min. 8 characters"
+                placeholder="Min. 6 characters"
                 autoComplete="new-password"
                 error={errors.password?.message}
                 {...register('password')}

@@ -79,22 +79,9 @@ export default function Login() {
             </Button>
           </form>
 
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-hub-border" />
-            </div>
-            <div className="relative flex justify-center">
-              <span className="bg-hub-card px-3 text-xs text-hub-text-muted">
-                New to {HUB_NAME}?
-              </span>
-            </div>
-          </div>
-
-          <Link to="/signup">
-            <Button variant="secondary" className="w-full" size="lg">
-              Create an Account
-            </Button>
-          </Link>
+          <p className="text-center text-hub-text-muted text-xs mt-4">
+            Don't have an account? Contact your ReBoost representative.
+          </p>
         </div>
       </div>
     </div>
