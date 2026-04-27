@@ -57,6 +57,9 @@ import Profile from './pages/settings/Profile'
 import Billing from './pages/settings/Billing'
 import Integrations from './pages/settings/Integrations'
 
+// Setup (one-time admin claim)
+import Setup from './pages/setup/Setup'
+
 // Admin
 import AdminDashboard from './pages/admin/Dashboard'
 import AdminClients from './pages/admin/Clients'
@@ -76,6 +79,11 @@ export default function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
+
+              {/* Setup — protected but no layout */}
+              <Route element={<ProtectedRoute />}>
+                <Route path="/setup" element={<Setup />} />
+              </Route>
 
               {/* Protected — inside HubLayout */}
               <Route element={<ProtectedRoute />}>

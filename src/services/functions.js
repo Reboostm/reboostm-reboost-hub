@@ -30,5 +30,6 @@ export const createCheckoutSession = call('createCheckoutSession')
 export const createPortalSession = call('createPortalSession')
 
 // Admin
+export const claimAdminRole = call('claimAdminRole')
 export const setUserRole = call('setUserRole')
 export const resetUserPassword = call('resetUserPassword')

@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
   Search, BookOpen, Users, Calendar, Sparkles, Image,
   Star, TrendingUp, Building2, ChevronDown, Lock,
-  LayoutDashboard, Zap,
+  LayoutDashboard, Zap, Package, MapPin, FileImage,
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useBilling } from '../../hooks/useBilling'
@@ -211,22 +211,36 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Admin link — staff/admin only */}
+      {/* Admin section — staff/admin only */}
       {isStaff && (
-        <div className="border-t border-hub-border p-2">
-          <NavLink
-            to="/admin"
-            className={({ isActive }) =>
-              `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-                isActive
-                  ? 'bg-hub-orange/10 text-hub-orange'
-                  : 'text-hub-text-muted hover:text-hub-text hover:bg-hub-card'
-              }`
-            }
-          >
-            <LayoutDashboard className="w-4 h-4" />
-            <span className="font-medium">Admin Panel</span>
-          </NavLink>
+        <div className="border-t border-hub-border pt-2 pb-1 px-2">
+          <p className="text-[10px] font-semibold text-hub-text-muted uppercase tracking-wider px-2 mb-1">
+            Admin
+          </p>
+          {[
+            { label: 'Dashboard',       path: '/admin',             icon: LayoutDashboard },
+            { label: 'Users',           path: '/admin/users',       icon: Users           },
+            { label: 'Clients',         path: '/admin/clients',     icon: Building2       },
+            { label: 'Packages',        path: '/admin/packages',    icon: Package         },
+            { label: 'Territories',     path: '/admin/territories', icon: MapPin          },
+            { label: 'Content Manager', path: '/admin/content',     icon: FileImage       },
+          ].map(({ label, path, icon: Icon }) => (
+            <NavLink
+              key={path}
+              to={path}
+              end={path === '/admin'}
+              className={({ isActive }) =>
+                `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  isActive
+                    ? 'bg-hub-orange/10 text-hub-orange'
+                    : 'text-hub-text-muted hover:text-hub-text hover:bg-hub-card'
+                }`
+              }
+            >
+              <Icon className="w-4 h-4" />
+              <span className="font-medium text-sm">{label}</span>
+            </NavLink>
+          ))}
         </div>
       )}
     </aside>

@@ -1,6 +1,7 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { initializeApp } = require('firebase-admin/app')
 const { getFirestore, FieldValue } = require('firebase-admin/firestore')
+const { getAuth } = require('firebase-admin/auth')
 
 initializeApp()
 const db = getFirestore()
@@ -534,3 +535,75 @@ exports.startCitationsJob = onCall(
     return { batchId: batchRef.id, total: directories.length, tier: tierKey }
   }
 )
+
+// ─── claimAdminRole ──────────────────────────────────────────────────────────
+// One-time function: first caller becomes admin. Uses settings/adminClaimed as a lock.
+
+exports.claimAdminRole = onCall({ timeoutSeconds: 30 }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const claimedSnap = await db.collection('settings').doc('adminClaimed').get()
+  if (claimedSnap.exists) {
+    throw new HttpsError('already-exists', 'Admin has already been claimed. Contact your administrator.')
+  }
+
+  await db.collection('users').doc(uid).update({ role: 'admin' })
+  await db.collection('settings').doc('adminClaimed').set({
+    uid,
+    claimedAt: FieldValue.serverTimestamp(),
+  })
+
+  return { success: true }
+})
+
+// ─── setUserRole ─────────────────────────────────────────────────────────────
+// Admin/staff only: update another user's role.
+
+exports.setUserRole = onCall({ timeoutSeconds: 30 }, async (request) => {
+  const callerUid = request.auth?.uid
+  if (!callerUid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const callerSnap = await db.collection('users').doc(callerUid).get()
+  const callerRole = callerSnap.data()?.role
+  if (callerRole !== 'admin' && callerRole !== 'staff') {
+    throw new HttpsError('permission-denied', 'Admin or staff role required.')
+  }
+
+  const { targetUid, role } = request.data
+  if (!targetUid || !role) throw new HttpsError('invalid-argument', 'targetUid and role are required.')
+
+  const allowed = ['client', 'staff', 'admin']
+  if (!allowed.includes(role)) {
+    throw new HttpsError('invalid-argument', `Role must be one of: ${allowed.join(', ')}`)
+  }
+
+  // Prevent non-admins from elevating to admin
+  if (role === 'admin' && callerRole !== 'admin') {
+    throw new HttpsError('permission-denied', 'Only admins can assign the admin role.')
+  }
+
+  await db.collection('users').doc(targetUid).update({ role })
+  return { success: true }
+})
+
+// ─── resetUserPassword ───────────────────────────────────────────────────────
+// Admin/staff only: generate a password reset link for a user.
+
+exports.resetUserPassword = onCall({ timeoutSeconds: 30 }, async (request) => {
+  const callerUid = request.auth?.uid
+  if (!callerUid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const callerSnap = await db.collection('users').doc(callerUid).get()
+  const callerRole = callerSnap.data()?.role
+  if (callerRole !== 'admin' && callerRole !== 'staff') {
+    throw new HttpsError('permission-denied', 'Admin or staff role required.')
+  }
+
+  const { email } = request.data
+  if (!email) throw new HttpsError('invalid-argument', 'email is required.')
+
+  const auth = getAuth()
+  const link = await auth.generatePasswordResetLink(email)
+  return { link }
+})
