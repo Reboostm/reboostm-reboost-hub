@@ -139,6 +139,40 @@ export async function getCitationsBatches(userId) {
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
 }
 
+// ─── Leads ────────────────────────────────────────────────────────────────────
+
+export function subscribeToLeadsBatches(userId, callback) {
+  const q = query(
+    collection(db, 'leads'),
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc'),
+    limit(20)
+  )
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  })
+}
+
+export async function getLeadsBatches(userId) {
+  const q = query(
+    collection(db, 'leads'),
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc'),
+    limit(20)
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+}
+
+export async function getLeadsBatchItems(batchId) {
+  const snap = await getDocs(collection(db, 'leads', batchId, 'items'))
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+}
+
+export async function markLeadsBatchExported(batchId) {
+  await updateDoc(doc(db, 'leads', batchId), { exported: true })
+}
+
 // ─── Admin: all users ─────────────────────────────────────────────────────────
 
 export async function getAllUsers(role = null) {

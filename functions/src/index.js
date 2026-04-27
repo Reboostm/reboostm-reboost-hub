@@ -607,3 +607,227 @@ exports.resetUserPassword = onCall({ timeoutSeconds: 30 }, async (request) => {
   const link = await auth.generatePasswordResetLink(email)
   return { link }
 })
+
+// ─── searchLeads ─────────────────────────────────────────────────────────────
+// Calls Google Maps Places API with key rotation.
+// Requires settings/googleMapsKeys Firestore doc with keys array.
+// Deducts 1 lead credit from user (admin/staff bypass).
+
+exports.searchLeads = onCall(
+  { timeoutSeconds: 120, memory: '512MiB' },
+  async (request) => {
+    const uid = request.auth?.uid
+    if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+    const { niche, city, radius = 25 } = request.data
+    if (!niche || !city) throw new HttpsError('invalid-argument', 'niche and city are required.')
+
+    // Check credits (admin/staff bypass)
+    const userSnap = await db.collection('users').doc(uid).get()
+    const userData = userSnap.data()
+    const isAdmin = userData?.role === 'admin' || userData?.role === 'staff'
+    const leadCredits = userData?.purchases?.leadCredits || 0
+
+    if (!isAdmin && leadCredits <= 0) {
+      throw new HttpsError('failed-precondition', 'No lead credits remaining.')
+    }
+
+    // Load key pool
+    const keysRef = db.collection('settings').doc('googleMapsKeys')
+    const keysSnap = await keysRef.get()
+
+    if (!keysSnap.exists) {
+      throw new HttpsError('failed-precondition', 'Google Maps API not configured. Contact support.')
+    }
+
+    let keysData = keysSnap.data()
+    const currentMonth = new Date().getMonth()
+    let keys = keysData.keys || []
+
+    // Monthly usage reset
+    if (keysData.lastResetMonth !== currentMonth) {
+      keys = keys.map(k => ({ ...k, usageThisMonth: 0 }))
+      await keysRef.update({ keys, lastResetMonth: currentMonth })
+    }
+
+    // Pick active key with lowest usage under limit
+    const available = keys.filter(k => k.active && k.usageThisMonth < (k.limit || 1800))
+    if (available.length === 0) {
+      throw new HttpsError('resource-exhausted', 'Monthly API limit reached. Try again next month or add more keys.')
+    }
+    const bestKey = available.reduce((min, k) => k.usageThisMonth < min.usageThisMonth ? k : min)
+    const apiKey = bestKey.key
+
+    // Text search
+    const searchQuery = `${niche} in ${city}`
+    const radiusMeters = Math.round(radius * 1609)
+    const textUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&radius=${radiusMeters}&key=${apiKey}`
+
+    const textResp = await fetch(textUrl)
+    const textData = await textResp.json()
+
+    if (textData.status !== 'OK' && textData.status !== 'ZERO_RESULTS') {
+      throw new HttpsError('internal', `Maps API error: ${textData.status}`)
+    }
+
+    const places = (textData.results || []).slice(0, 20)
+
+    // Enrich each place with phone + website via Place Details
+    const enriched = await Promise.all(
+      places.map(async (place) => {
+        try {
+          const detailUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${place.place_id}&fields=name,formatted_address,formatted_phone_number,website,rating,user_ratings_total&key=${apiKey}`
+          const detailResp = await fetch(detailUrl)
+          const detailData = await detailResp.json()
+          const d = detailData.result || {}
+          return {
+            businessName: d.name || place.name || '',
+            address: d.formatted_address || place.formatted_address || '',
+            phone: d.formatted_phone_number || '',
+            website: d.website || '',
+            email: '',
+            rating: d.rating ?? place.rating ?? null,
+            reviewCount: d.user_ratings_total ?? place.user_ratings_total ?? 0,
+            placeId: place.place_id,
+          }
+        } catch {
+          return {
+            businessName: place.name || '',
+            address: place.formatted_address || '',
+            phone: '', website: '', email: '',
+            rating: place.rating ?? null,
+            reviewCount: place.user_ratings_total ?? 0,
+            placeId: place.place_id,
+          }
+        }
+      })
+    )
+
+    // Save batch + items
+    const batchRef = db.collection('leads').doc()
+    await batchRef.set({
+      userId: uid,
+      niche,
+      city,
+      searchQuery,
+      totalFound: enriched.length,
+      exported: false,
+      createdAt: FieldValue.serverTimestamp(),
+    })
+
+    const writeBatch = db.batch()
+    enriched.forEach(item => {
+      writeBatch.set(batchRef.collection('items').doc(), item)
+    })
+    await writeBatch.commit()
+
+    // Deduct 1 credit (non-admin)
+    if (!isAdmin) {
+      await db.collection('users').doc(uid).update({
+        'purchases.leadCredits': FieldValue.increment(-1),
+      })
+    }
+
+    // Increment key usage: 1 TextSearch + up to 20 Details
+    const callsUsed = 1 + enriched.length
+    const updatedKeys = keys.map(k =>
+      k.key === apiKey ? { ...k, usageThisMonth: (k.usageThisMonth || 0) + callsUsed } : k
+    )
+    await keysRef.update({ keys: updatedKeys })
+
+    return { batchId: batchRef.id, results: enriched, totalFound: enriched.length }
+  }
+)
+
+// ─── generateOutreachSequence ─────────────────────────────────────────────────
+// Generates a 3-email cold outreach sequence via Anthropic API.
+// Requires ANTHROPIC_API_KEY env var + user must have purchases.outreachTemplates = true.
+
+exports.generateOutreachSequence = onCall(
+  { timeoutSeconds: 120, memory: '256MiB' },
+  async (request) => {
+    const uid = request.auth?.uid
+    if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+    const userSnap = await db.collection('users').doc(uid).get()
+    const userData = userSnap.data()
+    const isAdmin = userData?.role === 'admin' || userData?.role === 'staff'
+    const hasTemplates = isAdmin || userData?.purchases?.outreachTemplates === true
+
+    if (!hasTemplates) {
+      throw new HttpsError('permission-denied', 'Outreach Templates purchase required.')
+    }
+
+    const { niche, city, batchId } = request.data
+    if (!niche || !city) throw new HttpsError('invalid-argument', 'niche and city are required.')
+
+    const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY
+    if (!ANTHROPIC_KEY) {
+      throw new HttpsError('failed-precondition', 'AI service not configured. Contact support.')
+    }
+
+    const prompt = `You are an expert cold email copywriter for a local marketing agency.
+
+Generate a 3-email cold outreach sequence targeting ${niche} businesses in ${city}.
+The sender is a digital marketing agency (ReBoost Marketing) offering lead generation, SEO, and local visibility services.
+
+Return ONLY valid JSON, no markdown, no explanation — just the raw JSON object:
+{
+  "emails": [
+    { "number": 1, "subject": "...", "body": "..." },
+    { "number": 2, "subject": "...", "body": "..." },
+    { "number": 3, "subject": "...", "body": "..." }
+  ]
+}
+
+Rules:
+- Email 1: Intro + curiosity hook. No pitch yet. 4-5 sentences.
+- Email 2: Follow-up (sent 3-4 days later). One concrete result/stat. Soft CTA.
+- Email 3: "Last email" breakup format. Brief value mention. Low-pressure CTA.
+- Max 150 words per body.
+- No "I hope this email finds you well" or similar filler.
+- Sound like a human, not a marketer.
+- Use placeholders: {{firstName}}, {{businessName}}
+- Sign off: {{senderName}} | ReBoost Marketing`
+
+    const aiResp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 2000,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    })
+
+    if (!aiResp.ok) {
+      throw new HttpsError('internal', 'AI service error. Please try again.')
+    }
+
+    const aiData = await aiResp.json()
+    const raw = aiData.content?.[0]?.text || ''
+
+    // Strip markdown fences if present, then parse JSON
+    const cleaned = raw.replace(/```(?:json)?/g, '').replace(/```/g, '').trim()
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/)
+    if (!jsonMatch) {
+      throw new HttpsError('internal', 'Failed to parse AI response. Please try again.')
+    }
+
+    const parsed = JSON.parse(jsonMatch[0])
+
+    // Persist sequence on the batch doc if batchId provided
+    if (batchId) {
+      await db.collection('leads').doc(batchId).update({
+        outreachSequence: parsed.emails,
+        outreachGeneratedAt: FieldValue.serverTimestamp(),
+      })
+    }
+
+    return { emails: parsed.emails }
+  }
+)

@@ -58,6 +58,13 @@ const TOOL_INFO = {
       { label: 'Rank Tracker', priceId: PRICES.rank_tracker, price: '$47/mo' },
     ],
   },
+  outreachTemplates: {
+    name: 'Outreach Templates',
+    description: 'AI-generated 3-email cold outreach sequence tailored to your niche. Turn leads into booked calls.',
+    plans: [
+      { label: 'Outreach Templates — lifetime access', priceId: PRICES.outreach_templates, price: '$39 one-time' },
+    ],
+  },
 }
 
 export default function ToolGate({ tool }) {
