@@ -9,16 +9,18 @@ export function BillingProvider({ children }) {
   const subscriptions = userProfile?.subscriptions || {}
   const purchases = userProfile?.purchases || {}
 
-  const hasScheduler = subscriptions.scheduler?.active === true
-  const hasReviewManager = subscriptions.reviewManager?.active === true
-  const hasRankTracker = subscriptions.rankTracker?.active === true
-  const hasCitations = !!purchases.citationsPackageId
-  const leadCredits = purchases.leadCredits || 0
-  const hasLeadCredits = leadCredits > 0
-  const hasOutreachTemplates = purchases.outreachTemplates === true
-  const calendarNiches = purchases.calendarNiches || []
-  const hasCalendar = calendarNiches.length > 0
-  const hasAICreator = hasScheduler && subscriptions.scheduler?.tier === 'pro'
+  const isAdmin = userProfile?.role === 'admin' || userProfile?.role === 'staff'
+
+  const hasScheduler      = isAdmin || subscriptions.scheduler?.active === true
+  const hasReviewManager  = isAdmin || subscriptions.reviewManager?.active === true
+  const hasRankTracker    = isAdmin || subscriptions.rankTracker?.active === true
+  const hasCitations      = isAdmin || !!purchases.citationsPackageId
+  const leadCredits       = isAdmin ? 9999 : (purchases.leadCredits || 0)
+  const hasLeadCredits    = isAdmin || leadCredits > 0
+  const hasOutreachTemplates = isAdmin || purchases.outreachTemplates === true
+  const calendarNiches    = purchases.calendarNiches || []
+  const hasCalendar       = isAdmin || calendarNiches.length > 0
+  const hasAICreator      = isAdmin || (hasScheduler && subscriptions.scheduler?.tier === 'pro')
 
   function hasCalendarNiche(niche) {
     return calendarNiches.includes(niche)

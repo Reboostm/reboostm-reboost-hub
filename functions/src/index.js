@@ -231,3 +231,306 @@ exports.runSeoAudit = onCall(
     return result
   }
 )
+
+// ─── startCitationsJob ────────────────────────────────────────────────────────
+// Creates a Firestore batch document + all directory sub-documents for the user's
+// package tier. The actual Playwright automation runs in Cloud Run (not here) — it
+// polls for 'queued' batches and updates status/progress in real-time.
+
+const TIER_COUNTS = { starter: 100, pro: 200, premium: 300 }
+
+// Master directory list — 300 entries sorted by priority (1=highest).
+// The job creation slices the first N based on package tier.
+const MASTER_DIRECTORIES = [
+  // ── Priority 1: Highest DA / most impactful ──────────────────────────────
+  { name: 'Yelp',                    url: 'https://www.yelp.com',                   category: 'General',        priority: 1 },
+  { name: 'Google Business Profile', url: 'https://business.google.com',            category: 'General',        priority: 1 },
+  { name: 'Bing Places',             url: 'https://www.bingplaces.com',             category: 'General',        priority: 1 },
+  { name: 'Apple Maps Connect',      url: 'https://mapsconnect.apple.com',          category: 'General',        priority: 1 },
+  { name: 'Facebook Business',       url: 'https://www.facebook.com/business',      category: 'Social',         priority: 1 },
+  { name: 'Better Business Bureau',  url: 'https://www.bbb.org',                    category: 'General',        priority: 1 },
+  { name: 'Yellow Pages',            url: 'https://www.yellowpages.com',            category: 'General',        priority: 1 },
+  { name: 'Angi',                    url: 'https://www.angi.com',                   category: 'Home Services',  priority: 1 },
+  { name: 'HomeAdvisor',             url: 'https://www.homeadvisor.com',            category: 'Home Services',  priority: 1 },
+  { name: 'Thumbtack',               url: 'https://www.thumbtack.com',              category: 'General',        priority: 1 },
+  { name: 'Foursquare',              url: 'https://foursquare.com',                 category: 'General',        priority: 1 },
+  { name: 'MapQuest',                url: 'https://www.mapquest.com',               category: 'General',        priority: 1 },
+  { name: 'Manta',                   url: 'https://www.manta.com',                  category: 'Business',       priority: 1 },
+  { name: 'Chamber of Commerce',     url: 'https://www.chamberofcommerce.com',      category: 'Business',       priority: 1 },
+  { name: 'MerchantCircle',          url: 'https://www.merchantcircle.com',         category: 'General',        priority: 1 },
+  { name: 'Nextdoor',                url: 'https://nextdoor.com',                   category: 'Local',          priority: 1 },
+  { name: 'Alignable',               url: 'https://www.alignable.com',              category: 'Business',       priority: 1 },
+  { name: 'Superpages',              url: 'https://www.superpages.com',             category: 'General',        priority: 1 },
+  { name: 'Whitepages',              url: 'https://www.whitepages.com',             category: 'General',        priority: 1 },
+  { name: 'YP.com',                  url: 'https://www.yp.com',                     category: 'General',        priority: 1 },
+  // ── Priority 2: High-value data aggregators & verticals ─────────────────
+  { name: 'Neustar Localeze',        url: 'https://www.neustarlocaleze.biz',        category: 'Data Aggregator',priority: 2 },
+  { name: 'Infogroup / Data Axle',   url: 'https://www.data-axle.com',              category: 'Data Aggregator',priority: 2 },
+  { name: 'Dun & Bradstreet',        url: 'https://www.dnb.com',                    category: 'Business',       priority: 2 },
+  { name: 'Acxiom',                  url: 'https://www.acxiom.com',                 category: 'Data Aggregator',priority: 2 },
+  { name: 'Express Update',          url: 'https://www.expressupdate.com',          category: 'Data Aggregator',priority: 2 },
+  { name: 'LinkedIn Company',        url: 'https://www.linkedin.com',               category: 'Professional',   priority: 2 },
+  { name: 'Instagram',               url: 'https://www.instagram.com',              category: 'Social',         priority: 2 },
+  { name: 'Houzz',                   url: 'https://www.houzz.com',                  category: 'Home Services',  priority: 2 },
+  { name: 'Porch',                   url: 'https://porch.com',                      category: 'Home Services',  priority: 2 },
+  { name: 'Bark',                    url: 'https://www.bark.com',                   category: 'General',        priority: 2 },
+  { name: 'TaskRabbit',              url: 'https://www.taskrabbit.com',             category: 'General',        priority: 2 },
+  { name: 'CitySearch',              url: 'https://www.citysearch.com',             category: 'General',        priority: 2 },
+  { name: 'InsiderPages',            url: 'https://www.insiderpages.com',           category: 'General',        priority: 2 },
+  { name: 'ShowMeLocal',             url: 'https://www.showmelocal.com',            category: 'Local',          priority: 2 },
+  { name: 'EZlocal',                 url: 'https://ezlocal.com',                    category: 'General',        priority: 2 },
+  { name: 'Hotfrog',                 url: 'https://www.hotfrog.com',                category: 'General',        priority: 2 },
+  { name: 'Local.com',               url: 'https://www.local.com',                  category: 'General',        priority: 2 },
+  { name: 'Kudzu',                   url: 'https://www.kudzu.com',                  category: 'General',        priority: 2 },
+  { name: 'YellowMoxie',             url: 'https://www.yellowmoxie.com',            category: 'General',        priority: 2 },
+  { name: 'GetFave',                 url: 'https://www.getfave.com',                category: 'General',        priority: 2 },
+  { name: 'Brownbook',               url: 'https://www.brownbook.net',              category: 'General',        priority: 2 },
+  { name: 'Fyple',                   url: 'https://www.fyple.com',                  category: 'General',        priority: 2 },
+  { name: 'eLocal',                  url: 'https://www.elocal.com',                 category: 'General',        priority: 2 },
+  { name: 'USCity.net',              url: 'https://www.uscity.net',                 category: 'Local',          priority: 2 },
+  { name: 'Switchboard',             url: 'https://www.switchboard.com',            category: 'General',        priority: 2 },
+  { name: 'YellowPageCity',          url: 'https://www.yellowpagecity.com',         category: 'General',        priority: 2 },
+  { name: 'HERE Maps',               url: 'https://here.com',                       category: 'General',        priority: 2 },
+  { name: 'TomTom',                  url: 'https://www.tomtom.com',                 category: 'General',        priority: 2 },
+  { name: 'Google Maps (listing)',   url: 'https://maps.google.com',                category: 'General',        priority: 2 },
+  { name: 'Bing Maps',               url: 'https://www.bing.com/maps',              category: 'General',        priority: 2 },
+  // ── Priority 3: Extended reach ───────────────────────────────────────────
+  { name: 'Cylex',                   url: 'https://www.cylex.us.com',               category: 'General',        priority: 3 },
+  { name: 'n49',                     url: 'https://www.n49.com',                    category: 'General',        priority: 3 },
+  { name: 'Tuugo',                   url: 'https://www.tuugo.us',                   category: 'General',        priority: 3 },
+  { name: 'Topix',                   url: 'https://www.topix.com',                  category: 'Local',          priority: 3 },
+  { name: 'Opendi',                  url: 'https://www.opendi.us',                  category: 'General',        priority: 3 },
+  { name: 'iGlobal',                 url: 'https://www.iglobal.co',                 category: 'General',        priority: 3 },
+  { name: 'Salespider',              url: 'https://www.salespider.com',             category: 'Business',       priority: 3 },
+  { name: 'Americantowns',           url: 'https://www.americantowns.com',          category: 'Local',          priority: 3 },
+  { name: 'Oodle',                   url: 'https://www.oodle.com',                  category: 'General',        priority: 3 },
+  { name: 'Zipleaf',                 url: 'https://www.zipleaf.us',                 category: 'General',        priority: 3 },
+  { name: 'BizHWY',                  url: 'https://www.bizhwy.com',                 category: 'Business',       priority: 3 },
+  { name: 'Storeboard',              url: 'https://www.storeboard.com',             category: 'Business',       priority: 3 },
+  { name: 'Tupalo',                  url: 'https://www.tupalo.com',                 category: 'General',        priority: 3 },
+  { name: 'DirJournal',              url: 'https://www.dirjournal.com',             category: 'General',        priority: 3 },
+  { name: 'Lacartes',                url: 'https://www.lacartes.com',               category: 'General',        priority: 3 },
+  { name: 'iBegin',                  url: 'https://www.ibegin.com',                 category: 'General',        priority: 3 },
+  { name: 'Communitywalk',           url: 'https://www.communitywalk.com',          category: 'Local',          priority: 3 },
+  { name: 'City-data',               url: 'https://www.city-data.com',              category: 'Local',          priority: 3 },
+  { name: 'Cityfos',                 url: 'https://www.cityfos.com',                category: 'Local',          priority: 3 },
+  { name: 'Geebo',                   url: 'https://www.geebo.com',                  category: 'General',        priority: 3 },
+  { name: 'BizQuid',                 url: 'https://www.bizquid.com',                category: 'Business',       priority: 3 },
+  { name: 'Spoke',                   url: 'https://www.spoke.com',                  category: 'Business',       priority: 3 },
+  { name: 'Pinterest Business',      url: 'https://business.pinterest.com',         category: 'Social',         priority: 3 },
+  { name: 'YouTube Channel',         url: 'https://www.youtube.com',                category: 'Social',         priority: 3 },
+  { name: 'Twitter / X',             url: 'https://twitter.com',                    category: 'Social',         priority: 3 },
+  { name: 'TikTok Business',         url: 'https://business.tiktok.com',            category: 'Social',         priority: 3 },
+  { name: 'Indeed Company',          url: 'https://www.indeed.com',                 category: 'Employment',     priority: 3 },
+  { name: 'Glassdoor',               url: 'https://www.glassdoor.com',              category: 'Employment',     priority: 3 },
+  { name: 'Craigslist',              url: 'https://www.craigslist.org',             category: 'Classified',     priority: 3 },
+  { name: 'Angie\'s List',           url: 'https://www.angieslist.com',             category: 'Home Services',  priority: 3 },
+  { name: 'HomeStars',               url: 'https://homestars.com',                  category: 'Home Services',  priority: 3 },
+  { name: 'Hometalk',                url: 'https://www.hometalk.com',               category: 'Home Services',  priority: 3 },
+  { name: 'Quora',                   url: 'https://www.quora.com',                  category: 'Social',         priority: 3 },
+  { name: 'Reddit',                  url: 'https://www.reddit.com',                 category: 'Social',         priority: 3 },
+  { name: 'Factual',                 url: 'https://www.factual.com',                category: 'Data Aggregator',priority: 3 },
+  { name: 'Navmii',                  url: 'https://www.navmii.com',                 category: 'General',        priority: 3 },
+  { name: 'B2B Yellow Pages',        url: 'https://www.b2byellowpages.com',         category: 'Business',       priority: 3 },
+  { name: 'US Business Directory',   url: 'https://www.usbizdir.com',               category: 'Business',       priority: 3 },
+  { name: 'YellowUSA',               url: 'https://www.yellowusa.com',              category: 'General',        priority: 3 },
+  { name: 'Biz Journals',            url: 'https://www.bizjournals.com',            category: 'Business',       priority: 3 },
+  // ── Pro tier extras (dirs 101–200) ──────────────────────────────────────
+  { name: 'Zomato',                  url: 'https://www.zomato.com',                 category: 'Food & Dining',  priority: 3 },
+  { name: 'OpenTable',               url: 'https://www.opentable.com',              category: 'Food & Dining',  priority: 3 },
+  { name: 'Grubhub',                 url: 'https://www.grubhub.com',                category: 'Food & Dining',  priority: 3 },
+  { name: 'DoorDash Business',       url: 'https://www.doordash.com',               category: 'Food & Dining',  priority: 3 },
+  { name: 'Uber Eats Partner',       url: 'https://merchants.ubereats.com',         category: 'Food & Dining',  priority: 3 },
+  { name: 'Tripadvisor',             url: 'https://www.tripadvisor.com',            category: 'Travel',         priority: 3 },
+  { name: 'Expedia Local Expert',    url: 'https://www.expedia.com',                category: 'Travel',         priority: 3 },
+  { name: 'Hotels.com Partner',      url: 'https://www.hotels.com',                 category: 'Travel',         priority: 3 },
+  { name: 'Vet Ratings',             url: 'https://www.vetratings.com',             category: 'Healthcare',     priority: 3 },
+  { name: 'Healthgrades',            url: 'https://www.healthgrades.com',           category: 'Healthcare',     priority: 3 },
+  { name: 'Zocdoc',                  url: 'https://www.zocdoc.com',                 category: 'Healthcare',     priority: 3 },
+  { name: 'Vitals',                  url: 'https://www.vitals.com',                 category: 'Healthcare',     priority: 3 },
+  { name: 'WebMD Find a Doctor',     url: 'https://doctor.webmd.com',               category: 'Healthcare',     priority: 3 },
+  { name: 'Lawyers.com',             url: 'https://www.lawyers.com',                category: 'Legal',          priority: 3 },
+  { name: 'Avvo',                    url: 'https://www.avvo.com',                   category: 'Legal',          priority: 3 },
+  { name: 'Martindale',              url: 'https://www.martindale.com',             category: 'Legal',          priority: 3 },
+  { name: 'FindLaw',                 url: 'https://www.findlaw.com',                category: 'Legal',          priority: 3 },
+  { name: 'Justia',                  url: 'https://www.justia.com',                 category: 'Legal',          priority: 3 },
+  { name: 'Realtor.com',             url: 'https://www.realtor.com',                category: 'Real Estate',    priority: 3 },
+  { name: 'Zillow',                  url: 'https://www.zillow.com',                 category: 'Real Estate',    priority: 3 },
+  { name: 'Trulia',                  url: 'https://www.trulia.com',                 category: 'Real Estate',    priority: 3 },
+  { name: 'Cars.com',                url: 'https://www.cars.com',                   category: 'Automotive',     priority: 3 },
+  { name: 'CarGurus',                url: 'https://www.cargurus.com',               category: 'Automotive',     priority: 3 },
+  { name: 'AutoTrader',              url: 'https://www.autotrader.com',             category: 'Automotive',     priority: 3 },
+  { name: 'DealerRater',             url: 'https://www.dealerrater.com',            category: 'Automotive',     priority: 3 },
+  { name: 'Edmunds',                 url: 'https://www.edmunds.com',                category: 'Automotive',     priority: 3 },
+  { name: 'Yelp Eat24',              url: 'https://eat24.yelp.com',                 category: 'Food & Dining',  priority: 3 },
+  { name: 'Clutch.co',               url: 'https://clutch.co',                      category: 'Business',       priority: 3 },
+  { name: 'G2',                      url: 'https://www.g2.com',                     category: 'Business',       priority: 3 },
+  { name: 'Capterra',                url: 'https://www.capterra.com',               category: 'Business',       priority: 3 },
+  { name: 'Trustpilot',              url: 'https://www.trustpilot.com',             category: 'General',        priority: 3 },
+  { name: 'Sitejabber',              url: 'https://www.sitejabber.com',             category: 'General',        priority: 3 },
+  { name: 'ProvenExpert',            url: 'https://www.provenexpert.com',           category: 'General',        priority: 3 },
+  { name: 'Bing Business Profile',   url: 'https://www.bingplaces.com',             category: 'General',        priority: 3 },
+  { name: 'Yahoo Local',             url: 'https://local.yahoo.com',                category: 'General',        priority: 3 },
+  { name: 'Spoke.com',               url: 'https://www.spoke.com',                  category: 'Business',       priority: 3 },
+  { name: 'MyHuckleberry',           url: 'https://www.myhuckleberry.com',          category: 'Local',          priority: 3 },
+  { name: 'YellowBot',               url: 'https://www.yellowbot.com',              category: 'General',        priority: 3 },
+  { name: 'Insider Pages',           url: 'https://www.insiderpages.com',           category: 'General',        priority: 3 },
+  { name: 'Point2Homes',             url: 'https://www.point2homes.com',            category: 'Real Estate',    priority: 3 },
+  { name: 'WeddingWire',             url: 'https://www.weddingwire.com',            category: 'Events',         priority: 3 },
+  { name: 'The Knot',                url: 'https://www.theknot.com',                category: 'Events',         priority: 3 },
+  { name: 'GigSalad',                url: 'https://www.gigsalad.com',               category: 'Events',         priority: 3 },
+  { name: 'GigMasters',              url: 'https://www.gigmasters.com',             category: 'Events',         priority: 3 },
+  { name: 'Eventbrite',              url: 'https://www.eventbrite.com',             category: 'Events',         priority: 3 },
+  { name: 'Meetup',                  url: 'https://www.meetup.com',                 category: 'Local',          priority: 3 },
+  { name: 'PetFinder',               url: 'https://www.petfinder.com',              category: 'Pets',           priority: 3 },
+  { name: 'Petco',                   url: 'https://www.petco.com',                  category: 'Pets',           priority: 3 },
+  { name: 'YP Dex',                  url: 'https://www.ypdex.com',                  category: 'General',        priority: 3 },
+  // ── Premium tier extras (dirs 201–300) ──────────────────────────────────
+  { name: 'Bing Local',              url: 'https://www.bing.com/local',             category: 'General',        priority: 3 },
+  { name: 'Citysquares',             url: 'https://citysquares.com',                category: 'Local',          priority: 3 },
+  { name: 'Menupages',               url: 'https://www.menupages.com',              category: 'Food & Dining',  priority: 3 },
+  { name: 'Urban Spoon',             url: 'https://www.urbanspoon.com',             category: 'Food & Dining',  priority: 3 },
+  { name: 'Zagat',                   url: 'https://www.zagat.com',                  category: 'Food & Dining',  priority: 3 },
+  { name: 'Restaurantji',            url: 'https://www.restaurantji.com',           category: 'Food & Dining',  priority: 3 },
+  { name: 'Allmenus',                url: 'https://www.allmenus.com',               category: 'Food & Dining',  priority: 3 },
+  { name: 'Booksy',                  url: 'https://booksy.com',                     category: 'Beauty',         priority: 3 },
+  { name: 'StyleSeat',               url: 'https://www.styleseat.com',              category: 'Beauty',         priority: 3 },
+  { name: 'Vagaro',                  url: 'https://www.vagaro.com',                 category: 'Beauty',         priority: 3 },
+  { name: 'MindBody',                url: 'https://www.mindbodyonline.com',         category: 'Health & Fitness',priority: 3 },
+  { name: 'ClassPass',               url: 'https://classpass.com',                  category: 'Health & Fitness',priority: 3 },
+  { name: 'Bark (UK)',               url: 'https://www.bark.com',                   category: 'General',        priority: 3 },
+  { name: 'ServiceMagic',            url: 'https://www.servicemagic.com',           category: 'Home Services',  priority: 3 },
+  { name: 'Networx',                 url: 'https://www.networx.com',                category: 'Home Services',  priority: 3 },
+  { name: 'HomeStars Pro',           url: 'https://pro.homestars.com',              category: 'Home Services',  priority: 3 },
+  { name: '1-800-Contractor',        url: 'https://www.1800contractor.com',         category: 'Home Services',  priority: 3 },
+  { name: 'BuildZoom',               url: 'https://www.buildzoom.com',              category: 'Construction',   priority: 3 },
+  { name: 'Contractors.com',         url: 'https://www.contractors.com',            category: 'Construction',   priority: 3 },
+  { name: 'ImproveNet',              url: 'https://www.improvenet.com',             category: 'Home Services',  priority: 3 },
+  { name: 'Fixr',                    url: 'https://www.fixr.com',                   category: 'Home Services',  priority: 3 },
+  { name: 'LawnStarter',             url: 'https://www.lawnstarter.com',            category: 'Landscaping',    priority: 3 },
+  { name: 'Lawn Love',               url: 'https://lawnlove.com',                   category: 'Landscaping',    priority: 3 },
+  { name: 'Yelp for Business',       url: 'https://biz.yelp.com',                   category: 'General',        priority: 3 },
+  { name: 'LocalStack',              url: 'https://www.localstack.com',             category: 'Local',          priority: 3 },
+  { name: 'Angies Web',              url: 'https://www.angiesweb.com',              category: 'Home Services',  priority: 3 },
+  { name: 'HireRush',                url: 'https://www.hirerush.com',               category: 'General',        priority: 3 },
+  { name: 'Handy',                   url: 'https://www.handy.com',                  category: 'Home Services',  priority: 3 },
+  { name: 'Wize Commerce',           url: 'https://www.wize.com',                   category: 'General',        priority: 3 },
+  { name: 'BrightLocal',             url: 'https://www.brightlocal.com',            category: 'Local',          priority: 3 },
+  { name: 'Yext',                    url: 'https://www.yext.com',                   category: 'Data Aggregator',priority: 3 },
+  { name: 'Upcity',                  url: 'https://upcity.com',                     category: 'Business',       priority: 3 },
+  { name: 'Expertise.com',           url: 'https://www.expertise.com',              category: 'Business',       priority: 3 },
+  { name: 'Yelp Restaurants',        url: 'https://www.yelp.com/search?cflt=restaurants', category: 'Food & Dining', priority: 3 },
+  { name: 'TripAdvisor Restaurants', url: 'https://www.tripadvisor.com',            category: 'Travel',         priority: 3 },
+  { name: 'Bookatable',              url: 'https://www.bookatable.com',             category: 'Food & Dining',  priority: 3 },
+  { name: 'Localpin',                url: 'https://www.localpin.com',               category: 'Local',          priority: 3 },
+  { name: 'Bizwiki',                 url: 'https://www.bizwiki.com',                category: 'Business',       priority: 3 },
+  { name: 'Pointcom',                url: 'https://www.pointcom.com',               category: 'General',        priority: 3 },
+  { name: 'USDirectory',             url: 'https://www.usdirectory.com',            category: 'General',        priority: 3 },
+  { name: 'BusinessMagnet',          url: 'https://www.businessmagnet.net',         category: 'Business',       priority: 3 },
+  { name: 'The Real Yellow Pages',   url: 'https://www.therealyellowpages.com',     category: 'General',        priority: 3 },
+  { name: 'Local Business Link',     url: 'https://www.localbusinesslink.com',      category: 'Local',          priority: 3 },
+  { name: 'NearSay',                 url: 'https://www.nearsay.com',                category: 'Local',          priority: 3 },
+  { name: 'Magic Yellow',            url: 'https://www.magicyellow.com',            category: 'General',        priority: 3 },
+  { name: 'My Local Services',       url: 'https://www.mylocalservices.com',        category: 'General',        priority: 3 },
+  { name: 'Phone Book',              url: 'https://www.phonebook.com',              category: 'General',        priority: 3 },
+  { name: '411.com',                 url: 'https://www.411.com',                    category: 'General',        priority: 3 },
+  { name: '192.com Business',        url: 'https://www.192.com',                    category: 'General',        priority: 3 },
+  { name: 'Scoot',                   url: 'https://www.scoot.co.uk',                category: 'General',        priority: 3 },
+  { name: 'Yalwa',                   url: 'https://www.yalwa.com',                  category: 'General',        priority: 3 },
+  { name: 'Where To?',               url: 'https://www.whereto.com',                category: 'General',        priority: 3 },
+  { name: 'Yelp Events',             url: 'https://www.yelp.com/events',            category: 'Events',         priority: 3 },
+  { name: 'Patch',                   url: 'https://patch.com',                      category: 'Local',          priority: 3 },
+  { name: 'Neighborhood Scout',      url: 'https://www.neighborhoodscout.com',      category: 'Local',          priority: 3 },
+  { name: 'CitySlick',               url: 'https://www.cityslick.net',              category: 'Local',          priority: 3 },
+]
+
+exports.startCitationsJob = onCall(
+  { timeoutSeconds: 60, memory: '256MiB' },
+  async (request) => {
+    const userId = request.auth?.uid
+    if (!userId) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+    // Get user profile to verify purchase and collect business data
+    const userSnap = await db.collection('users').doc(userId).get()
+    if (!userSnap.exists) throw new HttpsError('not-found', 'User profile not found.')
+    const user = userSnap.data()
+
+    const packageId = user.purchases?.citationsPackageId
+    if (!packageId) {
+      throw new HttpsError('permission-denied', 'No citations package found on this account.')
+    }
+
+    // Resolve tier
+    const tierKey = packageId.replace('citations_', '') // 'citations_starter' → 'starter'
+    const targetCount = TIER_COUNTS[tierKey] || 100
+
+    // Block duplicate active jobs
+    const activeSnap = await db.collection('citations')
+      .where('userId', '==', userId)
+      .where('status', 'in', ['queued', 'running'])
+      .limit(1)
+      .get()
+    if (!activeSnap.empty) {
+      throw new HttpsError('already-exists', 'A submission job is already running. Wait for it to complete.')
+    }
+
+    // Business info for the submission engine
+    const businessData = {
+      businessName: user.businessName || '',
+      address:      user.address      || '',
+      city:         user.city         || '',
+      state:        user.state        || '',
+      zip:          user.zip          || '',
+      phone:        user.phone        || '',
+      website:      user.website      || '',
+      email:        user.email        || '',
+      niche:        user.niche        || '',
+    }
+
+    const directories = MASTER_DIRECTORIES.slice(0, targetCount)
+
+    // Create the batch document
+    const batchRef = db.collection('citations').doc()
+    await batchRef.set({
+      userId,
+      packageId,
+      packageTier: tierKey,
+      targetCount,
+      total: directories.length,
+      status: 'queued',
+      submitted: 0,
+      live: 0,
+      pending: directories.length,
+      failed: 0,
+      businessData,
+      createdAt: FieldValue.serverTimestamp(),
+      startedAt: null,
+      completedAt: null,
+      errorMessage: null,
+    })
+
+    // Batch-write directory sub-documents (Firestore max 500 per batch)
+    const CHUNK = 490
+    for (let i = 0; i < directories.length; i += CHUNK) {
+      const chunk = directories.slice(i, i + CHUNK)
+      const batch = db.batch()
+      chunk.forEach(dir => {
+        const dirRef = batchRef.collection('directories').doc()
+        batch.set(dirRef, {
+          ...dir,
+          status: 'pending',
+          submittedAt: null,
+          liveAt: null,
+          errorMessage: null,
+        })
+      })
+      await batch.commit()
+    }
+
+    // TODO: Trigger Cloud Run job here — Cloud Run polls for 'queued' batches,
+    //       uses Playwright + 2Captcha to submit, and updates status/counts in real-time.
+    //       See: github.com/Reboostm/ReBoost-Citations for the automation engine.
+
+    return { batchId: batchRef.id, total: directories.length, tier: tierKey }
+  }
+)

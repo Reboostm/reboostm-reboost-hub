@@ -97,6 +97,48 @@ export async function upsertTerritory(id, data) {
   }
 }
 
+// ─── Citations ────────────────────────────────────────────────────────────────
+
+export function subscribeToCitationsBatches(userId, callback) {
+  const q = query(
+    collection(db, 'citations'),
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc'),
+    limit(20)
+  )
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  })
+}
+
+export function subscribeToCitationsBatch(batchId, callback) {
+  return onSnapshot(doc(db, 'citations', batchId), snap => {
+    callback(snap.exists() ? { id: snap.id, ...snap.data() } : null)
+  })
+}
+
+export function subscribeToCitationsDirectories(batchId, callback) {
+  const q = query(
+    collection(db, 'citations', batchId, 'directories'),
+    orderBy('priority'),
+    orderBy('name')
+  )
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  })
+}
+
+export async function getCitationsBatches(userId) {
+  const q = query(
+    collection(db, 'citations'),
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc'),
+    limit(20)
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+}
+
 // ─── Admin: all users ─────────────────────────────────────────────────────────
 
 export async function getAllUsers(role = null) {
