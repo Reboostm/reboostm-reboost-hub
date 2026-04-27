@@ -13,6 +13,7 @@ import ForgotPassword from './pages/auth/ForgotPassword'
 
 // SEO Audit
 import AuditHome from './pages/audit/AuditHome'
+import AuditNew from './pages/audit/AuditNew'
 import AuditResults from './pages/audit/AuditResults'
 
 // Citations
@@ -83,6 +84,7 @@ export default function App() {
 
                   {/* SEO Audit */}
                   <Route path="audit" element={<AuditHome />} />
+                  <Route path="audit/new" element={<AuditNew />} />
                   <Route path="audit/results" element={<AuditResults />} />
 
                   {/* Citations */}

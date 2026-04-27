@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Search, Clock, ChevronRight, Loader2, TrendingUp } from 'lucide-react'
+import { useNavigate, Link } from 'react-router-dom'
+import {
+  Search, Clock, ChevronRight, Loader2, TrendingUp, Plus,
+} from 'lucide-react'
 import Card from '../../components/ui/Card'
+import Button from '../../components/ui/Button'
 import { useAuth } from '../../hooks/useAuth'
 import { getAuditResults } from '../../services/firestore'
 import { cn } from '../../utils/cn'
@@ -29,32 +32,48 @@ function formatDate(ts) {
 }
 
 export default function AuditHome() {
-  const { userProfile } = useAuth()
+  const { userProfile, loading: authLoading } = useAuth()
   const navigate = useNavigate()
   const [audits, setAudits] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    if (!userProfile?.id) return
+    // Wait for auth to finish initializing
+    if (authLoading) return
+
+    // Auth is settled — if no profile doc exists yet, nothing to load
+    if (!userProfile?.id) {
+      setLoading(false)
+      return
+    }
+
     getAuditResults(userProfile.id)
       .then(results => setAudits(results))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [userProfile?.id])
+  }, [userProfile?.id, authLoading])
 
   return (
     <div className="p-6 max-w-3xl">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-8">
-        <div className="w-10 h-10 rounded-xl bg-hub-blue/10 flex items-center justify-center">
-          <Search className="w-5 h-5 text-hub-blue" />
+      <div className="flex items-start justify-between mb-8">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-hub-blue/10 flex items-center justify-center">
+            <Search className="w-5 h-5 text-hub-blue" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold text-hub-text">SEO Reports</h1>
+            <p className="text-hub-text-secondary text-sm mt-0.5">
+              Your full audit reports — page speed, GMB, citations and more.
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-semibold text-hub-text">SEO Reports</h1>
-          <p className="text-hub-text-secondary text-sm mt-0.5">
-            Your full audit reports — page speed, GMB status, citations and more.
-          </p>
-        </div>
+        <Link to="/audit/new">
+          <Button size="sm">
+            <Plus className="w-4 h-4" />
+            Run New Audit
+          </Button>
+        </Link>
       </div>
 
       {loading ? (
@@ -67,10 +86,16 @@ export default function AuditHome() {
             <TrendingUp className="w-7 h-7 text-hub-text-muted opacity-50" />
           </div>
           <p className="text-hub-text font-semibold mb-2">No reports yet</p>
-          <p className="text-hub-text-secondary text-sm max-w-xs mx-auto leading-relaxed">
-            Your SEO audit report will appear here once it's been run for your business.
-            Reach out to your ReBoost rep to get started.
+          <p className="text-hub-text-secondary text-sm max-w-xs mx-auto leading-relaxed mb-5">
+            Run a free SEO audit to see your page speed, Google Business Profile
+            status, and citation health.
           </p>
+          <Link to="/audit/new">
+            <Button>
+              <Plus className="w-4 h-4" />
+              Run Your First Audit
+            </Button>
+          </Link>
         </Card>
       ) : (
         <>
@@ -87,7 +112,6 @@ export default function AuditHome() {
                     onClick={() => navigate('/audit/results', { state: { result: audit } })}
                     className="w-full flex items-center gap-4 px-5 py-4 hover:bg-hub-input/40 transition-colors text-left group"
                   >
-                    {/* Grade badge */}
                     <div className={cn(
                       'w-12 h-12 rounded-xl flex flex-col items-center justify-center font-bold flex-shrink-0 border',
                       gradeBg(audit.overallGrade),
@@ -97,7 +121,6 @@ export default function AuditHome() {
                       <span className="text-[10px] font-normal mt-0.5 opacity-70">{audit.overallScore}</span>
                     </div>
 
-                    {/* Info */}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-hub-text truncate">
                         {audit.businessName}
@@ -119,7 +142,6 @@ export default function AuditHome() {
                       </div>
                     </div>
 
-                    {/* Date + arrow */}
                     <div className="flex-shrink-0 text-right">
                       <p className="text-xs text-hub-text-muted flex items-center gap-1 justify-end">
                         <Clock className="w-3 h-3" />

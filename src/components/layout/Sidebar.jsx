@@ -19,6 +19,7 @@ const SECTIONS = [
     isLocked: () => false,
     items: [
       { label: 'My Reports', path: '/audit' },
+      { label: 'Run New Audit', path: '/audit/new' },
     ],
   },
   {
