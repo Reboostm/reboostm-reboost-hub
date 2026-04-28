@@ -97,17 +97,64 @@ service cloud.firestore {
     }
 
     // ─── Offers (Products & Pricing) ──────────────────────────────────────────
-    // Users can read active offers. Admins can CRUD all offers.
+    // Users can read active offers. Staff/Admin can CRUD all offers.
     match /offers/{id} {
       allow read: if isAuth();
-      allow write: if isAdmin();
+      allow write: if isStaff();
     }
 
-    // ─── Celebrity Content (Admin uploads, users read) ─────────────────────────
-    // Users can read content for their niche. Admins can CRUD.
+    // ─── Celebrity Content (Staff uploads, users read) ─────────────────────────
     match /content/{id} {
       allow read: if isAuth();
-      allow write: if isAdmin();
+      allow write: if isStaff();
+    }
+
+    // ─── Citations ────────────────────────────────────────────────────────────
+    match /citations/{batchId} {
+      allow create: if isAuth();
+      allow read, update: if isAuth() && (
+        resource.data.userId == request.auth.uid || isStaff()
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ─── Review Requests ─────────────────────────────────────────────────────
+    match /reviewRequests/{id} {
+      allow create: if isAuth();
+      allow read: if isAuth() && (
+        resource.data.userId == request.auth.uid || isStaff()
+      );
+      allow update, delete: if isAdmin();
+    }
+
+    // ─── Tracked Keywords ────────────────────────────────────────────────────
+    match /trackedKeywords/{id} {
+      allow create: if isAuth();
+      allow read, update: if isAuth() && (
+        resource.data.userId == request.auth.uid || isStaff()
+      );
+      allow delete: if isAuth() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
+    }
+
+    // ─── Support Tickets ─────────────────────────────────────────────────────
+    match /supportTickets/{id} {
+      allow create: if isAuth();
+      allow read: if isStaff();
+      allow update, delete: if isAdmin();
+    }
+
+    // ─── Training Videos ─────────────────────────────────────────────────────
+    match /trainingVideos/{id} {
+      allow read: if isAuth();
+      allow write: if isStaff();
+    }
+
+    // ─── Help Articles ───────────────────────────────────────────────────────
+    match /helpArticles/{id} {
+      allow read: if isAuth();
+      allow write: if isStaff();
     }
 
     // ─── Catch-all: deny everything else ─────────────────────────────────────

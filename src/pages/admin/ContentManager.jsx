@@ -90,9 +90,9 @@ export default function ContentManager() {
   const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
   const years = Array.from({ length: 3 }, (_, i) => new Date().getFullYear() + i)
 
-  // Group by niche
+  // Group by niche value
   const contentByNiche = NICHES.reduce((acc, niche) => {
-    acc[niche] = content.filter(c => c.niche === niche)
+    acc[niche.value] = content.filter(c => c.niche === niche.value)
     return acc
   }, {})
 
@@ -122,7 +122,7 @@ export default function ContentManager() {
                 label="Niche"
                 value={form.niche}
                 onChange={e => setForm(p => ({ ...p, niche: e.target.value }))}
-                options={NICHES.map(n => ({ value: n, label: n }))}
+                options={NICHES}
                 placeholder="Select niche"
               />
               <Input
@@ -180,12 +180,12 @@ export default function ContentManager() {
       ) : (
         <div className="space-y-6">
           {NICHES.map(niche => {
-            const nicheContent = contentByNiche[niche]
+            const nicheContent = contentByNiche[niche.value]
             return (
-              <Card key={niche}>
+              <Card key={niche.value}>
                 <CardHeader>
                   <div className="flex items-center justify-between">
-                    <CardTitle>{niche}</CardTitle>
+                    <CardTitle>{niche.label}</CardTitle>
                     <Badge variant="info">{nicheContent.length} items</Badge>
                   </div>
                 </CardHeader>

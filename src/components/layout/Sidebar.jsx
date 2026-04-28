@@ -102,17 +102,6 @@ const SECTIONS = [
       { label: 'Rankings Report', path: '/rank-tracker/report' },
     ],
   },
-  {
-    key: 'agency',
-    label: 'Agency & Services',
-    icon: Building2,
-    badge: null,
-    isLocked: () => false,
-    items: [
-      { label: 'Check Your Territory', path: '/agency' },
-      { label: 'Done-For-You Services', path: '/agency/services' },
-    ],
-  },
 ]
 
 export default function Sidebar() {
@@ -210,6 +199,23 @@ export default function Sidebar() {
         })}
       </nav>
 
+      {/* Agency & Services — single flat link */}
+      <div className="px-2 pb-1">
+        <NavLink
+          to="/agency/services"
+          className={({ isActive }) =>
+            `w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+              isActive || location.pathname.startsWith('/agency')
+                ? 'bg-hub-blue/10 text-hub-blue'
+                : 'text-hub-text-secondary hover:text-hub-text hover:bg-hub-card'
+            }`
+          }
+        >
+          <Building2 className="w-4 h-4 shrink-0" />
+          <span className="font-medium">Agency & Services</span>
+        </NavLink>
+      </div>
+
       {/* Support section */}
       <div className="border-t border-hub-border px-2 py-3">
         <NavLink
@@ -235,7 +241,7 @@ export default function Sidebar() {
           </p>
           {[
             { label: 'Dashboard',       path: '/admin',             icon: LayoutDashboard },
-            { label: 'Users',           path: '/admin/users',       icon: Users           },
+            { label: 'Clients',         path: '/admin/users',       icon: Users           },
             { label: 'Offers',          path: '/admin/offers',      icon: Package         },
             { label: 'Territories',     path: '/admin/territories', icon: MapPin          },
             { label: 'Content Manager', path: '/admin/content',     icon: FileImage       },

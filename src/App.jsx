@@ -50,7 +50,6 @@ import Keywords from './pages/ranktracker/Keywords'
 import RankingsReport from './pages/ranktracker/RankingsReport'
 
 // Agency
-import TerritoryChecker from './pages/agency/TerritoryChecker'
 import AgencyServices from './pages/agency/AgencyServices'
 
 // Settings
@@ -134,7 +133,7 @@ export default function App() {
                   <Route path="rank-tracker/report" element={<RankingsReport />} />
 
                   {/* Agency */}
-                  <Route path="agency" element={<TerritoryChecker />} />
+                  <Route path="agency" element={<Navigate to="/agency/services" replace />} />
                   <Route path="agency/services" element={<AgencyServices />} />
 
                   {/* Settings */}

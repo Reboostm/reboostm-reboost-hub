@@ -11,11 +11,15 @@ export const phoneSchema = z
   .min(10, 'Enter a valid phone number')
   .regex(/^\+?[\d\s\-().]{10,}$/, 'Invalid phone number')
 
-export const urlSchema = z
-  .string()
-  .url('Enter a valid URL (include https://)')
-  .optional()
-  .or(z.literal(''))
+export const urlSchema = z.preprocess(
+  val => {
+    if (typeof val !== 'string' || val.trim() === '') return val
+    const trimmed = val.trim()
+    if (!/^https?:\/\//i.test(trimmed)) return `https://${trimmed}`
+    return trimmed
+  },
+  z.string().url('Enter a valid website URL').optional().or(z.literal(''))
+)
 
 // Auth
 export const loginSchema = z.object({
