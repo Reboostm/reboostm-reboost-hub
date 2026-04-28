@@ -257,17 +257,17 @@ VITE_FIREBASE_APP_ID
 | Module | Status | Phase | Notes |
 |---|---|---|---|
 | SEO Audit | ✅ Built | Done | PageSpeed + GMB check, reports UI |
-| Citations Manager | ✅ Built | Done | Batch submission system; Cloud Run automation engine is separate |
+| Citations Manager | ✅ Expanded | Phase 2b | **NEW:** Form expansion (Phase 1/2/3 all built). Profile + dedicated CitationsSetup page with logo upload, descriptions, social media, advanced options |
 | Lead Generator | ✅ Basic | Phase 2 | Google Maps Places search, key rotation, CSV export. NEEDS: lead preview before purchase, lead packages instead of credits |
 | Content Scheduler | ✅ Built | Done | Calendar view, post composer, platform connections via Zernio |
 | AI Content Creator | ✅ Built | Done | Caption gen (Claude), image gen (DALL-E 3), "Use in Scheduler" flow |
 | Review Manager | ✅ Built | Done | Google reviews display, review request emails via SendGrid |
-| Local Rank Tracker | ✅ Built | Phase 2 | Keyword tracking, SerpAPI rank checks. NEEDS: mobile/desktop simultaneous tracking, auto-detect keywords |
+| Local Rank Tracker | ✅ Enhanced | Phase 2 | **DONE:** Mobile/desktop simultaneous tracking with grouped display. Keyword suggestions. NEEDS: auto-detect keywords from domain |
 | Agency & Services | ✅ Built | Done | Territory checker (Firestore), DFY services page |
-| Content Calendar (Celebrity) | ❌ Placeholder | Phase 2 | Niche-specific 12-month pre-planned templates. NEEDS: full rebuild (ContentLibrary.jsx + TemplateEditor.jsx + fabric.js) |
-| Admin Panel | ✅ Built | Phase 1 | Users (create/role/reset), Clients (manage access), API Keys (NOW editable) |
+| Content Calendar (Celebrity) | ❌ Placeholder | Phase 2 | Niche-specific 12-month pre-planned templates. NEEDS: full rebuild (ContentLibrary.jsx + TemplateEditor.jsx + fabric.js) + Scheduler integration |
+| Admin Panel | ✅ Built | Phase 1 | Users (create/role/reset), Clients (manage access), API Keys (editable) |
 | Billing & Pricing | ✅ Built | Phase 1 | Offers management, pricing page, Stripe checkout + portal |
-| Stripe Integration | ✅ Complete | Phase 1 | createCheckoutSession, createPortalSession, webhook handlers all built. Needs: env vars set in Firebase |
+| Stripe Integration | ✅ Complete | Phase 1 | createCheckoutSession, createPortalSession, webhook handlers. Needs: env vars in Firebase |
 
 ### Phase Legend
 - **Done** = Production ready, no major refactor needed
@@ -332,6 +332,87 @@ hub-blue, hub-green, hub-red, hub-yellow, hub-orange
 3. Click "Claim Admin Role" → calls `claimAdminRole` CF
 4. CF sets `role: 'admin'` in user doc and locks `settings/adminClaimed`
 5. Only works once — subsequent attempts throw `already-exists`
+
+---
+
+## Latest Session Summary (April 28, 2026)
+
+### ✅ Completed This Session
+
+1. **Rank Tracker Mobile/Desktop Simultaneous Tracking**
+   - Changed from radio button (single device) to multi-select checkboxes (mobile + desktop)
+   - Keywords now grouped by (keyword, domain, city, state) — shows one card with both ranks side-by-side
+   - Individual check buttons per device
+   - Single delete button removes both entries
+   - Added keyword auto-suggestions based on domain + city
+
+2. **Citations Backend Expansion (All 3 Phases Built)**
+   - **Phase 1 (MVP):** businessHours + description fields added to Profile Settings
+   - **Phase 2 (Full Submission):** New `/citations/setup` page with:
+     - Logo upload (up to 5MB)
+     - Short/long business descriptions
+     - Public email option
+     - All social profiles (Facebook, Instagram, LinkedIn, Twitter, YouTube, TikTok)
+   - **Phase 3 (Optimization):** Advanced fields in expandable sections:
+     - Service areas, year established, license number & state, certifications, payment methods
+   - **Backend:** Expanded validators, updated startCitationsJob() CF, integrated with Firestore
+   - **UI:** Added "Configure Info" button in CitationsHome linking to CitationsSetup
+
+3. **UI/UX Polish**
+   - Widened HUB sidebar (w-60 → w-72) for better label breathing room
+   - Renamed "Content Calendar" to "Celebrity Content" throughout:
+     - Sidebar.jsx, TopBar.jsx, CalendarView.jsx
+   - Also widened separate Citations app sidebar (w-64 → w-80)
+
+4. **Documentation**
+   - Created `CITATIONS_BACKEND_ANALYSIS.md` — investigation of what's missing
+   - Created `CITATIONS_EXPANSION_COMPLETE.md` — rollout guide with testing checklist
+   - Updated this CLAUDE.md with current status
+
+### 🔧 Technical Details
+
+**Files Modified:** 10  
+**New Files:** 1 (CitationsSetup.jsx)  
+**Lines Added:** 700+  
+**Commits:** 4
+
+**Key Changes:**
+- `src/utils/validators.js` — Added profileSchema + citationsSetupSchema
+- `src/pages/citations/CitationsSetup.jsx` — NEW comprehensive form (350+ LOC)
+- `functions/src/index.js` — Expanded businessData object for all 3 phases
+- `src/App.jsx` — Added `/citations/setup` route
+- `src/pages/citations/CitationsHome.jsx` — Added "Configure Info" button
+- `src/pages/ranktracker/Keywords.jsx` — Grouped mobile/desktop display
+
+### ⏳ Known Issues
+
+1. **Vercel Deployment Stuck**
+   - Recent commits aren't showing as "Current" deployment
+   - Need to trigger redeploy or check Vercel project settings
+   - Local build works; `npm run dev` ready for testing
+
+2. **Cloud Run Status Unknown**
+   - `startCitationsJob` creates queued batches
+   - Awaiting confirmation: Is separate Cloud Run service deployed?
+   - Is it polling Firestore and processing batches?
+
+### 🎯 Next Session Priorities
+
+1. **Fix Vercel Build**
+   - Confirm current branch deployed as "Production"
+   - Verify no build errors
+
+2. **Test Citations End-to-End**
+   - Fill Profile → businessHours + description
+   - Navigate to `/citations/setup` → fill form
+   - Click "Start Submission"
+   - Check Firestore batch status
+   - Verify Cloud Run picks up queued batches
+
+3. **Phase 2b: Content Calendar with Scheduler Integration**
+   - Add "Add to Scheduler" button in Content Library
+   - Modal for scheduling WITHOUT leaving page
+   - Upgrade messaging for non-subscribers
 
 ---
 
