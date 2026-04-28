@@ -191,6 +191,45 @@ export async function deleteScheduledPost(postId) {
   await updateDoc(doc(db, 'scheduledPosts', postId), { status: 'cancelled' })
 }
 
+// ─── Rank Tracker ────────────────────────────────────────────────────────────
+
+export function subscribeToKeywords(userId, callback) {
+  const q = query(
+    collection(db, 'trackedKeywords'),
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc')
+  )
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  })
+}
+
+export async function addKeyword(data) {
+  return addDoc(collection(db, 'trackedKeywords'), {
+    ...data,
+    currentRank: null,
+    previousRank: null,
+    inLocalPack: false,
+    lastChecked: null,
+    createdAt: serverTimestamp(),
+  })
+}
+
+export async function deleteKeyword(keywordId) {
+  await deleteDoc(doc(db, 'trackedKeywords', keywordId))
+}
+
+export async function getRankHistory(keywordId) {
+  const q = query(
+    collection(db, 'rankChecks'),
+    where('keywordId', '==', keywordId),
+    orderBy('checkedAt', 'desc'),
+    limit(12)
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+}
+
 // ─── Admin: all users ─────────────────────────────────────────────────────────
 
 export async function getAllUsers(role = null) {

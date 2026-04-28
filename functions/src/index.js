@@ -1398,3 +1398,104 @@ exports.sendReviewRequest = onCall({ timeoutSeconds: 60 }, async (request) => {
   await batch.commit()
   return { sent: sentCount, total: customers.length }
 })
+
+// ─── checkKeywordRank ─────────────────────────────────────────────────────────
+// Check Google rank for a tracked keyword via SerpAPI.
+// Required env var: SERPAPI_KEY (serpapi.com — $50/mo for 5,000 searches)
+// Updates trackedKeywords/{keywordId} and appends to rankChecks collection.
+
+exports.checkKeywordRank = onCall({ timeoutSeconds: 30 }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const userSnap = await db.collection('users').doc(uid).get()
+  const userData = userSnap.data() || {}
+  const role = userData.role
+  const hasRankTracker =
+    role === 'admin' ||
+    role === 'staff' ||
+    userData.subscriptions?.rankTracker?.active === true
+
+  if (!hasRankTracker) {
+    throw new HttpsError('permission-denied', 'Rank Tracker subscription required.')
+  }
+
+  const { keywordId } = request.data
+  if (!keywordId) throw new HttpsError('invalid-argument', 'keywordId is required.')
+
+  const kwSnap = await db.collection('trackedKeywords').doc(keywordId).get()
+  if (!kwSnap.exists) throw new HttpsError('not-found', 'Keyword not found.')
+
+  const kw = kwSnap.data()
+  if (kw.userId !== uid && role !== 'admin' && role !== 'staff') {
+    throw new HttpsError('permission-denied', 'Not your keyword.')
+  }
+
+  const SERPAPI_KEY = process.env.SERPAPI_KEY || ''
+  if (!SERPAPI_KEY) {
+    throw new HttpsError('failed-precondition', 'Rank checking not configured. Set SERPAPI_KEY in Function env vars.')
+  }
+
+  const location = `${kw.city},${kw.state},United States`
+  const params = new URLSearchParams({
+    engine: 'google',
+    q: kw.keyword,
+    location,
+    device: kw.device || 'mobile',
+    num: '100',
+    api_key: SERPAPI_KEY,
+  })
+
+  const res = await fetch(`https://serpapi.com/search?${params}`, {
+    signal: AbortSignal.timeout(20000),
+  })
+
+  if (!res.ok) {
+    const err = await res.text()
+    console.error('SerpAPI error:', err)
+    throw new HttpsError('internal', 'Rank check failed. Verify SERPAPI_KEY.')
+  }
+
+  const data = await res.json()
+
+  // Check organic results for the target domain
+  const organic = data.organic_results || []
+  let rank = null
+  const domainLower = (kw.domain || '').toLowerCase().replace(/^www\./, '')
+
+  for (const result of organic) {
+    const link = (result.link || result.url || '').toLowerCase().replace(/^https?:\/\/(www\.)?/, '')
+    if (link.startsWith(domainLower) || link.includes(domainLower)) {
+      rank = result.position
+      break
+    }
+  }
+
+  // Check local pack (Google Maps 3-pack)
+  const localPlaces = data.local_results?.places || []
+  const inLocalPack = localPlaces.some(place => {
+    const site = (place.website || place.links?.website || '').toLowerCase().replace(/^https?:\/\/(www\.)?/, '')
+    return site.startsWith(domainLower) || site.includes(domainLower)
+  })
+
+  // Update keyword document
+  await db.collection('trackedKeywords').doc(keywordId).update({
+    previousRank: kw.currentRank ?? null,
+    currentRank: rank,
+    inLocalPack,
+    lastChecked: FieldValue.serverTimestamp(),
+  })
+
+  // Append to check history
+  await db.collection('rankChecks').add({
+    keywordId,
+    userId: uid,
+    keyword: kw.keyword,
+    domain: kw.domain,
+    rank,
+    inLocalPack,
+    checkedAt: FieldValue.serverTimestamp(),
+  })
+
+  return { rank, inLocalPack }
+})

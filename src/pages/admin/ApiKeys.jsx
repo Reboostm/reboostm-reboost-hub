@@ -49,6 +49,12 @@ const ENV_VARS = [
     required: false,
     where: 'sendReviewRequest function',
   },
+  {
+    key: 'SERPAPI_KEY',
+    purpose: 'Rank Tracker — checks Google keyword rankings via SerpAPI (serpapi.com, $50/mo for 5k searches)',
+    required: false,
+    where: 'checkKeywordRank function',
+  },
 ]
 
 function UsageBar({ used, limit }) {

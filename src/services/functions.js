@@ -24,6 +24,9 @@ export const generateAIImage = call('generateAIImage')
 export const fetchReviews = call('fetchReviews')
 export const sendReviewRequest = call('sendReviewRequest')
 
+// Rank Tracker
+export const checkKeywordRank = call('checkKeywordRank')
+
 // Scheduler (Zernio)
 export const schedulePost = call('schedulePost')
 export const cancelPost = call('cancelPost')
