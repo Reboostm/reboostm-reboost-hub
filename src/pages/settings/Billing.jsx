@@ -16,8 +16,11 @@ export default function Billing() {
     setLoading(true)
     try {
       await redirectToPortal()
-    } catch {
-      toast('Could not open billing portal. Please try again.', 'error')
+    } catch (err) {
+      const msg = err.message?.includes('No Stripe customer')
+        ? 'Complete a purchase first to access the billing portal.'
+        : 'Could not open billing portal. Please try again.'
+      toast(msg, 'error')
       setLoading(false)
     }
   }

@@ -55,6 +55,12 @@ const ENV_VARS = [
     required: false,
     where: 'checkKeywordRank function',
   },
+  {
+    key: 'TWOCAPTCHA_API_KEY',
+    purpose: 'Citations Builder — solves CAPTCHAs during automated citation submissions',
+    required: false,
+    where: 'Cloud Run Citations automation service',
+  },
 ]
 
 function UsageBar({ used, limit }) {
@@ -75,8 +81,9 @@ export default function AdminApiKeys() {
   const [keysData, setKeysData] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // Add-key form state
+  // Add/edit key form state
   const [showForm, setShowForm] = useState(false)
+  const [editingIdx, setEditingIdx] = useState(null)
   const [newLabel, setNewLabel] = useState('')
   const [newKey, setNewKey] = useState('')
   const [newLimit, setNewLimit] = useState('500')
@@ -101,7 +108,32 @@ export default function AdminApiKeys() {
     }, { merge: true })
   }
 
-  async function handleAddKey(e) {
+  function openAddForm() {
+    setEditingIdx(null)
+    setNewLabel('')
+    setNewKey('')
+    setNewLimit('1800')
+    setShowForm(true)
+  }
+
+  function openEditForm(idx) {
+    const k = keysData.keys[idx]
+    setEditingIdx(idx)
+    setNewLabel(k.label || '')
+    setNewKey(k.key)
+    setNewLimit(String(k.limit || 1800))
+    setShowForm(true)
+  }
+
+  function closeForm() {
+    setShowForm(false)
+    setEditingIdx(null)
+    setNewLabel('')
+    setNewKey('')
+    setNewLimit('1800')
+  }
+
+  async function handleSaveKey(e) {
     e.preventDefault()
     if (!newLabel.trim() || !newKey.trim()) {
       toast('Label and API key are required.', 'error')
@@ -110,13 +142,26 @@ export default function AdminApiKeys() {
     const limit = parseInt(newLimit, 10) || 1800
     setSaving(true)
     try {
-      const updated = [
-        ...(keysData?.keys || []),
-        { key: newKey.trim(), label: newLabel.trim(), usageThisMonth: 0, limit, active: true },
-      ]
-      await saveKeys(updated)
-      setNewLabel(''); setNewKey(''); setNewLimit('1800'); setShowForm(false)
-      toast('API key added.', 'success')
+      let updated
+      if (editingIdx !== null) {
+        // Edit existing key
+        updated = keysData.keys.map((k, i) =>
+          i === editingIdx
+            ? { ...k, label: newLabel.trim(), key: newKey.trim(), limit }
+            : k
+        )
+        await saveKeys(updated)
+        toast('API key updated.', 'success')
+      } else {
+        // Add new key
+        updated = [
+          ...(keysData?.keys || []),
+          { key: newKey.trim(), label: newLabel.trim(), usageThisMonth: 0, limit, active: true },
+        ]
+        await saveKeys(updated)
+        toast('API key added.', 'success')
+      }
+      closeForm()
     } catch {
       toast('Failed to save key.', 'error')
     } finally {
@@ -182,16 +227,18 @@ export default function AdminApiKeys() {
                 skips any key that hits its limit.
               </p>
             </div>
-            <Button size="sm" onClick={() => setShowForm(v => !v)}>
+            <Button size="sm" onClick={openAddForm}>
               <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Key
             </Button>
           </div>
         </CardHeader>
 
-        {/* Add key form */}
+        {/* Add/edit key form */}
         {showForm && (
-          <form onSubmit={handleAddKey} className="mb-4 p-4 bg-hub-input/30 rounded-xl border border-hub-border space-y-3">
-            <h3 className="text-sm font-medium text-hub-text">New Google Maps API Key</h3>
+          <form onSubmit={handleSaveKey} className="mb-4 p-4 bg-hub-input/30 rounded-xl border border-hub-border space-y-3">
+            <h3 className="text-sm font-medium text-hub-text">
+              {editingIdx !== null ? 'Edit Google Maps API Key' : 'New Google Maps API Key'}
+            </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Input
                 label="Label"
@@ -214,8 +261,10 @@ export default function AdminApiKeys() {
               />
             </div>
             <div className="flex gap-2">
-              <Button type="submit" size="sm" loading={saving}>Save Key</Button>
-              <Button type="button" size="sm" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button type="submit" size="sm" loading={saving}>
+                {editingIdx !== null ? 'Update Key' : 'Save Key'}
+              </Button>
+              <Button type="button" size="sm" variant="ghost" onClick={closeForm}>Cancel</Button>
             </div>
           </form>
         )}
@@ -264,6 +313,14 @@ export default function AdminApiKeys() {
                     </p>
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      title="Edit key"
+                      onClick={() => openEditForm(i)}
+                    >
+                      <span className="text-xs">Edit</span>
+                    </Button>
                     <Button
                       size="sm"
                       variant="ghost"

@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   BookOpen, CheckCircle, List, Activity, BarChart2,
-  Play, Loader2, ChevronRight, Package,
+  Play, Loader2, ChevronRight, Package, Settings,
 } from 'lucide-react'
 import Card, { CardHeader, CardTitle } from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -42,6 +42,7 @@ export default function CitationsHome() {
   const { hasCitations } = useBilling()
   const { userProfile } = useAuth()
   const { toast } = useToast()
+  const navigate = useNavigate()
   const [batches, setBatches] = useState([])
   const [batchesLoading, setBatchesLoading] = useState(true)
   const [starting, setStarting] = useState(false)
@@ -103,10 +104,16 @@ export default function CitationsHome() {
           </div>
         </div>
         {!activeBatch && !batchesLoading && (
-          <Button onClick={handleStartJob} loading={starting}>
-            <Play className="w-4 h-4" />
-            Start Submission
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => navigate('/citations/setup')}>
+              <Settings className="w-4 h-4" />
+              Configure Info
+            </Button>
+            <Button onClick={handleStartJob} loading={starting}>
+              <Play className="w-4 h-4" />
+              Start Submission
+            </Button>
+          </div>
         )}
       </div>
 

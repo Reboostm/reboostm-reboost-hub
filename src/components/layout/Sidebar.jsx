@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
   Search, BookOpen, Users, Calendar, Sparkles, Image,
   Star, TrendingUp, Building2, ChevronDown, Lock,
-  LayoutDashboard, Zap, Package, MapPin, FileImage, KeyRound, DollarSign,
+  LayoutDashboard, Zap, Package, MapPin, FileImage, KeyRound,
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useBilling } from '../../hooks/useBilling'
@@ -72,7 +72,7 @@ const SECTIONS = [
   },
   {
     key: 'calendar',
-    label: 'Content Calendar',
+    label: 'Celebrity Content',
     icon: Image,
     badge: { text: 'PAID', variant: 'paid' },
     isLocked: (b) => !b.hasCalendar,
@@ -129,7 +129,7 @@ export default function Sidebar() {
   const toggle = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
 
   return (
-    <aside className="w-60 h-full bg-hub-sidebar border-r border-hub-border flex flex-col shrink-0">
+    <aside className="w-72 h-full bg-hub-sidebar border-r border-hub-border flex flex-col shrink-0">
       {/* Logo */}
       <div className="h-14 flex items-center px-4 border-b border-hub-border shrink-0">
         <div className="flex items-center gap-2.5">
@@ -221,7 +221,7 @@ export default function Sidebar() {
             { label: 'Dashboard',       path: '/admin',             icon: LayoutDashboard },
             { label: 'Users',           path: '/admin/users',       icon: Users           },
             { label: 'Clients',         path: '/admin/clients',     icon: Building2       },
-            { label: 'Offers & Pricing', path: '/admin/offers',     icon: DollarSign      },
+            { label: 'Packages',        path: '/admin/packages',    icon: Package         },
             { label: 'Territories',     path: '/admin/territories', icon: MapPin          },
             { label: 'Content Manager', path: '/admin/content',     icon: FileImage       },
             { label: 'API Keys',        path: '/admin/api-keys',    icon: KeyRound        },

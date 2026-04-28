@@ -18,6 +18,7 @@ import AuditResults from './pages/audit/AuditResults'
 
 // Citations
 import CitationsHome from './pages/citations/CitationsHome'
+import CitationsSetup from './pages/citations/CitationsSetup'
 import CitationsDirs from './pages/citations/CitationsDirs'
 import CitationsJobs from './pages/citations/CitationsJobs'
 import CitationsAnalytics from './pages/citations/CitationsAnalytics'
@@ -99,6 +100,7 @@ export default function App() {
 
                   {/* Citations */}
                   <Route path="citations" element={<CitationsHome />} />
+                  <Route path="citations/setup" element={<CitationsSetup />} />
                   <Route path="citations/directories" element={<CitationsDirs />} />
                   <Route path="citations/jobs" element={<CitationsJobs />} />
                   <Route path="citations/analytics" element={<CitationsAnalytics />} />

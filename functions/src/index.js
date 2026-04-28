@@ -478,17 +478,39 @@ exports.startCitationsJob = onCall(
       throw new HttpsError('already-exists', 'A submission job is already running. Wait for it to complete.')
     }
 
-    // Business info for the submission engine
+    // Business info for the submission engine (Phase 1/2/3)
     const businessData = {
-      businessName: user.businessName || '',
-      address:      user.address      || '',
-      city:         user.city         || '',
-      state:        user.state        || '',
-      zip:          user.zip          || '',
-      phone:        user.phone        || '',
-      website:      user.website      || '',
-      email:        user.email        || '',
-      niche:        user.niche        || '',
+      // Phase 1 - Essential
+      businessName:     user.businessName      || '',
+      address:          user.address           || '',
+      city:             user.city              || '',
+      state:            user.state             || '',
+      zip:              user.zip               || '',
+      phone:            user.phone             || '',
+      website:          user.website           || '',
+      email:            user.email             || '',
+      niche:            user.niche             || '',
+      businessHours:    user.businessHours     || '',
+      description:      user.description       || '',
+
+      // Phase 2 - Full Submission
+      shortDesc:        user.shortDesc         || '',
+      longDesc:         user.longDesc          || '',
+      publicEmail:      user.publicEmail       || '',
+      facebook:         user.facebook          || '',
+      instagram:        user.instagram         || '',
+      linkedin:         user.linkedin          || '',
+      twitter:          user.twitter           || '',
+      youtube:          user.youtube           || '',
+      tiktok:           user.tiktok            || '',
+
+      // Phase 3 - Optimization
+      serviceAreas:     user.serviceAreas      || '',
+      yearEstablished:  user.yearEstablished   || '',
+      licenseNumber:    user.licenseNumber     || '',
+      licenseState:     user.licenseState      || '',
+      certifications:   user.certifications    || '',
+      paymentMethods:   user.paymentMethods    || [],
     }
 
     const directories = MASTER_DIRECTORIES.slice(0, targetCount)
@@ -1800,7 +1822,12 @@ exports.createPortalSession = onCall({ timeoutSeconds: 30 }, async (request) => 
 
     return { url: session.url }
   } catch (err) {
-    console.error('Portal session creation failed:', err)
+    console.error('Portal session creation failed:', {
+      uid,
+      message: err.message,
+      code: err.code,
+      hasCustomerId: !!userData.stripeCustomerId,
+    })
     throw new HttpsError('internal', 'Could not create billing portal session.')
   }
 })
@@ -1867,7 +1894,10 @@ async function handleCheckoutComplete(session) {
 
   // Store Stripe customer ID
   if (session.customer) {
+    console.log('Setting stripeCustomerId:', { uid, customerId: session.customer })
     await userRef.update({ stripeCustomerId: session.customer })
+  } else {
+    console.warn('No customer ID in checkout session:', { uid, sessionId: session.id })
   }
 
   // Unlock feature based on offer type
