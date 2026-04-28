@@ -23,7 +23,7 @@
 
 ### Key Design Principles
 - **Niche is everything** — Plumber sees plumbing content only. Realtor sees realtor content only. No confusion.
-- **First-login forces profile** — User must select niche + fill business info before accessing tools. This auto-populates all content/images with their branding.
+- **First-login forces profile** — User must select niche + fill business info before accessing tools. Admins are EXEMPT from this check.
 - **Content pre-loads by niche** — When Celebrity Content user signs up, ALL plumbing content loads. HVAC user gets all HVAC content. They never see irrelevant niches.
 - **Every feature asks:** "Does this move them toward DFY?" If not, it's probably scope creep.
 
@@ -31,8 +31,8 @@
 
 ## Technical Stack
 
-**Live repo:** https://github.com/Reboostm/reboostm-reboost-hub  
-**Deployed on:** Vercel (frontend) + Firebase (backend/functions)  
+**Live repo:** https://github.com/Reboostm/reboostm-reboost-hub
+**Deployed on:** Vercel (frontend, auto-deploys `main` branch) + Firebase (backend/functions)
 **Firebase project:** `reboost-hub`
 
 | Layer | Choice |
@@ -50,12 +50,34 @@
 
 ---
 
+## Deployment Architecture
+
+### Vercel (Frontend)
+- Auto-deploys `main` branch to production
+- All changes must be pushed to `main` to go live
+- Claude work happens in worktree branches (`claude/xxx`), then merged to `main`
+- `vercel.json` has SPA rewrites: `{ "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }] }`
+
+### Firebase Rules Auto-Deploy (GitHub Actions)
+- File: `.github/workflows/deploy-firebase.yml`
+- Triggers automatically when `firestore.rules` changes on `main`
+- Uses `google-github-actions/auth@v2` with `FIREBASE_SERVICE_ACCOUNT` secret
+
+**⚠️ ONE-TIME SETUP NEEDED (browser-only, no terminal):**
+1. Firebase Console → `reboost-hub` project → gear icon → **Project Settings** → **Service accounts** tab → **Generate new private key** → downloads JSON
+2. Copy entire JSON content
+3. GitHub repo → **Settings** → **Secrets and variables** → **Actions** → **New repository secret** → name: `FIREBASE_SERVICE_ACCOUNT` → paste JSON → Save
+
+Until this is done, Firestore rules must be deployed manually via Firebase CLI.
+
+---
+
 ## Project Structure
 
 ```
 src/
   App.jsx                        # All routes
-  config.js                      # HUB_NAME, NICHES[], US_STATES[]
+  config.js                      # HUB_NAME='ReBoost Marketing HUB', NICHES[], US_STATES[]
   index.css                      # Tailwind v4 @theme block
   contexts/
     AuthContext.jsx              # user, userProfile, isAdmin, isStaff
@@ -67,7 +89,7 @@ src/
   components/
     ui/
       Button, Card, Input, Textarea, Select, Modal, Badge, Spinner, EmptyState, ToolGate, Toast
-      ImageEditor.jsx            # NEW: Custom canvas-based image editor
+      ImageEditor.jsx            # Custom canvas-based image editor (NOT Fabric.js)
     layout/
       Sidebar.jsx, HubLayout.jsx, ProtectedRoute.jsx, AdminRoute.jsx
   pages/
@@ -79,85 +101,46 @@ src/
     scheduler/     CalendarView, SchedulePost, ConnectedAccounts
     creator/       GenerateContent, GenerateImage
     reviews/       AllReviews, ReviewRequests
-    ranktracker/   Keywords, RankingsReport
-    calendar/      CelebrityContent.jsx  ✅ NEW: 12-month calendar + library + editor
-    agency/        TerritoryChecker, AgencyServices
-    settings/      Profile, Billing, Integrations
+    ranktracker/   Keywords.jsx, RankingsReport.jsx
+    calendar/      CelebrityContent.jsx
+    agency/        AgencyServices.jsx  (TerritoryChecker embedded inside)
+    settings/      Profile.jsx, Billing, Integrations
+    support/       TrainingAndSupport.jsx
     admin/
-      Dashboard, Users, Clients, ApiKeys (editable), Offers, Territories, ContentManager
+      Dashboard.jsx, Users.jsx (combined Users+Clients), ApiKeys.jsx,
+      Offers.jsx, Territories.jsx, ContentManager.jsx
 
-functions/src/index.js         # All Cloud Functions (CommonJS)
+functions/src/index.js           # All Cloud Functions (CommonJS only)
+.github/workflows/
+  deploy-firebase.yml            # Auto-deploy Firestore rules on push to main
+firestore.rules                  # Security rules (deployed via GitHub Actions)
 ```
 
 ---
 
-## First-Login Profile Force
+## Critical Patterns — Read Before Touching Code
 
-When a user signs up and logs in:
-1. `ProtectedRoute.jsx` checks if profile is complete (niche, businessName, phone, address required)
-2. If missing → redirects to `/settings` before accessing any tools
-3. User fills profile with their business details
-4. **System recognizes niche** → pre-loads all matching content
-5. **All downloaded/edited content auto-applies** their name, phone, logo to images
+### NICHES config
+`NICHES` in `src/config.js` is an array of `{ value, label }` objects — NOT strings.
+```js
+{ value: 'plumber', label: 'Plumber' }
+```
+Always use `niche.value` for keys/queries/filters and `niche.label` for display. Passing a NICHES object directly as a React child causes Error #31.
 
-**Why:** Ensures every piece of content they interact with is branded with their info automatically.
+### Sidebar navigation
+Two patterns in `Sidebar.jsx`:
+- **Direct sections** (single link, no dropdown): use `direct: '/path'` + `items: []`
+- **Dropdown sections** (expandable): use `items: [{ label, path }]`, no `direct` property
+- Celebrity Content and DFY Services use `direct` pattern.
 
----
+### Role hierarchy
+`admin` > `staff` > `client`. `isStaff()` = admin OR staff. Admins bypass billing checks and profile force.
 
-## Celebrity Content System (Complete Architecture)
+### Firestore rules
+Rules file is at `firestore.rules`. Changes push to GitHub but only auto-deploy if FIREBASE_SERVICE_ACCOUNT secret is set up. Until then, manually run `firebase deploy --only firestore:rules`.
 
-### Admin Side: `Content Manager` (`/admin/content`)
-- Upload niche-specific templates (images with editable text)
-- Tag by niche (Plumber, Realtor, HVAC, Pest Control, etc.)
-- Tag by month/year (for seasonal content)
-- Store in Firestore `content` collection
-- Organize by niche in admin UI
-
-### User Side: `Celebrity Content` (`/calendar`)
-- **12-month Calendar Grid:** Interactive month view showing which days have content
-- **Content Library:** Search/scroll through all content for their niche
-- **Image Editor:** Proprietary canvas-based editor (NOT Fabric.js)
-  - Load image
-  - Add text layers (name, business, phone, email)
-  - Drag/position/scale text and logos
-  - Auto-injected from user's profile on first load
-  - Download as PNG
-  - Send to Scheduler ("Use in Scheduler" button)
-- **Upgrade Prompt:** If no Scheduler subscription, show "Schedule this" button with upsell
-- **Video Upsell:** Locked section for video package (unlock if purchased)
-
-### Flow
-1. User signs up as "Plumber"
-2. First login → redirects to `/settings` → fills profile
-3. Navigates to `/calendar` → sees ONLY plumbing content (12+ months pre-planned)
-4. Clicks day or searches → grabs content
-5. Editor auto-fills their name/phone/logo
-6. Downloads or schedules to social
-
----
-
-## Image Editor (Proprietary)
-
-**File:** `src/components/ui/ImageEditor.jsx`
-
-**Tech Stack:**
-- HTML5 Canvas API (NOT Fabric.js — custom, proprietary build)
-- React wrapper for state management
-- Layer system: text layers with position, size, color, font-weight
-- Real-time canvas rendering
-
-**Features:**
-- Load image from URL
-- Add/edit/delete text layers
-- Position layers (X/Y coordinates)
-- Font size, color, font-weight per layer
-- Download canvas as PNG
-- "Use in Scheduler" button to save/schedule
-
-**Used in:**
-- Celebrity Content page (edit pre-made templates)
-- Scheduler "Upload Content" (edit user-uploaded images)
-- AI Creator (edit generated images)
+### URL validation
+`src/utils/validators.js` uses `z.preprocess` to auto-prepend `https://` to website URLs that don't have a protocol. Do not change this pattern.
 
 ---
 
@@ -166,7 +149,8 @@ When a user signs up and logs in:
 ### `users/{uid}`
 ```js
 {
-  email, displayName, businessName, niche, phone, address, role,
+  email, displayName, businessName, niche, phone, address, city, state, zip,
+  website, tagline, currentOffer, role,
   logo: null | '<url>',
   subscriptions: {
     scheduler: { active, tier: 'basic'|'pro', stripeSubId },
@@ -184,13 +168,12 @@ When a user signs up and logs in:
 }
 ```
 
-### `content/{id}` — NEW
-Niche-specific content templates
+### `content/{id}` — Celebrity Content templates
 ```js
 {
-  niche: 'Plumber',
-  title: 'Spring Maintenance Tips',
-  description: 'Post about spring plumbing maintenance',
+  niche: 'plumber',        // matches NICHES[n].value
+  title: 'Spring Tips',
+  description: '...',
   imageUrl: 'https://...',
   month: 'April',
   year: 2026,
@@ -198,19 +181,30 @@ Niche-specific content templates
 }
 ```
 
-### `offers/{id}` — NEW
-Dynamic pricing management
+### `offers/{id}` — Dynamic pricing
 ```js
 {
   name: 'Scheduler Pro',
   description: '10 accounts, unlimited posts',
   price: 99,
   stripePriceId: 'price_xxx',
-  type: 'subscription',
-  unlocksFeature: 'scheduler',
-  tier: 'pro',
+  type: 'subscription' | 'payment',
+  unlocksFeature: 'scheduler' | 'reviewManager' | 'rankTracker' | 'citations' | 'leadCredits' | 'calendar',
+  tier: 'basic' | 'pro' | '',
   active: true,
 }
+```
+
+### `trainingVideos/{id}` — Training videos
+```js
+{
+  section: 'Citations',      // groups videos into sections
+  description: '...',
+  youtubeUrl: 'https://youtube.com/watch?v=xxx',
+  createdAt,
+}
+// Special doc: trainingVideos/_sectionOrder = { order: ['Section A', 'Section B', ...] }
+// Stores staff-defined section ordering. Filtered out when loading videos.
 ```
 
 ### Other collections
@@ -226,18 +220,30 @@ Dynamic pricing management
 | `reviewRequests/{id}` | Review request history |
 | `trackedKeywords/{id}` | Rank tracker keywords |
 | `territories/{id}` | Agency territory claims |
+| `supportTickets/{id}` | User support tickets (staff read, user create) |
+| `helpArticles/{id}` | Help articles (staff write, auth read) |
 
 ---
 
-## Firestore Security Rules
+## Firestore Security Rules Summary
 
-**Key rule:** Admin-only write, authenticated users read
+All rules are in `firestore.rules`. Key patterns:
+- `isAuth()` = any signed-in user
+- `isOwner(uid)` = document belongs to this user
+- `isAdmin()` = role == 'admin'
+- `isStaff()` = role == 'admin' OR 'staff'
 
-```
-match /offers/{id} { allow read: if isAuth(); allow write: if isAdmin(); }
-match /content/{id} { allow read: if isAuth(); allow write: if isAdmin(); }
-match /settings/{doc} { allow read, write: if isAdmin(); }
-```
+| Collection | Read | Write |
+|---|---|---|
+| `users` | owner OR staff | owner (create/update), admin (delete) |
+| `content` | isAuth | isStaff |
+| `offers` | isAuth | isStaff |
+| `trainingVideos` | isAuth | isStaff |
+| `helpArticles` | isAuth | isStaff |
+| `supportTickets` | isStaff | isAuth (create only) |
+| `trackedKeywords` | owner OR staff | isAuth (create), owner OR admin (delete) |
+| `settings` | isAdmin | isAdmin |
+| `territories` | public | isAdmin |
 
 ---
 
@@ -255,9 +261,9 @@ const leadCredits      = isAdmin ? 9999 : purchases.leadCredits
 
 ---
 
-## Cloud Functions (in `functions/src/index.js`)
+## Cloud Functions (`functions/src/index.js`)
 
-All use `onCall` (HTTPS callable). CommonJS only.
+All use `onCall`. CommonJS only. Never use ES module syntax.
 
 | Function | Purpose | Env Var |
 |---|---|---|
@@ -268,8 +274,9 @@ All use `onCall` (HTTPS callable). CommonJS only.
 | `generateAIImage` | Generate images via DALL-E 3 | `OPENAI_API_KEY` |
 | `schedulePost` | Call Zernio to schedule | `ZERNIO_API_KEY` |
 | `fetchReviews` | Google reviews cache | `GOOGLE_PLACES_KEY` |
-| `sendReviewRequest` | Email reviews via SendGrid | `SENDGRID_API_KEY` |
+| `sendReviewRequest` | Email reviews via SendGrid/Resend | `SENDGRID_API_KEY` or `RESEND_API_KEY` |
 | `checkKeywordRank` | Rank check via SerpAPI | `SERPAPI_KEY` |
+| `getGoogleKeywordSuggestions` | Real Google autocomplete via SerpAPI | `SERPAPI_KEY` |
 
 ---
 
@@ -277,145 +284,143 @@ All use `onCall` (HTTPS callable). CommonJS only.
 
 | Module | Status | Notes |
 |---|---|---|
-| SEO Audit | ✅ Built | PageSpeed + GMB |
-| Citations | ✅ Built | All 3 phases: Profile, Setup form, Advanced fields |
-| Lead Generator | ✅ Basic | Google Maps search. NEEDS: lead packages instead of credits |
-| Content Scheduler | ✅ Built | Zernio integration, post composer |
-| AI Creator | ✅ Built | Claude captions + DALL-E 3 images |
-| Review Manager | ✅ Built | Google reviews + SendGrid email |
-| Rank Tracker | ✅ Enhanced | Mobile/desktop simultaneous tracking, keywords |
-| **Celebrity Content** | ✅ **BUILT** | **NEW:** 12-month calendar + library + image editor |
-| Admin Panel | ✅ Built | Users, Clients, API Keys (editable), Offers, Content Manager |
-| Billing & Stripe | ✅ Built | Checkout, portal, webhooks, dynamic offers |
+| SEO Audit | ✅ Complete | PageSpeed + GMB |
+| Citations | ✅ Complete | All 3 phases |
+| Lead Generator | ✅ Basic | Needs package redesign (credits → packages) |
+| Content Scheduler | ✅ Complete | Zernio integration |
+| AI Creator | ✅ Complete | Claude captions + DALL-E 3 images |
+| Review Manager | ✅ Complete | Google reviews + email |
+| Rank Tracker | ✅ Enhanced | Mobile/desktop tracking + Google keyword suggestions |
+| Celebrity Content | ✅ Built | Calendar + library + image editor. Needs categories + bulk upload |
+| Training & Support | ✅ Built | Videos (section ordering), Articles, Support Tickets |
+| Admin Panel | ✅ Enhanced | Users+Clients combined, Dashboard timeframe, API Keys |
+| Billing & Stripe | ✅ Complete | Checkout, portal, webhooks, dynamic offers |
+| DFY Services / Agency | ✅ Built | Territory checker embedded, strategy CTA |
 
 ---
 
-## Latest Session (April 2026, Session 6)
+## Session History
 
-### ✅ Completed
+### Sessions 1–5 (pre-context)
+Core build: all major modules, Stripe integration, Firebase setup, basic admin panel.
 
-1. **Fixed Firestore Rules**
-   - Added `offers` collection rule (admin write, auth read)
-   - Added `content` collection rule (admin write, auth read)
-   - Fixes "Missing or insufficient permissions" error on Offers page
+### Session 6 (April 2026)
+- Built Celebrity Content system (calendar + content library + image editor)
+- Built ContentManager admin (niche/month tagging, image URL upload)
+- Built proprietary ImageEditor.jsx (HTML5 Canvas, NOT Fabric.js)
+- First-login profile force (ProtectedRoute redirects to /settings)
+- Added RESEND_API_KEY support in ApiKeys admin
 
-2. **Built Custom Image Editor** (`ImageEditor.jsx`)
-   - Proprietary canvas-based editor (NOT Fabric.js)
-   - Text layer system with position/size/color/font-weight
-   - Download as PNG
-   - "Use in Scheduler" integration
-   - Used by Celebrity Content + Scheduler
+### Session 7 (April 2026) — THIS SESSION
+**Completed:**
+1. App renamed from "ReBoost Hub" → **"ReBoost Marketing HUB"** (config.js `HUB_NAME`)
+2. Admin Users + Clients tabs merged into single `Users.jsx` page with role filtering + Manage Access modal
+3. `TrainingAndSupport.jsx` — full page built: YouTube video sections with ↑↓ reordering, help articles, support tickets
+4. Admin Dashboard — signup timeframe filter (7d / 30d / 90d / all)
+5. ProtectedRoute — admins bypass profile force check
+6. ContentManager — fixed React Error #31 (NICHES objects rendered as children)
+7. Firestore rules — expanded with: citations, reviewRequests, trackedKeywords, supportTickets, trainingVideos, helpArticles, offers/content write changed to isStaff()
+8. DFY Services / Agency — renamed sidebar to "DFY Services", Territory Checker embedded in AgencyServices
+9. URL validation — `z.preprocess` auto-prepends https:// to website URLs
+10. Celebrity Content — admin bypass (no niche required for staff)
+11. Modal — fixed scrollability (max-h + overflow-y-auto)
+12. Profile page — cleaned up, removed Citations Info section
+13. Rank Tracker — keyword suggestions overhauled: 50+ niche-aware suggestions (service-specific + universal local patterns)
+14. Rank Tracker — `getGoogleKeywordSuggestions` Cloud Function added (SerpAPI autocomplete → real Google searches)
+15. Rank Tracker keyword modal — niche selector dropdown + city/state auto-fill from profile
+16. GitHub Actions workflow — `.github/workflows/deploy-firebase.yml` auto-deploys `firestore.rules` on push to main
+17. Vercel auto-deploy fixed — all changes now push to `main` directly (Vercel auto-promotes)
 
-3. **Rebuilt Content Manager** (`/admin/content`)
-   - Upload niche-specific templates
-   - Organize by niche
-   - Month/Year tagging for seasonal content
-   - Store in `content` Firestore collection
+---
 
-4. **Built Celebrity Content** (`/calendar`)
-   - **12-month interactive calendar** (shows content count per day)
-   - **Content library** (search + scroll)
-   - **Image editor** (auto-fills user info from profile)
-   - **Download + Schedule** options
-   - **Niche filtering** (users see only their niche content)
+## ⚠️ Known Issues & Pending Work
 
-5. **First-Login Profile Force** (`ProtectedRoute.jsx`)
-   - Redirects incomplete profiles to `/settings`
-   - Requires: niche, businessName, phone, address
-   - Auto-populates content editing
+### CRITICAL — One-Time Setup Required
+**Firestore Rules are NOT deployed to Firebase yet.** The rules file is correct in the repo, but Firebase is still using old rules. This causes permission errors for:
+- Creating/editing Offers (`/admin/offers`)
+- Adding Training Videos and Help Articles (`/support`)
+- Adding Rank Tracker keywords
+- Submitting Support Tickets
 
-6. **Enhanced Admin API Keys** (`ApiKeys.jsx`)
-   - Edit Google Maps keys (preserved)
-   - **NEW:** Edit Firebase Function env vars
-   - All 8 keys editable (GOOGLE_PLACES_KEY, ZERNIO_API_KEY, etc.)
-   - Firestore persistence (settings/functionEnvVars)
+**Fix:** Set up `FIREBASE_SERVICE_ACCOUNT` GitHub secret (see Deployment Architecture section above). Once set, GitHub Actions auto-deploys rules on every `main` push.
 
-7. **Fixed Admin Routing**
-   - Sidebar: "Packages" → "Offers" (correct path `/admin/offers`)
+**Also:** `getGoogleKeywordSuggestions` Cloud Function needs to be deployed to Firebase Functions. Until then, the "Real Google Searches" section in Rank Tracker keyword suggestions won't appear (fails silently — other suggestions still work).
 
-### Files Changed
-- `firestore.rules` — Added offers + content rules
-- `src/components/ui/ImageEditor.jsx` — **NEW** custom editor
-- `src/pages/admin/ContentManager.jsx` — Rewritten
-- `src/pages/calendar/CelebrityContent.jsx` — **NEW** calendar + library
-- `src/pages/admin/ApiKeys.jsx` — Enhanced with env var editing
-- `src/components/layout/ProtectedRoute.jsx` — Added profile force
-- `src/components/layout/Sidebar.jsx` — Fixed Offers link
-- `src/App.jsx` — Updated calendar import + route
+### Content Manager — Bulk Upload
+- Currently uses an "Image URL" field — admin must paste image URLs
+- User has bulk Canva content (organized by niche: real estate, plumber, HVAC, etc.)
+- **Needs:** Firebase Storage upload integration so images can be uploaded directly
+- **Canva workflow:** User exports images from Canva → uploads directly in ContentManager → tagged by niche/month
 
-### Build Status
-✅ Vercel push successful  
-✅ Production build passes (no errors)  
-✅ All Firestore rules deployed  
+### Celebrity Content — Categories
+- User has content organized by type: "funny posts", "elegant stories", "checklists", etc.
+- **Needs:** Add a `category` field to content documents + filter UI in Celebrity Content page
+- Categories to support: funny, educational, promotional, checklist, story, seasonal
+
+### Lead Generator — Package Redesign
+- Currently uses a simple credit system
+- **Needs:** Redesign to sell lead packages (e.g., "50 leads for $X") instead of individual credits
+- Packages should map to Offers in Firestore
+
+### Stripe Webhook — Funnel Integration
+- When someone purchases via external sales funnel, Hub doesn't know
+- **Needs:** `handleStripeWebhook` Cloud Function that maps product purchase → user access update → sends welcome email with login link
+- Architecture planned, not yet built
+
+### Future / Phase 3
+- [ ] Video Package upsell unlock mechanism (content not filmed yet)
+- [ ] Scheduler integration from Celebrity Content ("Schedule This" button → Scheduler)
+- [ ] Upgrade upsell buttons throughout app (locked tools → buy modal)
+- [ ] First-time user onboarding flow / welcome tour
 
 ---
 
 ## Key Design Notes
 
-### Why Not Fabric.js?
-Claude #1 wanted a proprietary, slick editor. Custom canvas implementation is simpler for this use case (text only, no advanced shape drawing) and avoids external dependencies.
+### No Fabric.js
+Custom canvas editor for image editing. Simpler for text-only use case, no external dependencies.
 
-### Why First-Login Profile Force?
-- Ensures every piece of content is branded with user's info
-- No confusion about which niche they belong to
-- Auto-fills image editor with their name/phone/logo
-- One-time friction pays off in usability
+### Niche value vs label
+NICHES has `{ value: 'plumber', label: 'Plumber' }`. The `niche` field stored in user profiles = the `value` (lowercase). The `content` collection also uses `value`. Always use `niche.value` when querying/filtering.
 
-### Why Pre-Load Content by Niche?
-- Users see ONLY relevant content
-- No decision fatigue
-- Plumber doesn't see HVAC posts
-- Realtor doesn't see Pest Control calendar
+### Training video section order
+Stored in `trainingVideos/_sectionOrder` as `{ order: string[] }`. This special doc is filtered out when loading video list. Staff can reorder sections with ↑↓ buttons in the UI.
 
-### Why Firestore Rules for Offers + Content?
-- Admins manage offerings without code deploys
-- Users read offers dynamically (for checkout)
-- Content admins upload templates, users fetch
-- Separation of concerns: UI ↔ Data
+### YouTube URL regex
+Handles all formats: `youtube.com/watch?v=`, `youtu.be/`, `youtube.com/embed/`, `youtube.com/shorts/`
+```js
+/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([^&\n?#]+)/
+```
 
 ---
 
-## Phase Roadmap
+## Starter Message for Next Session
 
-### Phase 1 (COMPLETE) ✅
-- [x] Offers management (dynamic, no code needed)
-- [x] Stripe integration (checkout + portal + webhooks)
-- [x] Admin panel (Users, Clients, API Keys)
-- [x] Firestore rules + Firestore data model
-
-### Phase 2 (IN PROGRESS)
-- [x] Citations expansion (all 3 phases)
-- [x] Rank Tracker improvements (mobile/desktop tracking)
-- [x] Celebrity Content (calendar + editor + library)
-- [ ] Add upgrade buttons throughout app (Scheduler, Video, etc.)
-- [ ] Lead Generator redesign (packages instead of credits)
-
-### Phase 3 (NEXT)
-- [ ] Video Package upsell unlock mechanism
-- [ ] Scheduler integration from Celebrity Content
-- [ ] Finalize placeholder copy (outreach templates, CTAs)
-- [ ] First-time user onboarding flow
+Copy this into the next Claude chat:
 
 ---
 
-## Known Unknowns
+**Session 8 — ReBoost Marketing HUB**
 
-1. **Cloud Run Citations Service** — Separate repo (Playwright + 2Captcha automation). Is it deployed? Polling Firestore? Status unknown.
-2. **Video Package** — Placeholder in code. Content not filmed yet. Unlock mechanism ready, just needs assets.
-3. **Scheduler Upsell** — When user tries to schedule from Celebrity Content without subscription, show upsell modal. Ready to implement.
+We're building a marketing & sales funnel hub for local service businesses. This is a React 19 + Vite + Firebase app deployed on Vercel. Everything lives at `C:\Users\justi\Desktop\ReBoost HUB`. The CLAUDE.md in that directory has full context — read it before doing anything.
 
----
+**Quick status:**
+- App name: "ReBoost Marketing HUB"
+- All code is up to date on `main` branch (Vercel auto-deploys from main)
+- Firestore rules are in `firestore.rules` but NOT deployed to Firebase yet — need the GitHub Actions secret set up (instructions in CLAUDE.md)
+- Several Cloud Functions need deployment too
 
-## Important Context For Next Chat
+**Priority tasks for this session:**
+1. Content Manager bulk upload — replace Image URL field with Firebase Storage upload so owner can upload Canva images directly
+2. Celebrity Content categories — add category field (funny, educational, promotional, checklist, story, seasonal) + filter UI
+3. Stripe webhook / funnel integration — when someone buys via external funnel, grant Hub access automatically
+4. OR: whatever the owner brings up
 
-This is **Session 6** on this project. Prior chats encountered token limits and context loss. Key points:
-
-1. **This is a Sales Funnel, not a dev toolkit**
-2. **Niche is everything** — no generic content
-3. **First-login forces profile** — auto-populates everything
-4. **Each tool is an upsell** → Lead Gen → Citations → Scheduler → AI Creator → Content Calendar → DFY Services
-5. **No Fabric.js** — custom canvas editor (proprietary)
-6. **Firestore rules + dynamic offers** — admins manage without code changes
-7. **Image editor used by 3 places:** Celebrity Content, Scheduler, AI Creator
+**Critical rules:**
+- NICHES is `{ value, label }` objects — never render them directly as React children
+- Firestore rules changes auto-deploy via GitHub Actions once the FIREBASE_SERVICE_ACCOUNT secret is set
+- Push all changes to `main` — Vercel auto-promotes
+- No Fabric.js — custom canvas editor only
+- CommonJS only in Cloud Functions (no ES module syntax)
 
 ---
