@@ -26,6 +26,7 @@ export const sendReviewRequest = call('sendReviewRequest')
 
 // Rank Tracker
 export const checkKeywordRank = call('checkKeywordRank')
+export const getGoogleKeywordSuggestions = call('getGoogleKeywordSuggestions')
 
 // Scheduler (Zernio)
 export const schedulePost = call('schedulePost')

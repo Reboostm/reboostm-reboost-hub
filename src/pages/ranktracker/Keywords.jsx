@@ -10,7 +10,7 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import { useToast } from '../../hooks/useToast'
 import { subscribeToKeywords, addKeyword, deleteKeyword } from '../../services/firestore'
-import { checkKeywordRank } from '../../services/functions'
+import { checkKeywordRank, getGoogleKeywordSuggestions } from '../../services/functions'
 import { NICHES, US_STATES } from '../../config'
 import {
   TrendingUp, TrendingDown, Minus, Plus, Trash2,
@@ -140,18 +140,38 @@ function AddKeywordModal({ isOpen, onClose, userId, onAdded }) {
   const { toast } = useToast()
   const { userProfile } = useAuth()
   const [keyword, setKeyword] = useState('')
-  const [domain,  setDomain]  = useState('')
-  const [city,    setCity]    = useState('')
-  const [state,   setState]   = useState('')
+  const [domain,  setDomain]  = useState(() => userProfile?.website?.replace(/^https?:\/\//, '').split('/')[0] || '')
+  const [city,    setCity]    = useState(() => userProfile?.city || '')
+  const [state,   setState]   = useState(() => userProfile?.state || '')
+  const [nicheOverride, setNicheOverride] = useState(() => userProfile?.niche || '')
   const [devices, setDevices] = useState({ mobile: true, desktop: true })
   const [saving,  setSaving]  = useState(false)
+  const [fetchingGoogle, setFetchingGoogle] = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [suggestions, setSuggestions] = useState({ universal: [], serviceSpecific: [] })
+  const [suggestions, setSuggestions] = useState({ universal: [], serviceSpecific: [], google: [] })
 
-  function handleGenerateSuggestions() {
-    const result = buildSuggestions(userProfile?.niche, city, state)
-    setSuggestions(result)
+  async function handleGenerateSuggestions() {
+    if (!city.trim()) { toast('Enter a city first.', 'error'); return }
+    const local = buildSuggestions(nicheOverride, city, state)
+    setSuggestions({ ...local, google: [] })
     setShowSuggestions(true)
+
+    // Also fetch real Google autocomplete suggestions via SerpAPI
+    if (nicheOverride && NICHE_KEYWORD_DATA[nicheOverride]) {
+      setFetchingGoogle(true)
+      try {
+        const data = NICHE_KEYWORD_DATA[nicheOverride]
+        const baseQuery = `${data.primary} ${city.trim()}`
+        const result = await getGoogleKeywordSuggestions({ query: baseQuery })
+        if (result?.suggestions?.length) {
+          setSuggestions(prev => ({ ...prev, google: result.suggestions }))
+        }
+      } catch {
+        // Silently ignore — local suggestions are still shown
+      } finally {
+        setFetchingGoogle(false)
+      }
+    }
   }
 
   async function handleAddKeyword(kw) {
@@ -182,7 +202,7 @@ function AddKeywordModal({ isOpen, onClose, userId, onAdded }) {
       setCity('')
       setState('')
       setDevices({ mobile: true, desktop: true })
-      setSuggestions({ universal: [], serviceSpecific: [] })
+      setSuggestions({ universal: [], serviceSpecific: [], google: [] })
       setShowSuggestions(false)
       onAdded()
       onClose()
@@ -266,27 +286,55 @@ function AddKeywordModal({ isOpen, onClose, userId, onAdded }) {
           </div>
         </div>
 
-        {!showSuggestions && (
+        {/* Niche selector for suggestions */}
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <label className="block text-xs font-medium text-hub-text-secondary mb-1">Business type (for keyword ideas)</label>
+            <select
+              value={nicheOverride}
+              onChange={e => setNicheOverride(e.target.value)}
+              className="w-full bg-hub-input border border-hub-border rounded-lg px-3 py-2 text-sm text-hub-text focus:outline-none focus:border-hub-blue"
+            >
+              <option value="">— Select niche —</option>
+              {NICHES.map(n => <option key={n.value} value={n.value}>{n.label}</option>)}
+            </select>
+          </div>
           <Button
             type="button"
             variant="secondary"
             size="sm"
-            className="w-full"
             onClick={handleGenerateSuggestions}
             disabled={!city.trim()}
+            loading={fetchingGoogle}
           >
-            💡 Get Keyword Suggestions ({NICHE_KEYWORD_DATA[userProfile?.niche] ? '50+' : '30'} ideas)
+            💡 Get Ideas
           </Button>
-        )}
+        </div>
 
         {showSuggestions && (
           <div className="bg-hub-input/50 rounded-lg p-3 border border-hub-border space-y-2">
             <div className="flex items-center justify-between mb-1">
               <p className="text-xs font-medium text-hub-text-secondary">
-                {suggestions.universal.length + suggestions.serviceSpecific.length} keyword ideas — click to use
+                Click any keyword to use it
               </p>
               <button type="button" onClick={() => setShowSuggestions(false)} className="text-xs text-hub-text-muted hover:text-hub-text">✕ close</button>
             </div>
+
+            {suggestions.google.length > 0 && (
+              <>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-hub-green mt-2 flex items-center gap-1">
+                  <span>🔍</span> Real Google Searches
+                </p>
+                <div className="max-h-36 overflow-y-auto space-y-1">
+                  {suggestions.google.map((s, i) => (
+                    <button key={i} type="button" onClick={() => { setKeyword(s); setShowSuggestions(false) }}
+                      className="w-full text-left text-xs px-3 py-1.5 bg-hub-card rounded hover:bg-hub-green/20 transition-colors text-hub-text border border-hub-green/20">
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
 
             {suggestions.serviceSpecific.length > 0 && (
               <>
@@ -302,7 +350,7 @@ function AddKeywordModal({ isOpen, onClose, userId, onAdded }) {
               </>
             )}
 
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-hub-text-muted mt-2">Universal Local</p>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-hub-text-muted mt-2">Universal Local Patterns</p>
             <div className="max-h-36 overflow-y-auto space-y-1">
               {suggestions.universal.map((s, i) => (
                 <button key={i} type="button" onClick={() => { setKeyword(s); setShowSuggestions(false) }}

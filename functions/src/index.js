@@ -1507,6 +1507,48 @@ exports.sendReviewRequest = onCall({ timeoutSeconds: 60 }, async (request) => {
   return { sent: sentCount, total: customers.length }
 })
 
+// ─── getGoogleKeywordSuggestions ──────────────────────────────────────────────
+// Fetch real Google autocomplete suggestions for a query via SerpAPI.
+// Returns actual searches people type into Google — no fabricated keywords.
+// Required env var: SERPAPI_KEY
+
+exports.getGoogleKeywordSuggestions = onCall({ timeoutSeconds: 15 }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const { query } = request.data
+  if (!query || typeof query !== 'string') {
+    throw new HttpsError('invalid-argument', 'query is required.')
+  }
+
+  const SERPAPI_KEY = process.env.SERPAPI_KEY || ''
+  if (!SERPAPI_KEY) {
+    // Graceful fallback — no error, just empty suggestions
+    return { suggestions: [] }
+  }
+
+  try {
+    // Google Autocomplete — returns what real users type into Google Search
+    const params = new URLSearchParams({
+      engine: 'google_autocomplete',
+      q: query.trim(),
+      api_key: SERPAPI_KEY,
+    })
+
+    const res = await fetch(`https://serpapi.com/search?${params}`, {
+      signal: AbortSignal.timeout(10000),
+    })
+
+    if (!res.ok) return { suggestions: [] }
+
+    const data = await res.json()
+    const suggestions = (data.suggestions || []).map(s => s.value).filter(Boolean)
+    return { suggestions }
+  } catch {
+    return { suggestions: [] }
+  }
+})
+
 // ─── checkKeywordRank ─────────────────────────────────────────────────────────
 // Check Google rank for a tracked keyword via SerpAPI.
 // Required env var: SERPAPI_KEY (serpapi.com — $50/mo for 5,000 searches)
