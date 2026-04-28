@@ -20,7 +20,7 @@ const PAGE_TITLES = {
   '/scheduler/accounts': 'Connected Accounts',
   '/creator': 'AI Content Creator',
   '/creator/image': 'Generate Image',
-  '/calendar': 'Content Calendar',
+  '/calendar': 'Celebrity Content',
   '/reviews': 'Review Manager',
   '/reviews/requests': 'Review Requests',
   '/rank-tracker': 'Rank Tracker',

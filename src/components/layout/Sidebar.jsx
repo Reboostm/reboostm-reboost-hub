@@ -72,7 +72,7 @@ const SECTIONS = [
   },
   {
     key: 'calendar',
-    label: 'Content Calendar',
+    label: 'Celebrity Content',
     icon: Image,
     badge: { text: 'PAID', variant: 'paid' },
     isLocked: (b) => !b.hasCalendar,
@@ -129,7 +129,7 @@ export default function Sidebar() {
   const toggle = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
 
   return (
-    <aside className="w-60 h-full bg-hub-sidebar border-r border-hub-border flex flex-col shrink-0">
+    <aside className="w-72 h-full bg-hub-sidebar border-r border-hub-border flex flex-col shrink-0">
       {/* Logo */}
       <div className="h-14 flex items-center px-4 border-b border-hub-border shrink-0">
         <div className="flex items-center gap-2.5">

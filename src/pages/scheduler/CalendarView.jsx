@@ -90,7 +90,7 @@ export default function CalendarView() {
     <div className="p-6 max-w-4xl mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-hub-text">Content Calendar</h1>
+          <h1 className="text-2xl font-semibold text-hub-text">Celebrity Content</h1>
           <p className="text-hub-text-secondary text-sm mt-0.5">
             {scheduledCount > 0
               ? `${scheduledCount} post${scheduledCount !== 1 ? 's' : ''} scheduled`
