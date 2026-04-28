@@ -1,5 +1,4 @@
 import { useEffect } from 'react'
-import { Navigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuth } from '../../hooks/useAuth'
@@ -12,13 +11,8 @@ import Button from '../../components/ui/Button'
 import { NICHES, US_STATES } from '../../config'
 
 export default function Profile() {
-  const { userProfile, updateProfile, isStaff } = useAuth()
+  const { userProfile, updateProfile } = useAuth()
   const { toast } = useToast()
-
-  // Redirect admins to audit home
-  if (isStaff) {
-    return <Navigate to="/audit" replace />
-  }
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(profileSchema),

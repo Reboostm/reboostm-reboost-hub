@@ -19,7 +19,7 @@ const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
 export default function CelebrityContent() {
   const navigate = useNavigate()
-  const { userProfile } = useAuth()
+  const { userProfile, isStaff } = useAuth()
   const { hasCalendar, hasAICreator } = useBilling()
   const { toast } = useToast()
 
@@ -31,28 +31,33 @@ export default function CelebrityContent() {
   const [editingItem, setEditingItem] = useState(null)
   const [editorOpen, setEditorOpen] = useState(false)
 
-  // Load content for user's niche
+  // Load content — admins see all niches, users see their niche only
   useEffect(() => {
-    if (!userProfile?.niche) {
+    if (!isStaff && !userProfile?.niche) {
       setLoading(false)
       return
     }
 
+    const q = isStaff
+      ? collection(db, 'content')
+      : query(collection(db, 'content'), where('niche', '==', userProfile.niche))
+
     const unsub = onSnapshot(
-      query(collection(db, 'content'), where('niche', '==', userProfile.niche)),
+      q,
       snap => {
         setContent(snap.docs.map(d => ({ id: d.id, ...d.data() })))
         setLoading(false)
-      }
+      },
+      () => setLoading(false)
     )
     return unsub
-  }, [userProfile?.niche])
+  }, [userProfile?.niche, isStaff])
 
   if (!hasCalendar) {
     return <ToolGate tool="calendar" />
   }
 
-  if (!userProfile?.niche) {
+  if (!isStaff && !userProfile?.niche) {
     return (
       <EmptyState
         icon={CalendarIcon}

@@ -32,12 +32,12 @@ export default function Modal({ isOpen, onClose, title, size = 'md', children, f
       />
       <div
         className={cn(
-          'relative bg-hub-card border border-hub-border rounded-xl w-full shadow-2xl',
+          'relative bg-hub-card border border-hub-border rounded-xl w-full shadow-2xl flex flex-col max-h-[90vh]',
           sizes[size]
         )}
       >
         {title !== undefined && (
-          <div className="flex items-center justify-between px-6 py-4 border-b border-hub-border">
+          <div className="flex items-center justify-between px-6 py-4 border-b border-hub-border shrink-0">
             <h2 className="text-base font-semibold text-hub-text">{title}</h2>
             <button
               onClick={onClose}
@@ -47,9 +47,9 @@ export default function Modal({ isOpen, onClose, title, size = 'md', children, f
             </button>
           </div>
         )}
-        <div className="p-6">{children}</div>
+        <div className="p-6 overflow-y-auto flex-1">{children}</div>
         {footer && (
-          <div className="px-6 py-4 border-t border-hub-border flex justify-end gap-3">
+          <div className="px-6 py-4 border-t border-hub-border flex justify-end gap-3 shrink-0">
             {footer}
           </div>
         )}

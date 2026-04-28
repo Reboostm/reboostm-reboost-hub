@@ -35,18 +35,26 @@ export default function TrainingAndSupport() {
 
   // Load videos
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'trainingVideos'), snap => {
-      setVideos(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)))
-      setLoading(false)
-    })
+    const unsub = onSnapshot(
+      collection(db, 'trainingVideos'),
+      snap => {
+        setVideos(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)))
+        setLoading(false)
+      },
+      () => setLoading(false)
+    )
     return unsub
   }, [])
 
   // Load articles
   useEffect(() => {
-    const unsub = onSnapshot(collection(db, 'helpArticles'), snap => {
-      setArticles(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)))
-    })
+    const unsub = onSnapshot(
+      collection(db, 'helpArticles'),
+      snap => {
+        setArticles(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)))
+      },
+      () => {}
+    )
     return unsub
   }, [])
 
