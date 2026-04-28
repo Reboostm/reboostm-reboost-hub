@@ -1,4 +1,5 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
+const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { initializeApp } = require('firebase-admin/app')
 const { getFirestore, FieldValue } = require('firebase-admin/firestore')
 const { getAuth } = require('firebase-admin/auth')
@@ -1498,4 +1499,145 @@ exports.checkKeywordRank = onCall({ timeoutSeconds: 30 }, async (request) => {
   })
 
   return { rank, inLocalPack }
+})
+
+// ─── scheduleRankChecks ───────────────────────────────────────────────────────
+// Scheduled function: runs every Monday at 2 AM UTC
+// Checks ranks for all active tracked keywords across all users with rank tracker
+// Respects SerpAPI rate limits (~166 checks/day with 5K/month plan)
+// Only checks keywords not checked in past 7 days to avoid duplicate queries
+
+exports.scheduleRankChecks = onSchedule('every monday 02:00', async () => {
+  const SERPAPI_KEY = process.env.SERPAPI_KEY || ''
+  if (!SERPAPI_KEY) {
+    console.warn('SERPAPI_KEY not configured. Skipping scheduled rank checks.')
+    return
+  }
+
+  const now = new Date()
+  const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+
+  try {
+    // Find all users with rank tracker subscription
+    const usersSnap = await db.collection('users')
+      .where('subscriptions.rankTracker.active', '==', true)
+      .get()
+
+    console.log(`Found ${usersSnap.size} users with active rank tracker subscriptions.`)
+
+    let totalChecks = 0
+    let successCount = 0
+    let failureCount = 0
+
+    // For each user, get their keywords and check ranks
+    for (const userDoc of usersSnap.docs) {
+      const userId = userDoc.id
+      const userRef = db.collection('users').doc(userId)
+
+      // Get all keywords for this user that haven't been checked recently
+      const keywordsSnap = await db.collection('trackedKeywords')
+        .where('userId', '==', userId)
+        .get()
+
+      console.log(`User ${userId}: checking ${keywordsSnap.size} keywords`)
+
+      for (const kwDoc of keywordsSnap.docs) {
+        const kwId = kwDoc.id
+        const kw = kwDoc.data()
+
+        // Skip if recently checked (within 7 days)
+        const lastChecked = kw.lastChecked?.toDate?.() || new Date(0)
+        if (lastChecked > sevenDaysAgo) {
+          console.log(`Skipping ${kw.keyword} (checked ${lastChecked.toISOString()})`)
+          continue
+        }
+
+        totalChecks++
+
+        try {
+          // Perform rank check via SerpAPI
+          const location = `${kw.city},${kw.state},United States`
+          const params = new URLSearchParams({
+            engine: 'google',
+            q: kw.keyword,
+            location,
+            device: kw.device || 'mobile',
+            num: '100',
+            api_key: SERPAPI_KEY,
+          })
+
+          const res = await fetch(`https://serpapi.com/search?${params}`, {
+            signal: AbortSignal.timeout(20000),
+          })
+
+          if (!res.ok) {
+            throw new Error(`SerpAPI returned ${res.status}`)
+          }
+
+          const data = await res.json()
+
+          // Check organic results for the target domain
+          const organic = data.organic_results || []
+          let rank = null
+          const domainLower = (kw.domain || '').toLowerCase().replace(/^www\./, '')
+
+          for (const result of organic) {
+            const link = (result.link || result.url || '').toLowerCase().replace(/^https?:\/\/(www\.)?/, '')
+            if (link.startsWith(domainLower) || link.includes(domainLower)) {
+              rank = result.position
+              break
+            }
+          }
+
+          // Check local pack (Google Maps 3-pack)
+          const localPlaces = data.local_results?.places || []
+          const inLocalPack = localPlaces.some(place => {
+            const site = (place.website || place.links?.website || '').toLowerCase().replace(/^https?:\/\/(www\.)?/, '')
+            return site.startsWith(domainLower) || site.includes(domainLower)
+          })
+
+          // Update keyword document
+          await db.collection('trackedKeywords').doc(kwId).update({
+            previousRank: kw.currentRank ?? null,
+            currentRank: rank,
+            inLocalPack,
+            lastChecked: FieldValue.serverTimestamp(),
+          })
+
+          // Append to check history
+          await db.collection('rankChecks').add({
+            keywordId: kwId,
+            userId,
+            keyword: kw.keyword,
+            domain: kw.domain,
+            rank,
+            inLocalPack,
+            checkedAt: FieldValue.serverTimestamp(),
+          })
+
+          successCount++
+          console.log(`✓ ${kw.keyword}: rank ${rank || 'not found'} ${inLocalPack ? '(in local pack)' : ''}`)
+
+          // Rate limit: ~166 checks/day with 5K/month plan, spread across week
+          // Add 1 second delay between checks to avoid overwhelming SerpAPI
+          await new Promise(resolve => setTimeout(resolve, 1000))
+        } catch (err) {
+          failureCount++
+          console.error(`✗ Failed to check ${kw.keyword}:`, err.message)
+        }
+      }
+    }
+
+    console.log(`Scheduled rank check complete: ${successCount}/${totalChecks} succeeded, ${failureCount} failed`)
+
+    return {
+      totalChecks,
+      successCount,
+      failureCount,
+      timestamp: new Date().toISOString(),
+    }
+  } catch (err) {
+    console.error('Scheduled rank check failed:', err)
+    throw err
+  }
 })
