@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { doc, onSnapshot, setDoc, getDoc } from 'firebase/firestore'
+import { doc, onSnapshot, setDoc } from 'firebase/firestore'
 import { db } from '../../services/firebase'
 import { useToast } from '../../hooks/useToast'
 import Card, { CardHeader, CardTitle } from '../../components/ui/Card'
@@ -7,12 +7,12 @@ import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import Badge from '../../components/ui/Badge'
 import Spinner from '../../components/ui/Spinner'
-import { Key, Plus, Trash2, ToggleLeft, ToggleRight, RefreshCw, ExternalLink, Info } from 'lucide-react'
+import { Key, Plus, Trash2, ToggleLeft, ToggleRight, RefreshCw, ExternalLink, Info, Edit2 } from 'lucide-react'
 
 const MAPS_KEYS_DOC = doc(db, 'settings', 'googleMapsKeys')
+const FUNCTION_ENV_VARS_DOC = doc(db, 'settings', 'functionEnvVars')
 
-// Firebase Function env vars that need to be set manually
-const ENV_VARS = [
+const ENV_VAR_SPECS = [
   {
     key: 'GOOGLE_PLACES_KEY',
     purpose: 'SEO Audit GMB check · Lead Generator key rotation · Review Manager (fetchReviews)',
@@ -79,16 +79,23 @@ function UsageBar({ used, limit }) {
 export default function AdminApiKeys() {
   const { toast } = useToast()
   const [keysData, setKeysData] = useState(null)
+  const [envVarsData, setEnvVarsData] = useState({})
   const [loading, setLoading] = useState(true)
 
-  // Add/edit key form state
-  const [showForm, setShowForm] = useState(false)
-  const [editingIdx, setEditingIdx] = useState(null)
+  // Google Maps key form state
+  const [showMapsForm, setShowMapsForm] = useState(false)
+  const [editingMapsIdx, setEditingMapsIdx] = useState(null)
   const [newLabel, setNewLabel] = useState('')
   const [newKey, setNewKey] = useState('')
   const [newLimit, setNewLimit] = useState('500')
-  const [saving, setSaving] = useState(false)
+  const [savingMaps, setSavingMaps] = useState(false)
 
+  // Env vars form state
+  const [editingEnvKey, setEditingEnvKey] = useState(null)
+  const [editingEnvValue, setEditingEnvValue] = useState('')
+  const [savingEnv, setSavingEnv] = useState(false)
+
+  // Load Google Maps keys
   useEffect(() => {
     const unsub = onSnapshot(MAPS_KEYS_DOC, snap => {
       if (snap.exists()) {
@@ -101,71 +108,85 @@ export default function AdminApiKeys() {
     return unsub
   }, [])
 
-  async function saveKeys(updatedKeys) {
+  // Load Function env vars
+  useEffect(() => {
+    const unsub = onSnapshot(FUNCTION_ENV_VARS_DOC, snap => {
+      if (snap.exists()) {
+        setEnvVarsData(snap.data().vars || {})
+      } else {
+        setEnvVarsData({})
+      }
+    })
+    return unsub
+  }, [])
+
+  async function saveMapKeys(updatedKeys) {
     await setDoc(MAPS_KEYS_DOC, {
       keys: updatedKeys,
       lastResetMonth: keysData?.lastResetMonth ?? null,
     }, { merge: true })
   }
 
-  function openAddForm() {
-    setEditingIdx(null)
+  async function saveEnvVars(updatedVars) {
+    await setDoc(FUNCTION_ENV_VARS_DOC, { vars: updatedVars }, { merge: true })
+  }
+
+  function openAddMapsForm() {
+    setEditingMapsIdx(null)
     setNewLabel('')
     setNewKey('')
     setNewLimit('1800')
-    setShowForm(true)
+    setShowMapsForm(true)
   }
 
-  function openEditForm(idx) {
+  function openEditMapsForm(idx) {
     const k = keysData.keys[idx]
-    setEditingIdx(idx)
+    setEditingMapsIdx(idx)
     setNewLabel(k.label || '')
     setNewKey(k.key)
     setNewLimit(String(k.limit || 1800))
-    setShowForm(true)
+    setShowMapsForm(true)
   }
 
-  function closeForm() {
-    setShowForm(false)
-    setEditingIdx(null)
+  function closeMapsForm() {
+    setShowMapsForm(false)
+    setEditingMapsIdx(null)
     setNewLabel('')
     setNewKey('')
     setNewLimit('1800')
   }
 
-  async function handleSaveKey(e) {
+  async function handleSaveMapKey(e) {
     e.preventDefault()
     if (!newLabel.trim() || !newKey.trim()) {
       toast('Label and API key are required.', 'error')
       return
     }
     const limit = parseInt(newLimit, 10) || 1800
-    setSaving(true)
+    setSavingMaps(true)
     try {
       let updated
-      if (editingIdx !== null) {
-        // Edit existing key
+      if (editingMapsIdx !== null) {
         updated = keysData.keys.map((k, i) =>
-          i === editingIdx
+          i === editingMapsIdx
             ? { ...k, label: newLabel.trim(), key: newKey.trim(), limit }
             : k
         )
-        await saveKeys(updated)
+        await saveMapKeys(updated)
         toast('API key updated.', 'success')
       } else {
-        // Add new key
         updated = [
           ...(keysData?.keys || []),
           { key: newKey.trim(), label: newLabel.trim(), usageThisMonth: 0, limit, active: true },
         ]
-        await saveKeys(updated)
+        await saveMapKeys(updated)
         toast('API key added.', 'success')
       }
-      closeForm()
+      closeMapsForm()
     } catch {
       toast('Failed to save key.', 'error')
     } finally {
-      setSaving(false)
+      setSavingMaps(false)
     }
   }
 
@@ -174,17 +195,17 @@ export default function AdminApiKeys() {
       i === idx ? { ...k, active: !k.active } : k
     )
     try {
-      await saveKeys(updated)
+      await saveMapKeys(updated)
     } catch {
       toast('Failed to update key.', 'error')
     }
   }
 
-  async function deleteKey(idx) {
+  async function deleteMapKey(idx) {
     if (!window.confirm('Delete this API key?')) return
     const updated = keysData.keys.filter((_, i) => i !== idx)
     try {
-      await saveKeys(updated)
+      await saveMapKeys(updated)
       toast('Key deleted.', 'success')
     } catch {
       toast('Failed to delete key.', 'error')
@@ -196,10 +217,54 @@ export default function AdminApiKeys() {
       i === idx ? { ...k, usageThisMonth: 0 } : k
     )
     try {
-      await saveKeys(updated)
+      await saveMapKeys(updated)
       toast('Usage reset to 0.', 'success')
     } catch {
       toast('Failed to reset usage.', 'error')
+    }
+  }
+
+  function openEditEnvVar(envKey) {
+    setEditingEnvKey(envKey)
+    setEditingEnvValue(envVarsData[envKey] || '')
+  }
+
+  function closeEditEnvVar() {
+    setEditingEnvKey(null)
+    setEditingEnvValue('')
+  }
+
+  async function handleSaveEnvVar(e) {
+    e.preventDefault()
+    if (!editingEnvValue.trim()) {
+      toast('API key value cannot be empty.', 'error')
+      return
+    }
+    setSavingEnv(true)
+    try {
+      const updated = { ...envVarsData, [editingEnvKey]: editingEnvValue.trim() }
+      await saveEnvVars(updated)
+      toast(`${editingEnvKey} saved.`, 'success')
+      closeEditEnvVar()
+    } catch {
+      toast('Failed to save environment variable.', 'error')
+    } finally {
+      setSavingEnv(false)
+    }
+  }
+
+  async function deleteEnvVar(envKey) {
+    if (!window.confirm(`Delete ${envKey}?`)) return
+    setSavingEnv(true)
+    try {
+      const updated = { ...envVarsData }
+      delete updated[envKey]
+      await saveEnvVars(updated)
+      toast(`${envKey} deleted.`, 'success')
+    } catch {
+      toast('Failed to delete environment variable.', 'error')
+    } finally {
+      setSavingEnv(false)
     }
   }
 
@@ -209,9 +274,9 @@ export default function AdminApiKeys() {
   return (
     <div className="p-6 max-w-4xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-hub-text">API Keys</h1>
+        <h1 className="text-2xl font-semibold text-hub-text">API Keys & Environment Variables</h1>
         <p className="text-hub-text-secondary text-sm mt-1">
-          Manage Google Maps API key rotation and view required Firebase Function environment variables.
+          Manage Google Maps key rotation and Firebase Function environment variables.
         </p>
       </div>
 
@@ -227,17 +292,16 @@ export default function AdminApiKeys() {
                 skips any key that hits its limit.
               </p>
             </div>
-            <Button size="sm" onClick={openAddForm}>
+            <Button size="sm" onClick={openAddMapsForm}>
               <Plus className="w-3.5 h-3.5 mr-1.5" /> Add Key
             </Button>
           </div>
         </CardHeader>
 
-        {/* Add/edit key form */}
-        {showForm && (
-          <form onSubmit={handleSaveKey} className="mb-4 p-4 bg-hub-input/30 rounded-xl border border-hub-border space-y-3">
+        {showMapsForm && (
+          <form onSubmit={handleSaveMapKey} className="mb-4 p-4 bg-hub-input/30 rounded-xl border border-hub-border space-y-3">
             <h3 className="text-sm font-medium text-hub-text">
-              {editingIdx !== null ? 'Edit Google Maps API Key' : 'New Google Maps API Key'}
+              {editingMapsIdx !== null ? 'Edit Google Maps API Key' : 'New Google Maps API Key'}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <Input
@@ -261,10 +325,10 @@ export default function AdminApiKeys() {
               />
             </div>
             <div className="flex gap-2">
-              <Button type="submit" size="sm" loading={saving}>
-                {editingIdx !== null ? 'Update Key' : 'Save Key'}
+              <Button type="submit" size="sm" loading={savingMaps}>
+                {editingMapsIdx !== null ? 'Update Key' : 'Save Key'}
               </Button>
-              <Button type="button" size="sm" variant="ghost" onClick={closeForm}>Cancel</Button>
+              <Button type="button" size="sm" variant="ghost" onClick={closeMapsForm}>Cancel</Button>
             </div>
           </form>
         )}
@@ -317,7 +381,7 @@ export default function AdminApiKeys() {
                       size="sm"
                       variant="ghost"
                       title="Edit key"
-                      onClick={() => openEditForm(i)}
+                      onClick={() => openEditMapsForm(i)}
                     >
                       <span className="text-xs">Edit</span>
                     </Button>
@@ -344,7 +408,7 @@ export default function AdminApiKeys() {
                       size="sm"
                       variant="ghost"
                       title="Delete key"
-                      onClick={() => deleteKey(i)}
+                      onClick={() => deleteMapKey(i)}
                     >
                       <Trash2 className="w-3.5 h-3.5 text-hub-red" />
                     </Button>
@@ -360,45 +424,86 @@ export default function AdminApiKeys() {
       {/* ── Firebase Function Env Vars ───────────────────────── */}
       <Card>
         <CardHeader>
-          <div>
-            <CardTitle>Firebase Function Environment Variables</CardTitle>
-            <p className="text-xs text-hub-text-muted mt-0.5">
-              These must be set in the{' '}
-              <a
-                href="https://console.firebase.google.com/project/reboost-hub/functions"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-hub-blue hover:underline inline-flex items-center gap-0.5"
-              >
-                Firebase Console <ExternalLink className="w-3 h-3" />
-              </a>
-              {' '}→ Functions → select the function → Edit → Runtime environment variables.
-            </p>
-          </div>
+          <CardTitle>Firebase Function Environment Variables</CardTitle>
+          <p className="text-xs text-hub-text-muted mt-0.5">
+            Configure API keys and secrets below (stored securely in Firestore). These values are injected into Cloud Functions at runtime.
+          </p>
         </CardHeader>
 
         <div className="space-y-3">
-          {ENV_VARS.map(v => (
-            <div key={v.key} className="p-4 rounded-xl border border-hub-border bg-hub-card">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <code className="text-sm font-mono text-hub-blue">{v.key}</code>
-                    <Badge variant={v.required ? 'error' : 'gray'} size="sm">
-                      {v.required ? 'Required' : 'Optional'}
-                    </Badge>
+          {ENV_VAR_SPECS.map(spec => {
+            const hasValue = !!envVarsData[spec.key]
+            const isEditing = editingEnvKey === spec.key
+
+            return (
+              <div key={spec.key} className="p-4 rounded-xl border border-hub-border bg-hub-card">
+                {isEditing ? (
+                  <form onSubmit={handleSaveEnvVar} className="space-y-3">
+                    <div>
+                      <label className="block text-xs font-medium text-hub-text mb-1">{spec.key}</label>
+                      <input
+                        type="password"
+                        value={editingEnvValue}
+                        onChange={e => setEditingEnvValue(e.target.value)}
+                        placeholder="Paste API key here"
+                        className="w-full bg-hub-input border border-hub-border rounded-lg px-3 py-2.5 text-sm text-hub-text placeholder:text-hub-text-muted focus:outline-none focus:border-hub-blue"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="submit" size="sm" loading={savingEnv}>Save</Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={closeEditEnvVar}>Cancel</Button>
+                    </div>
+                  </form>
+                ) : (
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <code className="text-sm font-mono text-hub-blue">{spec.key}</code>
+                        <Badge variant={spec.required ? 'error' : 'gray'} size="sm">
+                          {spec.required ? 'Required' : 'Optional'}
+                        </Badge>
+                        {hasValue && <Badge variant="success" size="sm">Configured</Badge>}
+                      </div>
+                      <p className="text-xs text-hub-text-secondary mb-1">{spec.purpose}</p>
+                      <p className="text-xs text-hub-text-muted">
+                        <span className="font-medium text-hub-text-secondary">Where to set:</span> {spec.where}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        title="Edit"
+                        onClick={() => openEditEnvVar(spec.key)}
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </Button>
+                      {hasValue && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          title="Delete"
+                          onClick={() => deleteEnvVar(spec.key)}
+                        >
+                          <Trash2 className="w-3.5 h-3.5 text-hub-red" />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                  <p className="text-xs text-hub-text-secondary mb-1">{v.purpose}</p>
-                  <p className="text-xs text-hub-text-muted">
-                    <span className="font-medium text-hub-text-secondary">Where to set:</span> {v.where}
-                  </p>
-                </div>
+                )}
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
 
         <div className="mt-4 p-3 bg-hub-input/30 rounded-lg border border-hub-border flex items-start gap-2.5">
+          <Info className="w-4 h-4 text-hub-text-muted mt-0.5 shrink-0" />
+          <p className="text-xs text-hub-text-secondary leading-relaxed">
+            <strong className="text-hub-text">Security note:</strong> These keys are stored in Firestore and encrypted at rest. Never commit keys to git or share them publicly. Edit carefully and test after updating critical keys like ZERNIO_API_KEY.
+          </p>
+        </div>
+
+        <div className="mt-3 p-3 bg-hub-input/30 rounded-lg border border-hub-border flex items-start gap-2.5">
           <Info className="w-4 h-4 text-hub-text-muted mt-0.5 shrink-0" />
           <p className="text-xs text-hub-text-secondary leading-relaxed">
             To get a <strong className="text-hub-text">Google Places / Maps key</strong>: go to{' '}
@@ -408,7 +513,7 @@ export default function AdminApiKeys() {
             , create a new API key, then enable <strong className="text-hub-text">Places API</strong> and{' '}
             <strong className="text-hub-text">Maps JavaScript API</strong>. Restrict the key to those APIs for safety.
             Add it above for Lead Generator key rotation, and also paste it as{' '}
-            <code className="bg-hub-card px-1 rounded text-hub-blue">GOOGLE_PLACES_KEY</code> in the Function env vars for SEO Audit.
+            <code className="bg-hub-card px-1 rounded text-hub-blue">GOOGLE_PLACES_KEY</code> below for SEO Audit.
           </p>
         </div>
       </Card>

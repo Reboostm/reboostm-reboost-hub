@@ -221,7 +221,7 @@ export default function Sidebar() {
             { label: 'Dashboard',       path: '/admin',             icon: LayoutDashboard },
             { label: 'Users',           path: '/admin/users',       icon: Users           },
             { label: 'Clients',         path: '/admin/clients',     icon: Building2       },
-            { label: 'Packages',        path: '/admin/packages',    icon: Package         },
+            { label: 'Offers',          path: '/admin/offers',      icon: Package         },
             { label: 'Territories',     path: '/admin/territories', icon: MapPin          },
             { label: 'Content Manager', path: '/admin/content',     icon: FileImage       },
             { label: 'API Keys',        path: '/admin/api-keys',    icon: KeyRound        },
