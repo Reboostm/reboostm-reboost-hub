@@ -173,6 +173,24 @@ export async function markLeadsBatchExported(batchId) {
   await updateDoc(doc(db, 'leads', batchId), { exported: true })
 }
 
+// ─── Scheduled Posts ─────────────────────────────────────────────────────────
+
+export function subscribeToScheduledPosts(userId, callback) {
+  const q = query(
+    collection(db, 'scheduledPosts'),
+    where('userId', '==', userId),
+    where('status', 'in', ['scheduled', 'published', 'failed']),
+    orderBy('scheduledAt', 'asc')
+  )
+  return onSnapshot(q, snap => {
+    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+  })
+}
+
+export async function deleteScheduledPost(postId) {
+  await updateDoc(doc(db, 'scheduledPosts', postId), { status: 'cancelled' })
+}
+
 // ─── Admin: all users ─────────────────────────────────────────────────────────
 
 export async function getAllUsers(role = null) {

@@ -696,6 +696,171 @@ exports.resetUserPassword = onCall({ timeoutSeconds: 30 }, async (request) => {
   return { link }
 })
 
+// ─── connectZernioAccount ────────────────────────────────────────────────────
+// Stores a platform connection (Zernio account ID) for the current user.
+// The actual posting is done via Zernio's API using ZERNIO_API_KEY env var.
+
+exports.connectZernioAccount = onCall({ timeoutSeconds: 30 }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const { platform, accountName, zernioAccountId } = request.data
+  const VALID_PLATFORMS = ['facebook', 'instagram', 'linkedin', 'gmb']
+  if (!platform || !VALID_PLATFORMS.includes(platform)) {
+    throw new HttpsError('invalid-argument', `platform must be one of: ${VALID_PLATFORMS.join(', ')}`)
+  }
+  if (!accountName?.trim() || !zernioAccountId?.trim()) {
+    throw new HttpsError('invalid-argument', 'accountName and zernioAccountId are required.')
+  }
+
+  await db.collection('users').doc(uid).set({
+    connectedAccounts: {
+      [platform]: {
+        connected: true,
+        accountName: accountName.trim(),
+        zernioAccountId: zernioAccountId.trim(),
+        connectedAt: FieldValue.serverTimestamp(),
+      },
+    },
+  }, { merge: true })
+
+  return { success: true }
+})
+
+// ─── schedulePost ─────────────────────────────────────────────────────────────
+// Schedule a post across one or more platforms via the Zernio API.
+// Required env var: ZERNIO_API_KEY
+// Firestore: scheduledPosts/{postId}
+
+exports.schedulePost = onCall({ timeoutSeconds: 30 }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  // Verify scheduler access
+  const userSnap = await db.collection('users').doc(uid).get()
+  const userData = userSnap.data() || {}
+  const role = userData.role
+  const hasScheduler =
+    role === 'admin' ||
+    role === 'staff' ||
+    userData.subscriptions?.scheduler?.active === true
+
+  if (!hasScheduler) {
+    throw new HttpsError('permission-denied', 'Content Scheduler subscription required.')
+  }
+
+  const { platforms, caption, imageUrl, scheduledAt } = request.data
+  if (!Array.isArray(platforms) || platforms.length === 0) {
+    throw new HttpsError('invalid-argument', 'platforms array is required.')
+  }
+  if (!caption?.trim()) {
+    throw new HttpsError('invalid-argument', 'caption is required.')
+  }
+  if (!scheduledAt) {
+    throw new HttpsError('invalid-argument', 'scheduledAt is required.')
+  }
+  if (new Date(scheduledAt) <= new Date()) {
+    throw new HttpsError('invalid-argument', 'scheduledAt must be in the future.')
+  }
+
+  const ZERNIO_KEY = process.env.ZERNIO_API_KEY || ''
+  const connectedAccounts = userData.connectedAccounts || {}
+  const zernioPostIds = {}
+
+  // Call Zernio API for each selected, connected platform
+  for (const platform of platforms) {
+    const acct = connectedAccounts[platform]
+    if (!acct?.connected || !acct?.zernioAccountId) continue
+
+    if (ZERNIO_KEY) {
+      try {
+        const body = {
+          account_id: acct.zernioAccountId,
+          platform,
+          content: caption,
+          scheduled_time: scheduledAt,
+        }
+        if (imageUrl) body.media_url = imageUrl
+
+        const res = await fetch('https://api.zernio.com/v1/posts', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${ZERNIO_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(15000),
+        })
+
+        if (res.ok) {
+          const data = await res.json()
+          zernioPostIds[platform] = data.id || data.post_id || null
+        } else {
+          console.error(`Zernio ${platform} failed: ${res.status} ${await res.text()}`)
+        }
+      } catch (err) {
+        console.error(`Zernio post error for ${platform}:`, err.message)
+      }
+    }
+  }
+
+  const postRef = db.collection('scheduledPosts').doc()
+  await postRef.set({
+    userId: uid,
+    platforms,
+    caption: caption.trim(),
+    imageUrl: imageUrl || null,
+    scheduledAt: new Date(scheduledAt),
+    status: 'scheduled',
+    zernioPostIds,
+    createdAt: FieldValue.serverTimestamp(),
+  })
+
+  return { postId: postRef.id }
+})
+
+// ─── cancelPost ──────────────────────────────────────────────────────────────
+// Cancel a scheduled post — marks it cancelled in Firestore and calls Zernio.
+
+exports.cancelPost = onCall({ timeoutSeconds: 30 }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const { postId } = request.data
+  if (!postId) throw new HttpsError('invalid-argument', 'postId is required.')
+
+  const postSnap = await db.collection('scheduledPosts').doc(postId).get()
+  if (!postSnap.exists) throw new HttpsError('not-found', 'Post not found.')
+
+  const post = postSnap.data()
+  if (post.userId !== uid) {
+    const callerSnap = await db.collection('users').doc(uid).get()
+    const callerRole = callerSnap.data()?.role
+    if (callerRole !== 'admin' && callerRole !== 'staff') {
+      throw new HttpsError('permission-denied', "Cannot cancel another user's post.")
+    }
+  }
+
+  const ZERNIO_KEY = process.env.ZERNIO_API_KEY || ''
+  if (ZERNIO_KEY && post.zernioPostIds) {
+    for (const zernioId of Object.values(post.zernioPostIds)) {
+      if (!zernioId) continue
+      try {
+        await fetch(`https://api.zernio.com/v1/posts/${zernioId}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${ZERNIO_KEY}` },
+          signal: AbortSignal.timeout(10000),
+        })
+      } catch (err) {
+        console.error('Zernio cancel error:', err.message)
+      }
+    }
+  }
+
+  await db.collection('scheduledPosts').doc(postId).update({ status: 'cancelled' })
+  return { success: true }
+})
+
 // ─── searchLeads ─────────────────────────────────────────────────────────────
 // Calls Google Maps Places API with key rotation.
 // Requires settings/googleMapsKeys Firestore doc with keys array.
