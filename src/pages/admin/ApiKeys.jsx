@@ -15,15 +15,39 @@ const MAPS_KEYS_DOC = doc(db, 'settings', 'googleMapsKeys')
 const ENV_VARS = [
   {
     key: 'GOOGLE_PLACES_KEY',
-    purpose: 'SEO Audit — GMB check (business presence, rating, reviews)',
+    purpose: 'SEO Audit GMB check · Lead Generator key rotation · Review Manager (fetchReviews)',
     required: true,
-    where: 'Firebase Console → Functions → runSeoAudit → Edit',
+    where: 'All Cloud Functions that call Google Places API',
   },
   {
     key: 'PAGESPEED_API_KEY',
     purpose: 'SEO Audit — raises PageSpeed API quota from 400/day to 25,000/day',
     required: false,
-    where: 'Firebase Console → Functions → runSeoAudit → Edit',
+    where: 'runSeoAudit function',
+  },
+  {
+    key: 'ZERNIO_API_KEY',
+    purpose: 'Content Scheduler — publishes posts to social platforms via Zernio ($49/mo plan)',
+    required: true,
+    where: 'schedulePost · cancelPost functions',
+  },
+  {
+    key: 'ANTHROPIC_API_KEY',
+    purpose: 'AI Content Creator — generates social media captions (Scheduler Pro feature)',
+    required: false,
+    where: 'generateAIContent function',
+  },
+  {
+    key: 'OPENAI_API_KEY',
+    purpose: 'AI Image Generator — creates images via DALL-E 3 (Scheduler Pro feature)',
+    required: false,
+    where: 'generateAIImage function',
+  },
+  {
+    key: 'SENDGRID_API_KEY',
+    purpose: 'Review Manager — sends review request emails to customers via SendGrid',
+    required: false,
+    where: 'sendReviewRequest function',
   },
 ]
 

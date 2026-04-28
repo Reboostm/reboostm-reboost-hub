@@ -1084,3 +1084,317 @@ Rules:
     return { emails: parsed.emails }
   }
 )
+
+// ─── generateAIContent ───────────────────────────────────────────────────────
+// Requires Scheduler Pro subscription.
+// Required env var: ANTHROPIC_API_KEY
+
+exports.generateAIContent = onCall({ timeoutSeconds: 60 }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const userSnap = await db.collection('users').doc(uid).get()
+  const userData = userSnap.data() || {}
+  const role = userData.role
+  const hasAICreator =
+    role === 'admin' ||
+    role === 'staff' ||
+    (userData.subscriptions?.scheduler?.active === true &&
+      userData.subscriptions?.scheduler?.tier === 'pro')
+
+  if (!hasAICreator) {
+    throw new HttpsError('permission-denied', 'AI Creator requires Scheduler Pro subscription.')
+  }
+
+  const { platform, tone, prompt, businessName, niche } = request.data
+  if (!prompt?.trim() || !platform || !tone) {
+    throw new HttpsError('invalid-argument', 'prompt, platform, and tone are required.')
+  }
+
+  const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || ''
+  if (!ANTHROPIC_KEY) {
+    throw new HttpsError('failed-precondition', 'AI API not configured. Set ANTHROPIC_API_KEY in Function env vars.')
+  }
+
+  const LIMITS = { facebook: 500, instagram: 2200, linkedin: 3000, gmb: 1500 }
+  const charLimit = LIMITS[platform] || 500
+
+  const TONE_MAP = {
+    professional: 'professional and polished',
+    friendly:     'friendly and casual',
+    urgent:       'urgent and promotional with a strong call to action',
+    educational:  'educational and informative',
+  }
+
+  const systemPrompt = [
+    `You are an expert social media copywriter for local service businesses.`,
+    `Generate a single ${platform} post caption that is ${TONE_MAP[tone] || tone}.`,
+    businessName ? `Business name: ${businessName}` : '',
+    niche ? `Industry: ${niche}` : '',
+    `Keep the caption under ${charLimit} characters.`,
+    `Return ONLY the caption text — no quotes, no preamble, no explanations.`,
+  ].filter(Boolean).join('\n')
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': ANTHROPIC_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: prompt.trim() }],
+    }),
+    signal: AbortSignal.timeout(30000),
+  })
+
+  if (!res.ok) {
+    console.error('Anthropic error:', res.status, await res.text())
+    throw new HttpsError('internal', 'AI generation failed. Check ANTHROPIC_API_KEY.')
+  }
+
+  const data = await res.json()
+  const content = data.content?.[0]?.text?.trim() || ''
+  return { content }
+})
+
+// ─── generateAIImage ─────────────────────────────────────────────────────────
+// Requires Scheduler Pro subscription.
+// Required env var: OPENAI_API_KEY
+// Note: DALL-E 3 image URLs expire after ~60 minutes — download immediately.
+
+exports.generateAIImage = onCall({ timeoutSeconds: 120, memory: '256MiB' }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const userSnap = await db.collection('users').doc(uid).get()
+  const userData = userSnap.data() || {}
+  const role = userData.role
+  const hasAICreator =
+    role === 'admin' ||
+    role === 'staff' ||
+    (userData.subscriptions?.scheduler?.active === true &&
+      userData.subscriptions?.scheduler?.tier === 'pro')
+
+  if (!hasAICreator) {
+    throw new HttpsError('permission-denied', 'AI Creator requires Scheduler Pro subscription.')
+  }
+
+  const { prompt, style, size } = request.data
+  if (!prompt?.trim()) throw new HttpsError('invalid-argument', 'prompt is required.')
+
+  const OPENAI_KEY = process.env.OPENAI_API_KEY || ''
+  if (!OPENAI_KEY) {
+    throw new HttpsError('failed-precondition', 'Image API not configured. Set OPENAI_API_KEY in Function env vars.')
+  }
+
+  const SIZE_MAP = { square: '1024x1024', landscape: '1792x1024', portrait: '1024x1792' }
+  const STYLE_PREFIX = {
+    photorealistic: 'Professional photography, ultra-realistic, well-lit,',
+    illustration:   'Clean digital illustration, modern flat design,',
+    cartoon:        'Friendly cartoon style, vibrant colors,',
+    minimalist:     'Minimalist design, simple shapes, clean white background,',
+  }
+
+  const enhancedPrompt = `${STYLE_PREFIX[style] || ''} ${prompt.trim()}. Business appropriate, high quality.`
+
+  const res = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${OPENAI_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'dall-e-3',
+      prompt: enhancedPrompt,
+      n: 1,
+      size: SIZE_MAP[size] || '1024x1024',
+      quality: 'standard',
+    }),
+    signal: AbortSignal.timeout(90000),
+  })
+
+  if (!res.ok) {
+    console.error('OpenAI error:', res.status, await res.text())
+    throw new HttpsError('internal', 'Image generation failed. Check OPENAI_API_KEY.')
+  }
+
+  const data = await res.json()
+  const imageUrl = data.data?.[0]?.url || ''
+  return { imageUrl }
+})
+
+// ─── fetchReviews ─────────────────────────────────────────────────────────────
+// Fetches Google reviews via Places API and caches them in the user's Firestore doc.
+// Required env var: GOOGLE_PLACES_KEY
+
+exports.fetchReviews = onCall({ timeoutSeconds: 30 }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const userSnap = await db.collection('users').doc(uid).get()
+  const userData = userSnap.data() || {}
+  const role = userData.role
+  const hasReviewManager =
+    role === 'admin' ||
+    role === 'staff' ||
+    userData.subscriptions?.reviewManager?.active === true
+
+  if (!hasReviewManager) {
+    throw new HttpsError('permission-denied', 'Review Manager subscription required.')
+  }
+
+  const { placeId } = request.data
+  if (!placeId?.trim()) throw new HttpsError('invalid-argument', 'placeId is required.')
+
+  const PLACES_KEY = process.env.GOOGLE_PLACES_KEY || ''
+  if (!PLACES_KEY) {
+    throw new HttpsError('failed-precondition', 'Google Places API not configured. Set GOOGLE_PLACES_KEY in Function env vars.')
+  }
+
+  const fields = 'name,rating,user_ratings_total,reviews,url'
+  const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${encodeURIComponent(placeId.trim())}&fields=${fields}&key=${PLACES_KEY}`
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) })
+  const data = await res.json()
+
+  if (data.status !== 'OK') {
+    throw new HttpsError('not-found', `Google Places error: ${data.status} — ${data.error_message || 'Place not found.'}`)
+  }
+
+  const place = data.result || {}
+  const reviews = (place.reviews || []).map(r => ({
+    authorName:   r.author_name || '',
+    authorPhoto:  r.profile_photo_url || null,
+    rating:       r.rating || 0,
+    text:         r.text || '',
+    time:         r.time || 0,
+    relativeTime: r.relative_time_description || '',
+  }))
+
+  const reviewProfile = {
+    placeId: placeId.trim(),
+    businessName:  place.name || '',
+    rating:        place.rating || 0,
+    reviewCount:   place.user_ratings_total || 0,
+    reviewLink:    `https://search.google.com/local/writereview?placeid=${placeId.trim()}`,
+    googleMapsUrl: place.url || '',
+    reviews,
+    lastFetchedAt: FieldValue.serverTimestamp(),
+  }
+
+  await db.collection('users').doc(uid).set({ reviewProfile }, { merge: true })
+
+  return {
+    businessName:  reviewProfile.businessName,
+    rating:        reviewProfile.rating,
+    reviewCount:   reviewProfile.reviewCount,
+    reviewLink:    reviewProfile.reviewLink,
+    reviews,
+  }
+})
+
+// ─── sendReviewRequest ───────────────────────────────────────────────────────
+// Sends review request emails to a list of customers via SendGrid.
+// Required env var: SENDGRID_API_KEY
+// Optional env var: SENDGRID_FROM_EMAIL (default: fromEmail param or noreply@reboosthub.com)
+
+exports.sendReviewRequest = onCall({ timeoutSeconds: 60 }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const userSnap = await db.collection('users').doc(uid).get()
+  const userData = userSnap.data() || {}
+  const role = userData.role
+  const hasReviewManager =
+    role === 'admin' ||
+    role === 'staff' ||
+    userData.subscriptions?.reviewManager?.active === true
+
+  if (!hasReviewManager) {
+    throw new HttpsError('permission-denied', 'Review Manager subscription required.')
+  }
+
+  const { customers, businessName, reviewLink, fromName, fromEmail } = request.data
+
+  if (!Array.isArray(customers) || customers.length === 0) {
+    throw new HttpsError('invalid-argument', 'customers array is required.')
+  }
+  if (!reviewLink) throw new HttpsError('invalid-argument', 'reviewLink is required.')
+  if (customers.length > 100) {
+    throw new HttpsError('invalid-argument', 'Maximum 100 customers per batch.')
+  }
+
+  const SENDGRID_KEY = process.env.SENDGRID_API_KEY || ''
+  if (!SENDGRID_KEY) {
+    throw new HttpsError('failed-precondition', 'Email not configured. Set SENDGRID_API_KEY in Function env vars.')
+  }
+
+  const senderEmail = fromEmail || process.env.SENDGRID_FROM_EMAIL || 'noreply@reboosthub.com'
+  const senderName  = fromName || businessName || 'ReBoost Hub'
+
+  let sentCount = 0
+  const batch = db.batch()
+
+  for (const customer of customers) {
+    const { name, email } = customer
+    if (!email?.includes('@')) continue
+
+    const greeting = name ? `Hi ${name},` : 'Hi there,'
+    const subject = `How was your experience with ${businessName || 'us'}?`
+    const html = `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a1a;">
+  <p>${greeting}</p>
+  <p>Thank you for choosing <strong>${businessName || 'us'}</strong>! We hope you had a great experience.</p>
+  <p>If you have a moment, we'd love to hear what you think. Your feedback helps us improve and helps others find us.</p>
+  <p style="margin: 28px 0; text-align: center;">
+    <a href="${reviewLink}" style="display: inline-block; background: #4285f4; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+      ⭐ Leave a Google Review
+    </a>
+  </p>
+  <p style="color: #666; font-size: 14px;">It only takes a minute and means the world to us. Thank you!</p>
+  <p style="margin-top: 24px;">— ${senderName}</p>
+</div>`
+
+    let sent = false
+    try {
+      const sgRes = await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SENDGRID_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          personalizations: [{ to: [{ email, name: name || '' }] }],
+          from: { email: senderEmail, name: senderName },
+          subject,
+          content: [{ type: 'text/html', value: html }],
+        }),
+        signal: AbortSignal.timeout(10000),
+      })
+      sent = sgRes.status === 202
+      if (!sent) console.error('SendGrid non-202:', sgRes.status, await sgRes.text())
+    } catch (err) {
+      console.error('SendGrid error for', email, ':', err.message)
+    }
+
+    if (sent) sentCount++
+
+    const reqRef = db.collection('reviewRequests').doc()
+    batch.set(reqRef, {
+      userId:        uid,
+      customerName:  name || '',
+      customerEmail: email,
+      businessName:  businessName || '',
+      reviewLink,
+      status:        sent ? 'sent' : 'failed',
+      sentAt:        sent ? FieldValue.serverTimestamp() : null,
+      createdAt:     FieldValue.serverTimestamp(),
+    })
+  }
+
+  await batch.commit()
+  return { sent: sentCount, total: customers.length }
+})

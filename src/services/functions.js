@@ -20,6 +20,10 @@ export const generateOutreachSequence = call('generateOutreachSequence')
 export const generateAIContent = call('generateAIContent')
 export const generateAIImage = call('generateAIImage')
 
+// Reviews
+export const fetchReviews = call('fetchReviews')
+export const sendReviewRequest = call('sendReviewRequest')
+
 // Scheduler (Zernio)
 export const schedulePost = call('schedulePost')
 export const cancelPost = call('cancelPost')

@@ -10,6 +10,7 @@ import Input from '../../components/ui/Input'
 import { useToast } from '../../hooks/useToast'
 import { schedulePost } from '../../services/functions'
 import { useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { Share2, Image, Briefcase, MapPin, CheckCircle, AlertCircle } from 'lucide-react'
 
 const PLATFORMS = [
@@ -36,11 +37,12 @@ export default function SchedulePost() {
   const { toast } = useToast()
   const navigate = useNavigate()
 
+  const { state: navState } = useLocation()
   const defaults = defaultDateTime()
   const [accounts, setAccounts] = useState({})
   const [selected, setSelected] = useState([])
-  const [caption, setCaption] = useState('')
-  const [imageUrl, setImageUrl] = useState('')
+  const [caption, setCaption] = useState(navState?.caption || '')
+  const [imageUrl, setImageUrl] = useState(navState?.imageUrl || '')
   const [schedDate, setSchedDate] = useState(defaults.date)
   const [schedTime, setSchedTime] = useState(defaults.time)
   const [submitting, setSubmitting] = useState(false)
