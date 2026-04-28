@@ -152,7 +152,7 @@ export default function AdminOffers() {
     getOffers(false).then(setOffers).finally(() => setLoading(false))
   }
 
-  React.useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [])
 
   const handleDelete = async (id) => {
     if (!window.confirm('Delete this offer?')) return
