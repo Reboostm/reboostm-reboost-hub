@@ -38,7 +38,7 @@ import GenerateContent from './pages/creator/GenerateContent'
 import GenerateImage from './pages/creator/GenerateImage'
 
 // Calendar
-import ContentLibrary from './pages/calendar/ContentLibrary'
+import CelebrityContent from './pages/calendar/CelebrityContent'
 import TemplateEditor from './pages/calendar/TemplateEditor'
 
 // Reviews
@@ -119,8 +119,8 @@ export default function App() {
                   <Route path="creator" element={<GenerateContent />} />
                   <Route path="creator/image" element={<GenerateImage />} />
 
-                  {/* Content Calendar */}
-                  <Route path="calendar" element={<ContentLibrary />} />
+                  {/* Celebrity Content */}
+                  <Route path="calendar" element={<CelebrityContent />} />
                   <Route path="calendar/editor/:id" element={<TemplateEditor />} />
 
                   {/* Reviews */}

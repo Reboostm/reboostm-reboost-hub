@@ -96,6 +96,20 @@ service cloud.firestore {
       allow read, write: if isAdmin();
     }
 
+    // ─── Offers (Products & Pricing) ──────────────────────────────────────────
+    // Users can read active offers. Admins can CRUD all offers.
+    match /offers/{id} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // ─── Celebrity Content (Admin uploads, users read) ─────────────────────────
+    // Users can read content for their niche. Admins can CRUD.
+    match /content/{id} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
     // ─── Catch-all: deny everything else ─────────────────────────────────────
     match /{document=**} {
       allow read, write: if false;
