@@ -112,12 +112,20 @@ function OfferForm({ offer, onSave, onCancel }) {
         />
       </div>
 
-      <input
-        placeholder="Stripe Price ID (paste here once created in Stripe Dashboard)"
-        value={form.stripePriceId}
-        onChange={e => set('stripePriceId', e.target.value)}
-        className="w-full bg-hub-input border border-hub-border rounded-lg px-3 py-2.5 text-sm text-hub-text placeholder:text-hub-text-muted focus:outline-none focus:border-hub-blue font-mono text-xs"
-      />
+      <div className="bg-hub-input/50 border border-hub-border rounded-lg p-3">
+        <label className="text-xs font-medium text-hub-text-muted block mb-2">
+          Stripe Price ID (optional — add later)
+        </label>
+        <input
+          placeholder="price_... (from Stripe Dashboard)"
+          value={form.stripePriceId}
+          onChange={e => set('stripePriceId', e.target.value)}
+          className="w-full bg-hub-card border border-hub-border rounded px-2 py-1.5 text-xs text-hub-text placeholder:text-hub-text-muted focus:outline-none focus:border-hub-blue font-mono"
+        />
+        <p className="text-xs text-hub-text-muted mt-1.5">
+          ℹ️ Save without this for testing. Add it later when you've created the price in Stripe.
+        </p>
+      </div>
 
       <label className="flex items-center gap-2 cursor-pointer">
         <input
