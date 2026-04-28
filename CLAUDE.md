@@ -1,12 +1,38 @@
 # ReBoost Hub — Claude Project Context
 
-## What This Is
+## 🎯 What This Actually Is (Business Model)
 
-ReBoost Hub is a multi-tool SaaS platform for local businesses, built and operated by ReBoost Marketing (Justin's agency). Clients log in to access SEO, leads, content, and reputation tools. Justin (admin/staff) can unlock tools per client from the admin panel.
+**ReBoost Hub is NOT a generic SaaS toolkit.** It's a **revenue funnel** for local service businesses to discover and outreach to other businesses they can serve.
+
+### The Real Problem It Solves
+- **Plumber** (user) → wants to find **Contractors** in their city → buy leads, send outreach, book appointments
+- **Pest Control** (user) → wants to find **Property Managers** in their area → similar flow
+- **HVAC Contractor** → wants to find **Builders & Real Estate Companies** → same pattern
+
+### The Funnel (User Journey)
+1. **Free Entry** → SEO Audit (no paywall, shows them how broken their site is)
+2. **Lead Gen** → Buy leads for their niche in their city (discover what's available, test if it works)
+3. **Citations** → Build authority (only serious users invest here)
+4. **Content Calendar** → Pre-done 12-month niche-specific daily content (social proof + nurture)
+5. **Content Scheduler** → Automate posts (maximize their investment)
+6. **Rank Tracker** → Monitor results (show ROI)
+7. **Done-For-You Services** → White-label HVAC SEO, plumbing citations, etc. ($500-2000/mo recurring)
+
+### Key Distinction: NOT Generic
+- **Lead Gen** is NOT "bulk scrape all businesses for resale" → it's "help the user find their target customer"
+- **Content Calendar** is NOT "generic content library" → it's "12-month pre-planned daily content tailored to their niche" (plumber posts about seasonal maintenance, HVAC posts about seasonal tune-ups, etc.)
+- **Each tool** auto-detects their niche and surfaces only relevant content/features
+
+---
+
+## Technical Stack
 
 **Live repo:** https://github.com/Reboostm/reboostm-reboost-hub  
 **Deployed on:** Vercel (frontend) + Firebase Cloud Functions (backend)  
 **Firebase project:** `reboost-hub`
+
+### Why This Matters When Building
+When adding features, ask: "Does this move the user closer to hiring our DFY services?" If not, it's probably not on the roadmap. Every tool should be best-in-class for that funnel stage, not mediocre at everything.
 
 ---
 
@@ -228,20 +254,26 @@ VITE_FIREBASE_APP_ID
 
 ## Module Build Status
 
-| Module | Status | Notes |
-|---|---|---|
-| SEO Audit | ✅ Built | PageSpeed + GMB check, reports UI |
-| Citations Manager | ✅ Built | Batch submission system; Cloud Run automation engine is separate |
-| Lead Generator | ✅ Built | Google Maps Places search, key rotation, CSV export, outreach templates |
-| Content Scheduler | ✅ Built | Calendar view, post composer, platform connections via Zernio |
-| AI Content Creator | ✅ Built | Caption gen (Claude), image gen (DALL-E 3), "Use in Scheduler" flow |
-| Review Manager | ✅ Built | Google reviews display, review request emails via SendGrid |
-| Local Rank Tracker | ✅ Built | Keyword tracking, SerpAPI rank checks, history + sparklines |
-| Agency & Services | ✅ Built | Territory checker (Firestore), DFY services page |
-| Celebrity Content Calendar | ⏳ Placeholder | ContentLibrary.jsx, TemplateEditor.jsx not yet built |
-| Admin Panel | ✅ Built | Users (create/role/reset), Clients (manage access), API Keys tab |
-| Settings | ✅ Built | Profile, Billing (Stripe portal), Integrations pages exist |
-| Stripe Integration | ⏳ Stub | createCheckoutSession + createPortalSession CFs exist; webhook auto-unlock not wired |
+| Module | Status | Phase | Notes |
+|---|---|---|---|
+| SEO Audit | ✅ Built | Done | PageSpeed + GMB check, reports UI |
+| Citations Manager | ✅ Built | Done | Batch submission system; Cloud Run automation engine is separate |
+| Lead Generator | ✅ Basic | Phase 2 | Google Maps Places search, key rotation, CSV export. NEEDS: lead preview before purchase, lead packages instead of credits |
+| Content Scheduler | ✅ Built | Done | Calendar view, post composer, platform connections via Zernio |
+| AI Content Creator | ✅ Built | Done | Caption gen (Claude), image gen (DALL-E 3), "Use in Scheduler" flow |
+| Review Manager | ✅ Built | Done | Google reviews display, review request emails via SendGrid |
+| Local Rank Tracker | ✅ Built | Phase 2 | Keyword tracking, SerpAPI rank checks. NEEDS: mobile/desktop simultaneous tracking, auto-detect keywords |
+| Agency & Services | ✅ Built | Done | Territory checker (Firestore), DFY services page |
+| Content Calendar (Celebrity) | ❌ Placeholder | Phase 2 | Niche-specific 12-month pre-planned templates. NEEDS: full rebuild (ContentLibrary.jsx + TemplateEditor.jsx + fabric.js) |
+| Admin Panel | ✅ Built | Phase 1 | Users (create/role/reset), Clients (manage access), API Keys (NOW editable) |
+| Billing & Pricing | ✅ Built | Phase 1 | Offers management, pricing page, Stripe checkout + portal |
+| Stripe Integration | ✅ Complete | Phase 1 | createCheckoutSession, createPortalSession, webhook handlers all built. Needs: env vars set in Firebase |
+
+### Phase Legend
+- **Done** = Production ready, no major refactor needed
+- **Phase 1** (COMPLETE) = Core infrastructure: billing, admin, API management
+- **Phase 2** (NEXT) = Feature redesigns: Lead Gen, Content Calendar, Rank Tracker improvements
+- **Phase 3** (POLISH) = UX refinements: upgrade buttons throughout, refined niches list
 
 ---
 
@@ -275,6 +307,24 @@ hub-blue, hub-green, hub-red, hub-yellow, hub-orange
 
 ---
 
+## Where I Got Confused (For Next Claude)
+
+**The CLAUDE.md had the tech but was missing the business logic. Here's what I misunderstood:**
+
+### ❌ Wrong Understanding
+- Lead Gen = "Bulk scraper to resell leads to many agencies" → Actually: "Help plumber find contractors in their city"
+- Content Calendar = "Generic content library users browse" → Actually: "Pre-done 12-month niche-specific daily content auto-loaded on signup"
+- Offers/Credits = "Users understand crypto-like 'credits'" → Actually: "Simple: Buy 50 leads for $47, not 'spend 1 credit for ~60 leads'"
+- The whole system = "Standalone tools" → Actually: "Each tool is an upsell stepping stone to DFY services"
+
+### ✅ What to Remember
+- **Every feature should ask: "Does this move them toward DFY?"** Plumber buys leads → gets low response → upgrades to scheduler + content → sees better results → hires us for full service.
+- **The niche is EVERYTHING.** A plumber sees plumbing content, HVAC contractor sees HVAC content. Not generic.
+- **The funnel is the business model.** It's not "let's build cool tools" — it's "let's build the perfect sequence to convert a plumber → DFY client."
+- **Marketing first, tech second.** The reason for technical decisions should be clear (e.g., "we use Zernio so we don't have to build social APIs").
+
+---
+
 ## Admin Bootstrap (First-Time Setup)
 
 1. Create account at `/signup`
@@ -285,11 +335,40 @@ hub-blue, hub-green, hub-red, hub-yellow, hub-orange
 
 ---
 
-## Pending / Next Steps
+## Phase 1 Complete ✅
 
-1. **Lead Generator redesign** — state-wide bulk scraping, lead count before purchase, charge per batch size. Current 60-lead limit is insufficient for the vision.
-2. **Celebrity Content Calendar** — `ContentLibrary.jsx` + `TemplateEditor.jsx` placeholders. Fabric.js editor for niche content templates.
-3. **Stripe webhooks** — auto-unlock tools on successful payment. `createCheckoutSession` + `createPortalSession` CFs are stubbed.
-4. **Admin Packages + Territories pages** — Packages.jsx and Territories.jsx are placeholders in the admin panel.
-5. **Content copy review** — all placeholder text (outreach templates, service descriptions) needs final copy pass.
-6. **Rank Tracker scheduled checks** — currently on-demand only; add Firebase Scheduled Function to auto-check weekly.
+- [x] Offers management (admin creates/edits offers dynamically, no code changes needed)
+- [x] Pricing page (shows active offers, clients buy from `/pricing`)
+- [x] Stripe integration (checkout sessions, billing portal, webhooks)
+- [x] API Keys admin page (fully editable, added 2Captcha support)
+- [x] Better error handling (clear messages when Stripe customer ID missing, etc.)
+
+---
+
+## Phase 2 (NEXT) — Feature Redesigns
+
+1. **Lead Generator Redesign**
+   - Add Google Maps preview (show found leads before purchase)
+   - Replace "credits" with "lead packages" (50 leads - $47, 150 leads - $97, etc.)
+   - Show lead volume estimate before charging
+   - Support state-wide multi-city search as premium option
+
+2. **Content Calendar (Celebrity Content)**
+   - Full rebuild of ContentLibrary.jsx + TemplateEditor.jsx
+   - Fetch niche-specific templates from admin Content Manager
+   - Fabric.js editor for clients to customize templates
+   - Export to Scheduler or download as images
+
+3. **Rank Tracker Improvements**
+   - Mobile/Desktop simultaneous tracking (one keyword, both metrics)
+   - Auto-detect keywords from business URL + niche
+   - Scheduled weekly rank checks (Firebase Scheduled Function)
+
+---
+
+## Phase 3 (POLISH) — UX Refinements
+
+1. Add "Upgrade" buttons throughout (Billing tab, Content Calendar page, etc.)
+2. Refine NICHES list (remove non-service businesses: restaurants, retail, gyms)
+3. Pre-populate niche content when user signs up
+4. Finalize all placeholder copy (outreach templates, service descriptions)
