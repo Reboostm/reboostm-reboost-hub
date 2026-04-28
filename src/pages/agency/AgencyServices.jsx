@@ -1,7 +1,7 @@
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
-import { Globe, Zap, Megaphone, Bot, ExternalLink, CheckCircle } from 'lucide-react'
+import { Globe, Zap, Megaphone, Bot, CheckCircle } from 'lucide-react'
 
 const SERVICES = [
   {
@@ -79,7 +79,7 @@ export default function AgencyServices() {
       </div>
 
       {/* CTA */}
-      <Card className="mb-4 bg-hub-blue/5 border-hub-blue/20">
+      <Card className="bg-hub-blue/5 border-hub-blue/20">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
             <h3 className="font-semibold text-hub-text">Book a Free Strategy Call</h3>
@@ -94,27 +94,6 @@ export default function AgencyServices() {
             className="shrink-0"
           >
             <Button size="lg">Book a Free Call →</Button>
-          </a>
-        </div>
-      </Card>
-
-      <Card>
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-semibold text-hub-text">ReBoost CRM</h3>
-            <p className="text-sm text-hub-text-secondary mt-1">
-              Full GHL white-label CRM — pipelines, automations, campaigns, and more.
-              All your clients in one place.
-            </p>
-          </div>
-          <a
-            href="https://app.marketingreboost.com/crm"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Button variant="secondary" size="sm">
-              Open CRM <ExternalLink className="w-3.5 h-3.5 ml-1.5" />
-            </Button>
           </a>
         </div>
       </Card>

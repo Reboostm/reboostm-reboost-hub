@@ -62,9 +62,11 @@ import Pricing from './pages/Pricing'
 // Setup (one-time admin claim)
 import Setup from './pages/setup/Setup'
 
+// Support
+import TrainingAndSupport from './pages/support/TrainingAndSupport'
+
 // Admin
 import AdminDashboard from './pages/admin/Dashboard'
-import AdminClients from './pages/admin/Clients'
 import AdminUsers from './pages/admin/Users'
 import AdminContent from './pages/admin/ContentManager'
 import AdminTerritories from './pages/admin/Territories'
@@ -141,10 +143,12 @@ export default function App() {
                   <Route path="settings/integrations" element={<Integrations />} />
                   <Route path="pricing" element={<Pricing />} />
 
+                  {/* Support */}
+                  <Route path="support" element={<TrainingAndSupport />} />
+
                   {/* Admin — staff/admin only */}
                   <Route element={<AdminRoute />}>
                     <Route path="admin" element={<AdminDashboard />} />
-                    <Route path="admin/clients" element={<AdminClients />} />
                     <Route path="admin/users" element={<AdminUsers />} />
                     <Route path="admin/content" element={<AdminContent />} />
                     <Route path="admin/territories" element={<AdminTerritories />} />

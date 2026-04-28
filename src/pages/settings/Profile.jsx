@@ -1,4 +1,5 @@
 import { useEffect } from 'react'
+import { Navigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuth } from '../../hooks/useAuth'
@@ -11,8 +12,13 @@ import Button from '../../components/ui/Button'
 import { NICHES, US_STATES } from '../../config'
 
 export default function Profile() {
-  const { userProfile, updateProfile } = useAuth()
+  const { userProfile, updateProfile, isStaff } = useAuth()
   const { toast } = useToast()
+
+  // Redirect admins to audit home
+  if (isStaff) {
+    return <Navigate to="/audit" replace />
+  }
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(profileSchema),
@@ -33,7 +39,12 @@ export default function Profile() {
 
   return (
     <div className="p-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-semibold text-hub-text mb-6">Profile Settings</h1>
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-hub-text">Please Update Your Business Info</h1>
+        <p className="text-hub-text-secondary text-sm mt-2">
+          This information helps us customize your dashboard and is used on your content, reviews, and marketing materials.
+        </p>
+      </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
         <Card>
@@ -64,25 +75,6 @@ export default function Profile() {
             <Select label="Business niche" options={NICHES} placeholder="Select niche…" error={errors.niche?.message} {...register('niche')} />
             <Input label="Tagline" placeholder="&quot;SLC's Most Trusted Plumber&quot;" error={errors.tagline?.message} {...register('tagline')} />
             <Input label="Current offer" placeholder='"10% off this month"' error={errors.currentOffer?.message} {...register('currentOffer')} />
-          </div>
-        </Card>
-
-        <Card>
-          <h2 className="text-sm font-semibold text-hub-text mb-4">Citations Info</h2>
-          <p className="text-xs text-hub-text-muted mb-4">Used when submitting your business to directories</p>
-          <div className="space-y-4">
-            <Input
-              label="Business hours"
-              placeholder="9am - 5pm Mon-Fri, 10am - 3pm Sat"
-              error={errors.businessHours?.message}
-              {...register('businessHours')}
-            />
-            <Input
-              label="Business description"
-              placeholder="Brief description of your business services and specialties"
-              error={errors.description?.message}
-              {...register('description')}
-            />
           </div>
         </Card>
 

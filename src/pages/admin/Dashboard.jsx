@@ -38,11 +38,19 @@ export default function AdminDashboard() {
   const [recentUsers, setRecentUsers] = useState([])
   const [recentAudits, setRecentAudits] = useState([])
   const [loading, setLoading] = useState(true)
+  const [signupTimeframe, setSignupTimeframe] = useState('7d')
 
   useEffect(() => {
     async function load() {
       try {
-        const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        const timeframes = {
+          '7d':  7 * 24 * 60 * 60 * 1000,
+          '30d': 30 * 24 * 60 * 60 * 1000,
+          '90d': 90 * 24 * 60 * 60 * 1000,
+          'all': Infinity,
+        }
+        const signupWindow = timeframes[signupTimeframe]
+        const signupDate = new Date(Date.now() - signupWindow)
         const [
           usersCount, auditsCount, jobsCount, signupsCount,
           recentUsersSnap, recentAuditsSnap,
@@ -55,7 +63,7 @@ export default function AdminDashboard() {
           )),
           getCountFromServer(query(
             collection(db, 'users'),
-            where('createdAt', '>', weekAgo)
+            where('createdAt', '>', signupDate)
           )),
           getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(6))),
           getDocs(query(collection(db, 'auditResults'), orderBy('createdAt', 'desc'), limit(5))),
@@ -75,7 +83,7 @@ export default function AdminDashboard() {
       }
     }
     load()
-  }, [])
+  }, [signupTimeframe])
 
   return (
     <div className="p-6 max-w-5xl space-y-8">
@@ -90,11 +98,25 @@ export default function AdminDashboard() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <StatCard icon={Users}    label="Total Users"    value={stats.users}   color="text-hub-blue"   to="/admin/users" />
-            <StatCard icon={Search}   label="Audits Run"     value={stats.audits}  color="text-hub-green"  />
-            <StatCard icon={BookOpen} label="Active Jobs"    value={stats.jobs}    color="text-hub-yellow" />
-            <StatCard icon={UserPlus} label="Signups (7d)"   value={stats.signups} color="text-hub-purple" />
+          <div className="flex items-center justify-between mb-4">
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 flex-1">
+              <StatCard icon={Users}    label="Total Users"    value={stats.users}   color="text-hub-blue"   to="/admin/users" />
+              <StatCard icon={Search}   label="Audits Run"     value={stats.audits}  color="text-hub-green"  />
+              <StatCard icon={BookOpen} label="Active Jobs"    value={stats.jobs}    color="text-hub-yellow" />
+              <StatCard icon={UserPlus} label="Signups"        value={stats.signups} color="text-hub-purple" />
+            </div>
+            <div className="ml-4">
+              <select
+                value={signupTimeframe}
+                onChange={e => setSignupTimeframe(e.target.value)}
+                className="px-3 py-2 rounded-lg bg-hub-input border border-hub-border text-sm text-hub-text focus:outline-none focus:border-hub-blue"
+              >
+                <option value="7d">Last 7 days</option>
+                <option value="30d">Last 30 days</option>
+                <option value="90d">Last 90 days</option>
+                <option value="all">All time</option>
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

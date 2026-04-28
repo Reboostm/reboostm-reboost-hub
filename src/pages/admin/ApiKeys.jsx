@@ -45,7 +45,13 @@ const ENV_VAR_SPECS = [
   },
   {
     key: 'SENDGRID_API_KEY',
-    purpose: 'Review Manager — sends review request emails to customers via SendGrid',
+    purpose: 'Review Manager — sends review request emails to customers via SendGrid (alternative: RESEND_API_KEY)',
+    required: false,
+    where: 'sendReviewRequest function',
+  },
+  {
+    key: 'RESEND_API_KEY',
+    purpose: 'Review Manager — alternative email service to SendGrid (Resend API). Set this OR SENDGRID_API_KEY.',
     required: false,
     where: 'sendReviewRequest function',
   },

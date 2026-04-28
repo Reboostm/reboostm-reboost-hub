@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
   Search, BookOpen, Users, Calendar, Sparkles, Image,
   Star, TrendingUp, Building2, ChevronDown, Lock,
-  LayoutDashboard, Zap, Package, MapPin, FileImage, KeyRound,
+  LayoutDashboard, Zap, Package, MapPin, FileImage, KeyRound, HelpCircle,
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useBilling } from '../../hooks/useBilling'
@@ -111,7 +111,6 @@ const SECTIONS = [
     items: [
       { label: 'Check Your Territory', path: '/agency' },
       { label: 'Done-For-You Services', path: '/agency/services' },
-      { label: 'ReBoost CRM ↗', path: null, external: 'https://app.marketingreboost.com/crm' },
     ],
   },
 ]
@@ -211,6 +210,23 @@ export default function Sidebar() {
         })}
       </nav>
 
+      {/* Support section */}
+      <div className="border-t border-hub-border px-2 py-3">
+        <NavLink
+          to="/support"
+          className={({ isActive }) =>
+            `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+              isActive
+                ? 'bg-hub-blue/10 text-hub-blue'
+                : 'text-hub-text-secondary hover:text-hub-text hover:bg-hub-card'
+            }`
+          }
+        >
+          <HelpCircle className="w-4 h-4" />
+          <span className="font-medium">Training & Support</span>
+        </NavLink>
+      </div>
+
       {/* Admin section — staff/admin only */}
       {isStaff && (
         <div className="border-t border-hub-border pt-2 pb-1 px-2">
@@ -220,7 +236,6 @@ export default function Sidebar() {
           {[
             { label: 'Dashboard',       path: '/admin',             icon: LayoutDashboard },
             { label: 'Users',           path: '/admin/users',       icon: Users           },
-            { label: 'Clients',         path: '/admin/clients',     icon: Building2       },
             { label: 'Offers',          path: '/admin/offers',      icon: Package         },
             { label: 'Territories',     path: '/admin/territories', icon: MapPin          },
             { label: 'Content Manager', path: '/admin/content',     icon: FileImage       },
