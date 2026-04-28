@@ -221,7 +221,6 @@ export default function Sidebar() {
             { label: 'Dashboard',       path: '/admin',             icon: LayoutDashboard },
             { label: 'Users',           path: '/admin/users',       icon: Users           },
             { label: 'Clients',         path: '/admin/clients',     icon: Building2       },
-            { label: 'Packages',        path: '/admin/packages',    icon: Package         },
             { label: 'Offers & Pricing', path: '/admin/offers',     icon: DollarSign      },
             { label: 'Territories',     path: '/admin/territories', icon: MapPin          },
             { label: 'Content Manager', path: '/admin/content',     icon: FileImage       },

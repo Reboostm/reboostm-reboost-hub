@@ -13,7 +13,7 @@ import { useBilling } from '../../hooks/useBilling'
 import { useToast } from '../../hooks/useToast'
 import { searchLeads } from '../../services/functions'
 import { markLeadsBatchExported } from '../../services/firestore'
-import { NICHES, US_STATES } from '../../config'
+import { NICHES, US_STATES, STATE_CITIES } from '../../config'
 
 const RADIUS_OPTIONS = [
   { value: '5',  label: '5 miles' },
@@ -134,7 +134,7 @@ export default function LeadFinder() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-semibold text-hub-text">Lead Generator</h1>
-          <p className="text-hub-text-secondary text-sm mt-1">Find qualified local businesses via Google Maps.</p>
+          <p className="text-hub-text-secondary text-sm mt-1">Find qualified local businesses via Google Maps. Each lead includes: Business Name, Phone, Website, Address, Rating & Reviews.</p>
         </div>
         <div className="text-right">
           <p className="text-xs text-hub-text-muted">Credits remaining</p>
@@ -146,30 +146,61 @@ export default function LeadFinder() {
       <Card className="mb-6">
         <form onSubmit={handleSearch}>
           {/* Search mode toggle */}
-          <div className="mb-4 flex gap-2">
-            <button
-              type="button"
-              onClick={() => { setSearchMode('city'); setState('') }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                searchMode === 'city'
-                  ? 'bg-hub-blue text-white'
-                  : 'bg-hub-card border border-hub-border text-hub-text hover:bg-hub-input'
-              }`}
-            >
-              Single City (1 credit)
-            </button>
-            <button
-              type="button"
-              onClick={() => { setSearchMode('state'); setCity('') }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                searchMode === 'state'
-                  ? 'bg-hub-orange text-white'
-                  : 'bg-hub-card border border-hub-border text-hub-text hover:bg-hub-input'
-              }`}
-            >
-              Entire State (10 credits)
-            </button>
+          <div className="mb-6">
+            <div className="flex gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => { setSearchMode('city'); setState('') }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  searchMode === 'city'
+                    ? 'bg-hub-blue text-white'
+                    : 'bg-hub-card border border-hub-border text-hub-text hover:bg-hub-input'
+                }`}
+              >
+                Single City (1 credit)
+              </button>
+              <button
+                type="button"
+                onClick={() => { setSearchMode('state'); setCity('') }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  searchMode === 'state'
+                    ? 'bg-hub-orange text-white'
+                    : 'bg-hub-card border border-hub-border text-hub-text hover:bg-hub-input'
+                }`}
+              >
+                Multi-City Search (10 credits)
+              </button>
+            </div>
+
+            {/* Credit explanation */}
+            <div className="bg-hub-card border border-hub-border rounded-lg p-3">
+              {searchMode === 'city' ? (
+                <div className="text-xs text-hub-text-secondary">
+                  <p className="font-medium text-hub-text mb-1">Single City: 20-60 leads (1 credit)</p>
+                  <p>Searches one city. Fast results in 5-10 seconds.</p>
+                </div>
+              ) : (
+                <div className="text-xs text-hub-text-secondary">
+                  <p className="font-medium text-hub-text mb-1">Multi-City: 100-300+ leads (10 credits)</p>
+                  <p>Searches 5-7 major cities in your state. More comprehensive, takes 30-60 seconds.</p>
+                </div>
+              )}
+            </div>
           </div>
+
+          {/* Show cities for multi-city search */}
+          {searchMode === 'state' && state && (
+            <div className="mb-4 p-3 bg-hub-input rounded-lg">
+              <p className="text-xs font-medium text-hub-text-muted mb-2">Cities to be searched:</p>
+              <div className="flex flex-wrap gap-1">
+                {STATE_CITIES[state]?.map(city => (
+                  <span key={city} className="text-xs bg-hub-blue/20 text-hub-blue px-2 py-1 rounded">
+                    {city}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <Select
@@ -205,7 +236,7 @@ export default function LeadFinder() {
           <Button type="submit" size="lg" className="w-full" loading={loading} disabled={loading}>
             {loading ? 'Searching Google Maps…' : (
               <span className="flex items-center gap-2 justify-center">
-                <Search className="w-4 h-4" /> Find Leads ({searchMode === 'state' ? '10' : '1'} credit)
+                <Search className="w-4 h-4" /> Find Leads ({searchMode === 'city' ? '1 credit' : '10 credits, 100+ leads'})
               </span>
             )}
           </Button>
@@ -218,9 +249,9 @@ export default function LeadFinder() {
           <div className="flex flex-col items-center py-12 gap-4">
             <Spinner size="lg" />
             <p className="text-hub-text-secondary text-sm">
-              {searchMode === 'state'
-                ? 'Searching multiple cities and enriching results… (this takes 30-60 seconds)'
-                : 'Searching Google Maps and enriching results…'}
+              {searchMode === 'city'
+                ? 'Searching Google Maps and enriching results…'
+                : 'Searching 5-7 major cities and enriching results… (this takes 30-60 seconds)'}
             </p>
           </div>
         </Card>

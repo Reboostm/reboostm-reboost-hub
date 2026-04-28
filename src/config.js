@@ -56,21 +56,57 @@ export const STATE_CITIES = {
 }
 
 export const NICHES = [
+  // Home Services
   { value: 'plumber', label: 'Plumber' },
   { value: 'hvac', label: 'HVAC' },
   { value: 'electrician', label: 'Electrician' },
   { value: 'roofer', label: 'Roofer' },
-  { value: 'dentist', label: 'Dentist' },
-  { value: 'pest_control', label: 'Pest Control' },
   { value: 'landscaping', label: 'Landscaping' },
   { value: 'cleaning', label: 'Cleaning Service' },
+  { value: 'pest_control', label: 'Pest Control' },
+  { value: 'general_contractor', label: 'General Contractor' },
+  { value: 'painter', label: 'Painter' },
+  { value: 'carpet_cleaning', label: 'Carpet Cleaning' },
+  { value: 'flooring', label: 'Flooring' },
+  { value: 'windows_doors', label: 'Windows & Doors' },
+
+  // Automotive
   { value: 'auto_repair', label: 'Auto Repair' },
+  { value: 'car_wash', label: 'Car Wash' },
+  { value: 'tire_shop', label: 'Tire Shop' },
+  { value: 'auto_body', label: 'Auto Body' },
+
+  // Health & Wellness
+  { value: 'dentist', label: 'Dentist' },
   { value: 'chiropractor', label: 'Chiropractor' },
+  { value: 'physical_therapy', label: 'Physical Therapy' },
+  { value: 'massage', label: 'Massage Therapy' },
+  { value: 'gym', label: 'Gym / Fitness' },
+  { value: 'yoga', label: 'Yoga' },
+
+  // Professional Services
+  { value: 'accountant', label: 'Accountant / CPA' },
+  { value: 'lawyer', label: 'Lawyer / Attorney' },
   { value: 'real_estate', label: 'Real Estate' },
   { value: 'insurance', label: 'Insurance' },
+
+  // Food & Beverage
   { value: 'restaurant', label: 'Restaurant' },
+  { value: 'coffee_shop', label: 'Coffee Shop' },
+  { value: 'bar_pub', label: 'Bar / Pub' },
+  { value: 'catering', label: 'Catering' },
+
+  // Retail & Shopping
   { value: 'retail', label: 'Retail' },
-  { value: 'other', label: 'Other' },
+  { value: 'salon', label: 'Hair Salon' },
+  { value: 'barbershop', label: 'Barber Shop' },
+  { value: 'spa', label: 'Spa' },
+
+  // Misc
+  { value: 'photography', label: 'Photography' },
+  { value: 'event_planning', label: 'Event Planning' },
+  { value: 'tutoring', label: 'Tutoring' },
+  { value: 'dog_grooming', label: 'Dog Grooming' },
 ]
 
 export const US_STATES = [

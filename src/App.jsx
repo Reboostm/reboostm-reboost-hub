@@ -67,7 +67,6 @@ import AdminClients from './pages/admin/Clients'
 import AdminUsers from './pages/admin/Users'
 import AdminContent from './pages/admin/ContentManager'
 import AdminTerritories from './pages/admin/Territories'
-import AdminPackages from './pages/admin/Packages'
 import AdminOffers from './pages/admin/Offers'
 import AdminApiKeys from './pages/admin/ApiKeys'
 
@@ -147,7 +146,6 @@ export default function App() {
                     <Route path="admin/users" element={<AdminUsers />} />
                     <Route path="admin/content" element={<AdminContent />} />
                     <Route path="admin/territories" element={<AdminTerritories />} />
-                    <Route path="admin/packages" element={<AdminPackages />} />
                     <Route path="admin/offers" element={<AdminOffers />} />
                     <Route path="admin/api-keys" element={<AdminApiKeys />} />
                   </Route>
