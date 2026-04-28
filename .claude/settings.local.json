@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node -c src/index.js)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(node -c functions/src/index.js)",
+      "Bash(npm run *)",
+      "Bash(git commit *)"
+    ]
+  }
+}

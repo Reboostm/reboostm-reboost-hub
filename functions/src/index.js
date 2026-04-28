@@ -1,10 +1,12 @@
-const { onCall, HttpsError } = require('firebase-functions/v2/https')
+const { onCall, HttpsError, onRequest } = require('firebase-functions/v2/https')
 const { initializeApp } = require('firebase-admin/app')
 const { getFirestore, FieldValue } = require('firebase-admin/firestore')
 const { getAuth } = require('firebase-admin/auth')
+const Stripe = require('stripe')
 
 initializeApp()
 const db = getFirestore()
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -1499,3 +1501,290 @@ exports.checkKeywordRank = onCall({ timeoutSeconds: 30 }, async (request) => {
 
   return { rank, inLocalPack }
 })
+
+// ─── Stripe: Checkout Session ────────────────────────────────────────────────
+
+exports.createCheckoutSession = onCall({ timeoutSeconds: 30 }, async (request) => {
+  const { offerId } = request.data
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+  if (!offerId) throw new HttpsError('invalid-argument', 'offerId is required.')
+
+  const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY || ''
+  if (!STRIPE_SECRET) throw new HttpsError('failed-precondition', 'Stripe not configured.')
+
+  try {
+    const offerSnap = await db.collection('offers').doc(offerId).get()
+    if (!offerSnap.exists) throw new HttpsError('not-found', 'Offer not found.')
+
+    const offer = offerSnap.data()
+    if (!offer.stripePriceId) {
+      throw new HttpsError('failed-precondition', 'Offer is not yet available for purchase.')
+    }
+
+    const userSnap = await db.collection('users').doc(uid).get()
+    const userData = userSnap.data() || {}
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: offer.type === 'subscription' ? 'subscription' : 'payment',
+      line_items: [{ price: offer.stripePriceId, quantity: 1 }],
+      success_url: `${process.env.CLIENT_URL || 'https://hub.reboostm.com'}/settings/billing?success=true`,
+      cancel_url: `${process.env.CLIENT_URL || 'https://hub.reboostm.com'}/pricing`,
+      customer_email: userData.email || '',
+      metadata: { uid, offerId, unlocksFeature: offer.unlocksFeature },
+    })
+
+    return { url: session.url, sessionId: session.id }
+  } catch (err) {
+    console.error('Checkout session creation failed:', err)
+    throw new HttpsError('internal', 'Could not create checkout session.')
+  }
+})
+
+// ─── Stripe: Billing Portal Session ──────────────────────────────────────────
+
+exports.createPortalSession = onCall({ timeoutSeconds: 30 }, async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const STRIPE_SECRET = process.env.STRIPE_SECRET_KEY || ''
+  if (!STRIPE_SECRET) throw new HttpsError('failed-precondition', 'Stripe not configured.')
+
+  try {
+    const userSnap = await db.collection('users').doc(uid).get()
+    const userData = userSnap.data() || {}
+    const stripeCustomerId = userData.stripeCustomerId
+
+    if (!stripeCustomerId) {
+      throw new HttpsError('failed-precondition', 'No Stripe customer ID. Complete a purchase first.')
+    }
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: stripeCustomerId,
+      return_url: `${process.env.CLIENT_URL || 'https://hub.reboostm.com'}/settings/billing`,
+    })
+
+    return { url: session.url }
+  } catch (err) {
+    console.error('Portal session creation failed:', {
+      uid,
+      message: err.message,
+      code: err.code,
+      hasCustomerId: !!userData?.stripeCustomerId,
+    })
+    throw new HttpsError('internal', 'Could not create billing portal session.')
+  }
+})
+
+// ─── Stripe: Webhook Handler ────────────────────────────────────────────────
+
+exports.handleStripeWebhook = onRequest(async (req, res) => {
+  const WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || ''
+  if (!WEBHOOK_SECRET) {
+    res.status(400).send('Webhook secret not configured')
+    return
+  }
+
+  const sig = req.headers['stripe-signature']
+  let event
+
+  try {
+    event = stripe.webhooks.constructEvent(req.rawBody, sig, WEBHOOK_SECRET)
+  } catch (err) {
+    console.error('Webhook signature verification failed:', err)
+    res.status(400).send(`Webhook Error: ${err.message}`)
+    return
+  }
+
+  try {
+    console.log('Processing Stripe event:', event.type)
+
+    switch (event.type) {
+      case 'checkout.session.completed':
+        await handleCheckoutComplete(event.data.object)
+        break
+      case 'customer.subscription.created':
+      case 'customer.subscription.updated':
+        await handleSubscriptionEvent(event.data.object)
+        break
+      case 'customer.subscription.deleted':
+        await handleSubscriptionDeleted(event.data.object)
+        break
+      case 'invoice.payment_succeeded':
+        await handleInvoicePaymentSucceeded(event.data.object)
+        break
+    }
+
+    res.json({ received: true })
+  } catch (err) {
+    console.error('Webhook processing failed:', err)
+    res.status(500).send('Internal Server Error')
+  }
+})
+
+async function handleCheckoutComplete(session) {
+  const { uid, offerId, unlocksFeature } = session.metadata || {}
+  if (!uid || !offerId) {
+    console.warn('Checkout session missing metadata:', session.id)
+    return
+  }
+
+  const offerSnap = await db.collection('offers').doc(offerId).get()
+  if (!offerSnap.exists) {
+    console.warn('Offer not found:', offerId)
+    return
+  }
+
+  const offer = offerSnap.data()
+  const userRef = db.collection('users').doc(uid)
+
+  // Store Stripe customer ID
+  if (session.customer) {
+    console.log('Setting stripeCustomerId:', { uid, customerId: session.customer })
+    await userRef.update({ stripeCustomerId: session.customer })
+  } else {
+    console.warn('No customer ID in checkout session:', { uid, sessionId: session.id })
+  }
+
+  // Unlock feature based on offer type
+  if (offer.type === 'subscription') {
+    // For subscriptions, store the subscription ID
+    if (session.subscription) {
+      const subscription = await stripe.subscriptions.retrieve(session.subscription)
+      await unlockSubscription(uid, offer, subscription.id)
+    }
+  } else {
+    // For one-time purchases
+    await unlockPurchase(uid, offer)
+  }
+}
+
+async function unlockSubscription(uid, offer, subscriptionId) {
+  const featureKey = offer.unlocksFeature
+  await db.collection('users').doc(uid).update({
+    [`subscriptions.${featureKey}`]: {
+      active: true,
+      tier: offer.tier || 'pro',
+      stripeSubId: subscriptionId,
+    },
+  })
+  console.log('Subscription unlocked:', { uid, feature: featureKey, subId: subscriptionId })
+}
+
+async function unlockPurchase(uid, offer) {
+  const featureKey = offer.unlocksFeature
+  const userRef = db.collection('users').doc(uid)
+  const userSnap = await userRef.get()
+  const currentPurchases = userSnap.data()?.purchases || {}
+
+  let updates = {}
+  if (featureKey === 'leadCredits') {
+    // Add lead credits (could be any amount from offer description)
+    const creditAmount = parseInt(offer.description.match(/\d+/)?.[0]) || 50
+    updates[`purchases.leadCredits`] = (currentPurchases.leadCredits || 0) + creditAmount
+  } else {
+    // For other purchases, just mark as true
+    updates[`purchases.${featureKey}`] = true
+  }
+
+  await userRef.update(updates)
+  console.log('Purchase unlocked:', { uid, feature: featureKey, updates })
+}
+
+async function handleSubscriptionEvent(subscription) {
+  const customerId = subscription.customer
+  if (!customerId) return
+
+  const usersSnap = await db.collection('users')
+    .where('stripeCustomerId', '==', customerId)
+    .limit(1)
+    .get()
+
+  if (usersSnap.empty) {
+    console.warn('User not found for customer:', customerId)
+    return
+  }
+
+  const userId = usersSnap.docs[0].id
+  const priceId = subscription.items.data[0]?.price.id
+  if (!priceId) return
+
+  // Get offer by stripe price ID
+  const offersSnap = await db.collection('offers')
+    .where('stripePriceId', '==', priceId)
+    .limit(1)
+    .get()
+
+  if (!offersSnap.empty) {
+    const offer = offersSnap.docs[0].data()
+    const featureKey = offer.unlocksFeature
+    await db.collection('users').doc(userId).update({
+      [`subscriptions.${featureKey}.active`]: subscription.status === 'active',
+      [`subscriptions.${featureKey}.stripeSubId`]: subscription.id,
+    })
+  }
+}
+
+async function handleInvoicePaymentSucceeded(invoice) {
+  const customerId = invoice.customer
+  if (!customerId) return
+
+  const usersSnap = await db.collection('users')
+    .where('stripeCustomerId', '==', customerId)
+    .limit(1)
+    .get()
+
+  if (usersSnap.empty) return
+
+  const userId = usersSnap.docs[0].id
+  if (!invoice.subscription) return
+
+  const subscription = await stripe.subscriptions.retrieve(invoice.subscription)
+  const priceId = subscription.items.data[0]?.price.id
+  if (!priceId) return
+
+  const offersSnap = await db.collection('offers')
+    .where('stripePriceId', '==', priceId)
+    .limit(1)
+    .get()
+
+  if (!offersSnap.empty) {
+    const offer = offersSnap.docs[0].data()
+    if (offer.unlocksFeature === 'leadCredits') {
+      const creditAmount = parseInt(offer.description.match(/\d+/)?.[0]) || 50
+      await db.collection('users').doc(userId).update({
+        'purchases.leadCredits': FieldValue.increment(creditAmount),
+      })
+    }
+  }
+}
+
+async function handleSubscriptionDeleted(subscription) {
+  const customerId = subscription.customer
+  if (!customerId) return
+
+  const usersSnap = await db.collection('users')
+    .where('stripeCustomerId', '==', customerId)
+    .limit(1)
+    .get()
+
+  if (usersSnap.empty) return
+
+  const userId = usersSnap.docs[0].id
+  const priceId = subscription.items.data[0]?.price.id
+  if (!priceId) return
+
+  const offersSnap = await db.collection('offers')
+    .where('stripePriceId', '==', priceId)
+    .limit(1)
+    .get()
+
+  if (!offersSnap.empty) {
+    const offer = offersSnap.docs[0].data()
+    const featureKey = offer.unlocksFeature
+    await db.collection('users').doc(userId).update({
+      [`subscriptions.${featureKey}.active`]: false,
+    })
+  }
+}

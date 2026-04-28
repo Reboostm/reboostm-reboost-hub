@@ -64,8 +64,9 @@ function AddKeywordModal({ isOpen, onClose, userId, onAdded }) {
       setKeyword(''); setDomain(''); setCity(''); setState(''); setDevice('mobile')
       onAdded()
       onClose()
-    } catch {
-      toast('Failed to add keyword.', 'error')
+    } catch (err) {
+      console.error('Add keyword error:', err)
+      toast(err.message || 'Failed to add keyword. Check console for details.', 'error')
     } finally {
       setSaving(false)
     }
