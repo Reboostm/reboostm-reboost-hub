@@ -1,7 +1,8 @@
 import { createCheckoutSession, createPortalSession } from './functions'
+import { getOffers } from './firestore'
 
-export async function redirectToCheckout(priceId, mode = 'payment', metadata = {}) {
-  const { url } = await createCheckoutSession({ priceId, mode, metadata })
+export async function redirectToCheckout(offerId) {
+  const { url } = await createCheckoutSession({ offerId })
   window.location.href = url
 }
 
@@ -10,17 +11,7 @@ export async function redirectToPortal() {
   window.location.href = url
 }
 
-// Price IDs from Stripe Dashboard — fill these in
-export const PRICES = {
-  citations_starter: '',
-  citations_pro: '',
-  citations_premium: '',
-  scheduler_basic: '',
-  scheduler_pro: '',
-  review_manager: '',
-  rank_tracker: '',
-  calendar_niche: '',
-  lead_credits_100: '',
-  lead_credits_500: '',
-  outreach_templates: '',
+// Get all active offers from Firestore
+export async function getActiveOffers() {
+  return await getOffers(true)
 }

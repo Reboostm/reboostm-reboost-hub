@@ -240,3 +240,39 @@ export async function getAllUsers(role = null) {
   const snap = await getDocs(q)
   return snap.docs.map(d => ({ id: d.id, ...d.data() }))
 }
+
+// ─── Offers (Stripe products) ──────────────────────────────────────────────────
+
+export async function getOffers(activeOnly = true) {
+  const q = query(
+    collection(db, 'offers'),
+    ...(activeOnly ? [where('active', '==', true)] : []),
+    orderBy('createdAt', 'asc')
+  )
+  const snap = await getDocs(q)
+  return snap.docs.map(d => ({ id: d.id, ...d.data() }))
+}
+
+export async function getOfferById(offerId) {
+  const snap = await getDoc(doc(db, 'offers', offerId))
+  return snap.exists() ? { id: snap.id, ...snap.data() } : null
+}
+
+export async function createOffer(data) {
+  return addDoc(collection(db, 'offers'), {
+    ...data,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function updateOffer(offerId, data) {
+  await updateDoc(doc(db, 'offers', offerId), {
+    ...data,
+    updatedAt: serverTimestamp(),
+  })
+}
+
+export async function deleteOffer(offerId) {
+  await deleteDoc(doc(db, 'offers', offerId))
+}

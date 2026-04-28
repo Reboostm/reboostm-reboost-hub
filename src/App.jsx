@@ -56,6 +56,7 @@ import AgencyServices from './pages/agency/AgencyServices'
 import Profile from './pages/settings/Profile'
 import Billing from './pages/settings/Billing'
 import Integrations from './pages/settings/Integrations'
+import Pricing from './pages/Pricing'
 
 // Setup (one-time admin claim)
 import Setup from './pages/setup/Setup'
@@ -67,6 +68,7 @@ import AdminUsers from './pages/admin/Users'
 import AdminContent from './pages/admin/ContentManager'
 import AdminTerritories from './pages/admin/Territories'
 import AdminPackages from './pages/admin/Packages'
+import AdminOffers from './pages/admin/Offers'
 import AdminApiKeys from './pages/admin/ApiKeys'
 
 export default function App() {
@@ -136,6 +138,7 @@ export default function App() {
                   <Route path="settings" element={<Profile />} />
                   <Route path="settings/billing" element={<Billing />} />
                   <Route path="settings/integrations" element={<Integrations />} />
+                  <Route path="pricing" element={<Pricing />} />
 
                   {/* Admin — staff/admin only */}
                   <Route element={<AdminRoute />}>
@@ -145,6 +148,7 @@ export default function App() {
                     <Route path="admin/content" element={<AdminContent />} />
                     <Route path="admin/territories" element={<AdminTerritories />} />
                     <Route path="admin/packages" element={<AdminPackages />} />
+                    <Route path="admin/offers" element={<AdminOffers />} />
                     <Route path="admin/api-keys" element={<AdminApiKeys />} />
                   </Route>
                 </Route>

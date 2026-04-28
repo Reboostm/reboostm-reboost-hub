@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
   Search, BookOpen, Users, Calendar, Sparkles, Image,
   Star, TrendingUp, Building2, ChevronDown, Lock,
-  LayoutDashboard, Zap, Package, MapPin, FileImage, KeyRound,
+  LayoutDashboard, Zap, Package, MapPin, FileImage, KeyRound, DollarSign,
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useBilling } from '../../hooks/useBilling'
@@ -222,6 +222,7 @@ export default function Sidebar() {
             { label: 'Users',           path: '/admin/users',       icon: Users           },
             { label: 'Clients',         path: '/admin/clients',     icon: Building2       },
             { label: 'Packages',        path: '/admin/packages',    icon: Package         },
+            { label: 'Offers & Pricing', path: '/admin/offers',     icon: DollarSign      },
             { label: 'Territories',     path: '/admin/territories', icon: MapPin          },
             { label: 'Content Manager', path: '/admin/content',     icon: FileImage       },
             { label: 'API Keys',        path: '/admin/api-keys',    icon: KeyRound        },
