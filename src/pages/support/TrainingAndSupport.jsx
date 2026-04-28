@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore'
+import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, updateDoc, setDoc } from 'firebase/firestore'
 import { db } from '../../services/firebase'
 import { useAuth } from '../../hooks/useAuth'
 import { useToast } from '../../hooks/useToast'
@@ -9,7 +9,7 @@ import Input from '../../components/ui/Input'
 import Textarea from '../../components/ui/Textarea'
 import Badge from '../../components/ui/Badge'
 import Spinner from '../../components/ui/Spinner'
-import { Plus, Trash2, Edit2, Save, X, Play, FileText, Mail } from 'lucide-react'
+import { Plus, Trash2, Edit2, Save, X, Play, FileText, Mail, ChevronUp, ChevronDown } from 'lucide-react'
 
 export default function TrainingAndSupport() {
   const { isStaff } = useAuth()
@@ -17,6 +17,7 @@ export default function TrainingAndSupport() {
 
   const [videos, setVideos] = useState([])
   const [articles, setArticles] = useState([])
+  const [sectionOrder, setSectionOrder] = useState([])
   const [loading, setLoading] = useState(true)
 
   const [showVideoForm, setShowVideoForm] = useState(false)
@@ -33,12 +34,19 @@ export default function TrainingAndSupport() {
   const [ticketForm, setTicketForm] = useState({ subject: '', message: '', email: '' })
   const [sendingTicket, setSendingTicket] = useState(false)
 
-  // Load videos
+  // Load videos + section order (stored as a special doc in the same collection)
   useEffect(() => {
     const unsub = onSnapshot(
       collection(db, 'trainingVideos'),
       snap => {
-        setVideos(snap.docs.map(d => ({ id: d.id, ...d.data() })).sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)))
+        const orderDoc = snap.docs.find(d => d.id === '_sectionOrder')
+        if (orderDoc) setSectionOrder(orderDoc.data().order || [])
+        setVideos(
+          snap.docs
+            .filter(d => d.id !== '_sectionOrder')
+            .map(d => ({ id: d.id, ...d.data() }))
+            .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+        )
         setLoading(false)
       },
       () => setLoading(false)
@@ -58,10 +66,47 @@ export default function TrainingAndSupport() {
     return unsub
   }, [])
 
-  // Extract YouTube video ID from URL
+  // Extract YouTube video ID from any YouTube URL format
   function getYoutubeId(url) {
-    const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/)
+    const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([^&\n?#]+)/)
     return match ? match[1] : null
+  }
+
+  function getSortedSections(sections) {
+    return [...sections].sort((a, b) => {
+      const ia = sectionOrder.indexOf(a)
+      const ib = sectionOrder.indexOf(b)
+      if (ia === -1 && ib === -1) return a.localeCompare(b)
+      if (ia === -1) return 1
+      if (ib === -1) return -1
+      return ia - ib
+    })
+  }
+
+  async function moveSectionUp(section, currentSorted) {
+    const i = currentSorted.indexOf(section)
+    if (i <= 0) return
+    const newOrder = [...currentSorted];
+    [newOrder[i - 1], newOrder[i]] = [newOrder[i], newOrder[i - 1]]
+    setSectionOrder(newOrder)
+    try {
+      await setDoc(doc(db, 'trainingVideos', '_sectionOrder'), { order: newOrder })
+    } catch {
+      toast('Failed to save section order.', 'error')
+    }
+  }
+
+  async function moveSectionDown(section, currentSorted) {
+    const i = currentSorted.indexOf(section)
+    if (i === -1 || i >= currentSorted.length - 1) return
+    const newOrder = [...currentSorted];
+    [newOrder[i], newOrder[i + 1]] = [newOrder[i + 1], newOrder[i]]
+    setSectionOrder(newOrder)
+    try {
+      await setDoc(doc(db, 'trainingVideos', '_sectionOrder'), { order: newOrder })
+    } catch {
+      toast('Failed to save section order.', 'error')
+    }
   }
 
   async function handleSaveVideo(e) {
@@ -184,12 +229,13 @@ export default function TrainingAndSupport() {
     )
   }
 
-  // Group videos by section
   const videosBySection = videos.reduce((acc, video) => {
     if (!acc[video.section]) acc[video.section] = []
     acc[video.section].push(video)
     return acc
   }, {})
+
+  const sortedSectionNames = getSortedSections(Object.keys(videosBySection))
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-6">
@@ -257,16 +303,42 @@ export default function TrainingAndSupport() {
           </form>
         )}
 
-        {Object.keys(videosBySection).length === 0 ? (
+        {sortedSectionNames.length === 0 ? (
           <div className="p-8 text-center text-hub-text-muted">
             <Play className="w-8 h-8 mx-auto mb-2 opacity-40" />
             <p>No training videos yet.</p>
+            {isStaff && <p className="text-xs mt-2 opacity-60">Tip: Give sections numbered names like "1. Getting Started" to control their order.</p>}
           </div>
         ) : (
           <div className="space-y-4 p-4">
-            {Object.entries(videosBySection).map(([section, sectionVideos]) => (
+            {sortedSectionNames.map((section) => {
+              const sectionVideos = videosBySection[section]
+              const idx = sortedSectionNames.indexOf(section)
+              return (
               <div key={section}>
-                <h3 className="text-sm font-semibold text-hub-text mb-2">{section}</h3>
+                <div className="flex items-center gap-2 mb-2">
+                  <h3 className="text-sm font-semibold text-hub-text flex-1">{section}</h3>
+                  {isStaff && (
+                    <div className="flex gap-0.5">
+                      <button
+                        onClick={() => moveSectionUp(section, sortedSectionNames)}
+                        disabled={idx === 0}
+                        className="p-1 rounded text-hub-text-muted hover:text-hub-text hover:bg-hub-input disabled:opacity-30 transition-colors"
+                        title="Move section up"
+                      >
+                        <ChevronUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => moveSectionDown(section, sortedSectionNames)}
+                        disabled={idx === sortedSectionNames.length - 1}
+                        className="p-1 rounded text-hub-text-muted hover:text-hub-text hover:bg-hub-input disabled:opacity-30 transition-colors"
+                        title="Move section down"
+                      >
+                        <ChevronDown className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <div className="space-y-2">
                   {sectionVideos.map(video => {
                     const youtubeId = getYoutubeId(video.youtubeUrl)
@@ -316,7 +388,8 @@ export default function TrainingAndSupport() {
                   })}
                 </div>
               </div>
-            ))}
+            )
+          })}
           </div>
         )}
       </Card>

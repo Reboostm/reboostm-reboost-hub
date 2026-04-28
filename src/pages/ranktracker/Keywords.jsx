@@ -17,6 +17,100 @@ import {
   RefreshCw, Monitor, Smartphone, MapPin, Clock,
 } from 'lucide-react'
 
+const NICHE_KEYWORD_DATA = {
+  plumber:           { primary: 'plumber',              services: ['drain cleaning', 'water heater repair', 'leak repair', 'pipe repair', 'sewer repair', 'toilet repair', 'faucet repair', 'emergency plumbing'] },
+  hvac:              { primary: 'hvac company',          services: ['ac repair', 'furnace repair', 'air conditioning repair', 'heating repair', 'ac installation', 'hvac maintenance', 'heat pump repair'] },
+  electrician:       { primary: 'electrician',           services: ['electrical repair', 'panel upgrade', 'wiring installation', 'outlet installation', 'electrical inspection', 'generator installation'] },
+  roofer:            { primary: 'roofing contractor',    services: ['roof repair', 'roof replacement', 'roof inspection', 'shingle replacement', 'gutter installation', 'storm damage repair'] },
+  landscaping:       { primary: 'landscaping company',   services: ['lawn care service', 'tree trimming', 'lawn mowing service', 'landscape design', 'yard cleanup', 'irrigation repair', 'sod installation'] },
+  cleaning:          { primary: 'cleaning service',      services: ['house cleaning', 'maid service', 'deep cleaning service', 'move out cleaning', 'office cleaning', 'commercial cleaning'] },
+  pest_control:      { primary: 'pest control company',  services: ['exterminator', 'termite treatment', 'rodent control', 'ant exterminator', 'bed bug treatment', 'wasp removal'] },
+  general_contractor:{ primary: 'general contractor',    services: ['home remodeling', 'bathroom remodel', 'kitchen remodel', 'home addition', 'basement remodel', 'deck builder'] },
+  painter:           { primary: 'painting contractor',   services: ['interior painting', 'exterior painting', 'house painter', 'commercial painting', 'cabinet painting'] },
+  carpet_cleaning:   { primary: 'carpet cleaning service',services: ['upholstery cleaning', 'rug cleaning', 'tile and grout cleaning', 'steam cleaning', 'pet stain removal'] },
+  flooring:          { primary: 'flooring company',      services: ['hardwood flooring', 'tile flooring installation', 'carpet installation', 'vinyl plank flooring', 'laminate flooring'] },
+  windows_doors:     { primary: 'window replacement company', services: ['window installation', 'door replacement', 'sliding door repair', 'energy efficient windows', 'storm door installation'] },
+  auto_repair:       { primary: 'auto repair shop',      services: ['car repair service', 'oil change', 'brake repair', 'transmission repair', 'engine repair', 'tire rotation'] },
+  car_wash:          { primary: 'car wash',              services: ['auto detailing', 'car detailing', 'full detail service', 'mobile car wash', 'interior detailing'] },
+  tire_shop:         { primary: 'tire shop',             services: ['tire installation', 'tire rotation service', 'wheel alignment', 'flat tire repair', 'new tires'] },
+  auto_body:         { primary: 'auto body shop',        services: ['collision repair', 'dent repair', 'auto paint service', 'bumper repair', 'windshield replacement'] },
+  dentist:           { primary: 'dentist',               services: ['dental cleaning', 'teeth whitening', 'dental implants', 'emergency dentist', 'cosmetic dentist', 'family dentist'] },
+  chiropractor:      { primary: 'chiropractor',          services: ['back pain chiropractor', 'neck pain relief', 'spinal adjustment', 'sports chiropractor', 'car accident chiropractor'] },
+  physical_therapy:  { primary: 'physical therapy clinic',services: ['sports rehab', 'physical therapist', 'injury rehabilitation', 'back pain physical therapy', 'knee pain physical therapy'] },
+  massage:           { primary: 'massage therapist',     services: ['deep tissue massage', 'swedish massage', 'sports massage', 'prenatal massage', 'therapeutic massage'] },
+  gym:               { primary: 'gym',                   services: ['fitness center', 'personal trainer', 'weight loss gym', 'crossfit gym', 'workout classes'] },
+  yoga:              { primary: 'yoga studio',           services: ['yoga classes', 'hot yoga', 'beginner yoga', 'meditation classes', 'pilates studio'] },
+  accountant:        { primary: 'accountant',            services: ['cpa firm', 'tax preparation', 'bookkeeping service', 'tax accountant', 'small business accounting', 'payroll service'] },
+  lawyer:            { primary: 'attorney',              services: ['personal injury lawyer', 'family law attorney', 'criminal defense attorney', 'divorce lawyer', 'estate planning attorney'] },
+  real_estate:       { primary: 'real estate agent',     services: ['homes for sale', 'realtor', 'buy a house', 'sell my home', 'listing agent', 'buyer agent', 'real estate broker'] },
+  insurance:         { primary: 'insurance agency',      services: ['auto insurance', 'home insurance', 'life insurance', 'business insurance', 'health insurance broker'] },
+  restaurant:        { primary: 'restaurant',            services: ['best restaurants', 'food near me', 'lunch restaurant', 'dinner restaurant', 'takeout restaurant', 'family restaurant'] },
+  coffee_shop:       { primary: 'coffee shop',           services: ['best coffee', 'espresso bar', 'cafe near me', 'specialty coffee', 'wifi coffee shop'] },
+  bar_pub:           { primary: 'bar',                   services: ['sports bar', 'cocktail bar', 'happy hour bar', 'pub near me', 'live music bar'] },
+  catering:          { primary: 'catering company',      services: ['wedding catering', 'corporate catering', 'event catering', 'food catering service', 'buffet catering'] },
+  retail:            { primary: 'local shop',            services: ['local boutique', 'specialty store', 'shopping near me'] },
+  salon:             { primary: 'hair salon',            services: ['haircut', 'hair color', 'balayage highlights', 'blowout service', 'hair stylist', 'keratin treatment'] },
+  barbershop:        { primary: 'barber shop',           services: ['mens haircut', 'fade haircut', 'beard trim', 'straight razor shave', 'boys haircut'] },
+  spa:               { primary: 'day spa',               services: ['facial treatment', 'body massage', 'waxing service', 'nail salon', 'couples massage', 'skin care treatment'] },
+  photography:       { primary: 'photographer',          services: ['wedding photographer', 'family portrait photographer', 'headshot photographer', 'newborn photographer', 'event photographer'] },
+  event_planning:    { primary: 'event planner',         services: ['wedding planner', 'party planner', 'corporate event planner', 'birthday party planner', 'event coordinator'] },
+  tutoring:          { primary: 'tutoring service',      services: ['math tutor', 'reading tutor', 'sat prep tutor', 'homework help', 'online tutoring', 'college prep'] },
+  dog_grooming:      { primary: 'dog groomer',           services: ['pet grooming', 'dog bath', 'dog haircut', 'mobile dog grooming', 'cat grooming', 'dog nail trim'] },
+}
+
+function buildSuggestions(niche, city, state) {
+  if (!city.trim()) return { universal: [], serviceSpecific: [] }
+
+  const data = NICHE_KEYWORD_DATA[niche]
+  const term = data?.primary || 'local business'
+  const services = data?.services || []
+  const c = city.trim()
+  const s = state || ''
+
+  const universal = [
+    `${term} ${c}`,
+    `${term} near me`,
+    `best ${term} ${c}`,
+    `${term} in ${c}`,
+    ...(s ? [`${term} ${c} ${s}`] : []),
+    `local ${term} ${c}`,
+    `affordable ${term} ${c}`,
+    `top rated ${term} ${c}`,
+    `trusted ${term} ${c}`,
+    `professional ${term} ${c}`,
+    `licensed ${term} ${c}`,
+    `insured ${term} ${c}`,
+    `${term} company ${c}`,
+    `${term} service ${c}`,
+    `${term} near ${c}`,
+    `find ${term} ${c}`,
+    `hire ${term} ${c}`,
+    `${term} reviews ${c}`,
+    `${term} quotes ${c}`,
+    `${term} cost ${c}`,
+    `emergency ${term} ${c}`,
+    `same day ${term} ${c}`,
+    `24/7 ${term} ${c}`,
+    `${term} open now ${c}`,
+    `free estimate ${term} ${c}`,
+    `best rated ${term} ${c}`,
+    `cheap ${term} ${c}`,
+    `residential ${term} ${c}`,
+    `commercial ${term} ${c}`,
+    `how much does a ${term} cost in ${c}`,
+  ]
+
+  const serviceSpecific = services.flatMap(svc => [
+    `${svc} ${c}`,
+    `${svc} near me`,
+  ])
+
+  return {
+    universal: [...new Set(universal.filter(Boolean))],
+    serviceSpecific: [...new Set(serviceSpecific.filter(Boolean))],
+  }
+}
+
 function rankBadge(rank) {
   if (rank === null || rank === undefined) return { label: 'Not found', variant: 'gray' }
   if (rank <= 3)  return { label: `#${rank} — Top 3`,   variant: 'success' }
@@ -44,6 +138,7 @@ function RankDelta({ current, previous }) {
 
 function AddKeywordModal({ isOpen, onClose, userId, onAdded }) {
   const { toast } = useToast()
+  const { userProfile } = useAuth()
   const [keyword, setKeyword] = useState('')
   const [domain,  setDomain]  = useState('')
   const [city,    setCity]    = useState('')
@@ -51,24 +146,11 @@ function AddKeywordModal({ isOpen, onClose, userId, onAdded }) {
   const [devices, setDevices] = useState({ mobile: true, desktop: true })
   const [saving,  setSaving]  = useState(false)
   const [showSuggestions, setShowSuggestions] = useState(false)
-  const [suggestedKeywords, setSuggestedKeywords] = useState([])
-
-  function generateSuggestions() {
-    if (!domain.trim() || !city.trim()) return []
-    const cleanDomain = domain.trim().replace(/^https?:\/\//, '').split('/')[0]
-    const suggestions = [
-      `${cleanDomain.split('.')[0]} near ${city}`,
-      `${cleanDomain.split('.')[0]} in ${city}`,
-      `emergency ${cleanDomain.split('.')[0]} ${city}`,
-      `24/7 ${cleanDomain.split('.')[0]}`,
-      `best ${cleanDomain.split('.')[0]} ${city}`,
-    ]
-    return suggestions
-  }
+  const [suggestions, setSuggestions] = useState({ universal: [], serviceSpecific: [] })
 
   function handleGenerateSuggestions() {
-    const suggestions = generateSuggestions()
-    setSuggestedKeywords(suggestions)
+    const result = buildSuggestions(userProfile?.niche, city, state)
+    setSuggestions(result)
     setShowSuggestions(true)
   }
 
@@ -100,7 +182,7 @@ function AddKeywordModal({ isOpen, onClose, userId, onAdded }) {
       setCity('')
       setState('')
       setDevices({ mobile: true, desktop: true })
-      setSuggestedKeywords([])
+      setSuggestions({ universal: [], serviceSpecific: [] })
       setShowSuggestions(false)
       onAdded()
       onClose()
@@ -191,28 +273,44 @@ function AddKeywordModal({ isOpen, onClose, userId, onAdded }) {
             size="sm"
             className="w-full"
             onClick={handleGenerateSuggestions}
-            disabled={!domain.trim() || !city.trim()}
+            disabled={!city.trim()}
           >
-            💡 Get Keyword Suggestions
+            💡 Get Keyword Suggestions ({NICHE_KEYWORD_DATA[userProfile?.niche] ? '50+' : '30'} ideas)
           </Button>
         )}
 
-        {showSuggestions && suggestedKeywords.length > 0 && (
+        {showSuggestions && (
           <div className="bg-hub-input/50 rounded-lg p-3 border border-hub-border space-y-2">
-            <p className="text-xs font-medium text-hub-text-secondary">Suggested keywords:</p>
-            {suggestedKeywords.map((suggestion, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => {
-                  setKeyword(suggestion)
-                  setShowSuggestions(false)
-                }}
-                className="w-full text-left text-sm px-3 py-2 bg-hub-card rounded hover:bg-hub-blue/20 transition-colors text-hub-text"
-              >
-                {suggestion}
-              </button>
-            ))}
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-xs font-medium text-hub-text-secondary">
+                {suggestions.universal.length + suggestions.serviceSpecific.length} keyword ideas — click to use
+              </p>
+              <button type="button" onClick={() => setShowSuggestions(false)} className="text-xs text-hub-text-muted hover:text-hub-text">✕ close</button>
+            </div>
+
+            {suggestions.serviceSpecific.length > 0 && (
+              <>
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-hub-blue mt-2">Service-Specific</p>
+                <div className="max-h-36 overflow-y-auto space-y-1">
+                  {suggestions.serviceSpecific.map((s, i) => (
+                    <button key={i} type="button" onClick={() => { setKeyword(s); setShowSuggestions(false) }}
+                      className="w-full text-left text-xs px-3 py-1.5 bg-hub-card rounded hover:bg-hub-blue/20 transition-colors text-hub-text">
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-hub-text-muted mt-2">Universal Local</p>
+            <div className="max-h-36 overflow-y-auto space-y-1">
+              {suggestions.universal.map((s, i) => (
+                <button key={i} type="button" onClick={() => { setKeyword(s); setShowSuggestions(false) }}
+                  className="w-full text-left text-xs px-3 py-1.5 bg-hub-card rounded hover:bg-hub-blue/20 transition-colors text-hub-text">
+                  {s}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 

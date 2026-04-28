@@ -1,4 +1,4 @@
-export const HUB_NAME = 'ReBoost Hub'
+export const HUB_NAME = 'ReBoost Marketing HUB'
 export const HUB_VERSION = '1.0.0'
 
 // Major cities per state for bulk lead searching (up to 100+ leads per search)
