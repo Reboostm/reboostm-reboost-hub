@@ -67,6 +67,25 @@ export default function Profile() {
           </div>
         </Card>
 
+        <Card>
+          <h2 className="text-sm font-semibold text-hub-text mb-4">Citations Info</h2>
+          <p className="text-xs text-hub-text-muted mb-4">Used when submitting your business to directories</p>
+          <div className="space-y-4">
+            <Input
+              label="Business hours"
+              placeholder="9am - 5pm Mon-Fri, 10am - 3pm Sat"
+              error={errors.businessHours?.message}
+              {...register('businessHours')}
+            />
+            <Input
+              label="Business description"
+              placeholder="Brief description of your business services and specialties"
+              error={errors.description?.message}
+              {...register('description')}
+            />
+          </div>
+        </Card>
+
         <Button type="submit" size="lg" loading={isSubmitting}>Save Changes</Button>
       </form>
     </div>

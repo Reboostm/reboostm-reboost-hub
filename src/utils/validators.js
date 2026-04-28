@@ -66,4 +66,43 @@ export const profileSchema = z.object({
   niche: z.string().min(1, 'Please select your niche'),
   tagline: z.string().max(100).optional(),
   currentOffer: z.string().max(100).optional(),
+  // Phase 1 Citations fields (optional in Profile, required in CitationsSetup)
+  businessHours: z.string().optional(),
+  description: z.string().optional(),
+})
+
+// Citations Setup - Phase 2/3 comprehensive form
+export const citationsSetupSchema = z.object({
+  // Basic Info (Phase 1)
+  businessName: z.string().min(2, 'Business name required'),
+  phone: phoneSchema,
+  website: urlSchema,
+  address: z.string().min(3, 'Address required'),
+  city: z.string().min(2, 'City required'),
+  state: z.string().min(2, 'State required'),
+  zip: z.string().regex(/^\d{5}(-\d{4})?$/, 'Invalid ZIP code'),
+
+  // Phase 1 - Hours & Description
+  businessHours: z.string().min(1, 'Business hours required'),
+  description: z.string().min(10, 'Description at least 10 characters').max(500, 'Max 500 characters'),
+
+  // Phase 2 - Full Submission
+  shortDesc: z.string().max(160, 'Max 160 characters').optional(),
+  longDesc: z.string().max(2000, 'Max 2000 characters').optional(),
+  publicEmail: z.string().email().optional().or(z.literal('')),
+  facebook: z.string().url().optional().or(z.literal('')),
+  instagram: z.string().url().optional().or(z.literal('')),
+  linkedin: z.string().url().optional().or(z.literal('')),
+  twitter: z.string().url().optional().or(z.literal('')),
+  youtube: z.string().url().optional().or(z.literal('')),
+  tiktok: z.string().url().optional().or(z.literal('')),
+
+  // Phase 3 - Optimization (all optional)
+  serviceAreas: z.string().optional(),
+  yearEstablished: z.string().optional(),
+  serviceCategories: z.array(z.string()).optional(),
+  licenseNumber: z.string().optional(),
+  licenseState: z.string().optional(),
+  certifications: z.string().optional(),
+  paymentMethods: z.array(z.string()).optional(),
 })

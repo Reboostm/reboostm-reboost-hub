@@ -477,17 +477,39 @@ exports.startCitationsJob = onCall(
       throw new HttpsError('already-exists', 'A submission job is already running. Wait for it to complete.')
     }
 
-    // Business info for the submission engine
+    // Business info for the submission engine (Phase 1 + 2 + 3)
     const businessData = {
-      businessName: user.businessName || '',
-      address:      user.address      || '',
-      city:         user.city         || '',
-      state:        user.state        || '',
-      zip:          user.zip          || '',
-      phone:        user.phone        || '',
-      website:      user.website      || '',
-      email:        user.email        || '',
-      niche:        user.niche        || '',
+      // Phase 1 - Essential
+      businessName:     user.businessName      || '',
+      address:          user.address           || '',
+      city:             user.city              || '',
+      state:            user.state             || '',
+      zip:              user.zip               || '',
+      phone:            user.phone             || '',
+      website:          user.website           || '',
+      email:            user.email             || '',
+      niche:            user.niche             || '',
+      businessHours:    user.businessHours     || '',
+      description:      user.description       || '',
+
+      // Phase 2 - Full Submission
+      shortDesc:        user.shortDesc         || '',
+      longDesc:         user.longDesc          || '',
+      publicEmail:      user.publicEmail       || '',
+      facebook:         user.facebook          || '',
+      instagram:        user.instagram         || '',
+      linkedin:         user.linkedin          || '',
+      twitter:          user.twitter           || '',
+      youtube:          user.youtube           || '',
+      tiktok:           user.tiktok            || '',
+
+      // Phase 3 - Optimization
+      serviceAreas:     user.serviceAreas      || '',
+      yearEstablished:  user.yearEstablished   || '',
+      licenseNumber:    user.licenseNumber     || '',
+      licenseState:     user.licenseState      || '',
+      certifications:   user.certifications    || '',
+      paymentMethods:   user.paymentMethods    || [],
     }
 
     const directories = MASTER_DIRECTORIES.slice(0, targetCount)
