@@ -13,7 +13,7 @@ import { useBilling } from '../../hooks/useBilling'
 import { useToast } from '../../hooks/useToast'
 import { searchLeads } from '../../services/functions'
 import { markLeadsBatchExported } from '../../services/firestore'
-import { NICHES } from '../../config'
+import { NICHES, US_STATES } from '../../config'
 
 const RADIUS_OPTIONS = [
   { value: '5',  label: '5 miles' },
@@ -49,13 +49,16 @@ export default function LeadFinder() {
   const navigate = useNavigate()
 
   const [niche, setNiche] = useState('')
+  const [state, setState] = useState('')
   const [city, setCity] = useState('')
+  const [searchMode, setSearchMode] = useState('city') // 'city' or 'state'
   const [radius, setRadius] = useState('25')
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState(null)
   const [batchId, setBatchId] = useState(null)
   const [page, setPage] = useState(1)
   const [exported, setExported] = useState(false)
+  const [citiesSearched, setCitiesSearched] = useState(0)
 
   if (!hasLeadCredits) return <ToolGate tool="leads" />
 
@@ -65,7 +68,22 @@ export default function LeadFinder() {
   async function handleSearch(e) {
     e.preventDefault()
     if (!niche) { toast('Select a business niche.', 'error'); return }
-    if (!city.trim()) { toast('Enter a city.', 'error'); return }
+
+    const creditCost = searchMode === 'state' ? 10 : 1
+    if (leadCredits < creditCost) {
+      toast(`Need ${creditCost} credits (you have ${leadCredits}). Upgrade to continue.`, 'error')
+      return
+    }
+
+    if (searchMode === 'city' && !city.trim()) {
+      toast('Enter a city.', 'error')
+      return
+    }
+
+    if (searchMode === 'state' && !state) {
+      toast('Select a state.', 'error')
+      return
+    }
 
     setLoading(true)
     setResults(null)
@@ -74,9 +92,17 @@ export default function LeadFinder() {
     setExported(false)
 
     try {
-      const data = await searchLeads({ niche, city: city.trim(), radius: Number(radius) })
+      const searchParams = { niche, radius: Number(radius) }
+      if (searchMode === 'city') {
+        searchParams.city = city.trim()
+      } else {
+        searchParams.state = state
+      }
+
+      const data = await searchLeads(searchParams)
       setResults(data.results || [])
       setBatchId(data.batchId)
+      setCitiesSearched(data.citiesSearched || 0)
       if ((data.results || []).length === 0) {
         toast('No businesses found. Try a different niche or city.', 'warning')
       } else {
@@ -92,7 +118,8 @@ export default function LeadFinder() {
   async function handleExport() {
     if (!results) return
     const nicheLabel = NICHES.find(n => n.value === niche)?.label || niche
-    const filename = `leads-${nicheLabel}-${city.replace(/[^a-z0-9]/gi, '-')}.csv`.toLowerCase()
+    const location = searchMode === 'state' ? state : city
+    const filename = `leads-${nicheLabel}-${location.replace(/[^a-z0-9]/gi, '-')}.csv`.toLowerCase()
     exportCSV(results, filename)
     if (batchId && !exported) {
       await markLeadsBatchExported(batchId)
@@ -118,6 +145,32 @@ export default function LeadFinder() {
       {/* Search form */}
       <Card className="mb-6">
         <form onSubmit={handleSearch}>
+          {/* Search mode toggle */}
+          <div className="mb-4 flex gap-2">
+            <button
+              type="button"
+              onClick={() => { setSearchMode('city'); setState('') }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                searchMode === 'city'
+                  ? 'bg-hub-blue text-white'
+                  : 'bg-hub-card border border-hub-border text-hub-text hover:bg-hub-input'
+              }`}
+            >
+              Single City (1 credit)
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSearchMode('state'); setCity('') }}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                searchMode === 'state'
+                  ? 'bg-hub-orange text-white'
+                  : 'bg-hub-card border border-hub-border text-hub-text hover:bg-hub-input'
+              }`}
+            >
+              Entire State (10 credits)
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
             <Select
               label="Business niche"
@@ -126,12 +179,22 @@ export default function LeadFinder() {
               options={NICHES}
               placeholder="Select niche…"
             />
-            <Input
-              label="City + State"
-              value={city}
-              onChange={e => setCity(e.target.value)}
-              placeholder="Salt Lake City, UT"
-            />
+            {searchMode === 'city' ? (
+              <Input
+                label="City"
+                value={city}
+                onChange={e => setCity(e.target.value)}
+                placeholder="e.g., Salt Lake City"
+              />
+            ) : (
+              <Select
+                label="State"
+                value={state}
+                onChange={e => setState(e.target.value)}
+                options={US_STATES}
+                placeholder="Select state…"
+              />
+            )}
             <Select
               label="Search radius"
               value={radius}
@@ -142,7 +205,7 @@ export default function LeadFinder() {
           <Button type="submit" size="lg" className="w-full" loading={loading} disabled={loading}>
             {loading ? 'Searching Google Maps…' : (
               <span className="flex items-center gap-2 justify-center">
-                <Search className="w-4 h-4" /> Find Leads (1 credit)
+                <Search className="w-4 h-4" /> Find Leads ({searchMode === 'state' ? '10' : '1'} credit)
               </span>
             )}
           </Button>
@@ -154,7 +217,11 @@ export default function LeadFinder() {
         <Card>
           <div className="flex flex-col items-center py-12 gap-4">
             <Spinner size="lg" />
-            <p className="text-hub-text-secondary text-sm">Searching Google Maps and enriching results…</p>
+            <p className="text-hub-text-secondary text-sm">
+              {searchMode === 'state'
+                ? 'Searching multiple cities and enriching results… (this takes 30-60 seconds)'
+                : 'Searching Google Maps and enriching results…'}
+            </p>
           </div>
         </Card>
       )}
@@ -164,9 +231,14 @@ export default function LeadFinder() {
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
-              <CardTitle>
-                {results.length > 0 ? `${results.length} leads found` : 'No results'}
-              </CardTitle>
+              <div>
+                <CardTitle>
+                  {results.length > 0 ? `${results.length} leads found` : 'No results'}
+                </CardTitle>
+                {citiesSearched > 0 && (
+                  <p className="text-xs text-hub-text-muted mt-1">Searched {citiesSearched} cities</p>
+                )}
+              </div>
               {results.length > 0 && (
                 <Button size="sm" variant="secondary" onClick={handleExport}>
                   <Download className="w-4 h-4 mr-1.5" /> Export CSV

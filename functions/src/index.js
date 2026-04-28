@@ -865,18 +865,22 @@ exports.cancelPost = onCall({ timeoutSeconds: 30 }, async (request) => {
 })
 
 // ─── searchLeads ─────────────────────────────────────────────────────────────
-// Calls Google Maps Places API with key rotation.
+// Search for leads via Google Maps Places API with key rotation.
+// Supports single-city or state-wide bulk searching.
+// State-wide: loops through major cities (5-7 per state) → 100-300+ leads per search.
 // Requires settings/googleMapsKeys Firestore doc with keys array.
-// Deducts 1 lead credit from user (admin/staff bypass).
+// Deducts credits based on search scope (city = 1 credit, state = 10 credits).
 
 exports.searchLeads = onCall(
-  { timeoutSeconds: 120, memory: '512MiB' },
+  { timeoutSeconds: 300, memory: '1GiB' },
   async (request) => {
     const uid = request.auth?.uid
     if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
 
-    const { niche, city, radius = 25 } = request.data
-    if (!niche || !city) throw new HttpsError('invalid-argument', 'niche and city are required.')
+    const { niche, city, state, radius = 25 } = request.data
+    if (!niche || (!city && !state)) {
+      throw new HttpsError('invalid-argument', 'niche and (city or state) are required.')
+    }
 
     // Check credits (admin/staff bypass)
     const userSnap = await db.collection('users').doc(uid).get()
@@ -884,8 +888,12 @@ exports.searchLeads = onCall(
     const isAdmin = userData?.role === 'admin' || userData?.role === 'staff'
     const leadCredits = userData?.purchases?.leadCredits || 0
 
-    if (!isAdmin && leadCredits <= 0) {
-      throw new HttpsError('failed-precondition', 'No lead credits remaining.')
+    // Determine search scope and credit cost
+    const isStateWide = !!state
+    const creditsCost = isStateWide ? 10 : 1
+
+    if (!isAdmin && leadCredits < creditsCost) {
+      throw new HttpsError('failed-precondition', `Insufficient credits. Need ${creditsCost}, have ${leadCredits}.`)
     }
 
     // Load key pool
@@ -914,19 +922,91 @@ exports.searchLeads = onCall(
     const bestKey = available.reduce((min, k) => k.usageThisMonth < min.usageThisMonth ? k : min)
     const apiKey = bestKey.key
 
-    // Text search
-    const searchQuery = `${niche} in ${city}`
-    const radiusMeters = Math.round(radius * 1609)
-    const textUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&radius=${radiusMeters}&key=${apiKey}`
-
-    const textResp = await fetch(textUrl)
-    const textData = await textResp.json()
-
-    if (textData.status !== 'OK' && textData.status !== 'ZERO_RESULTS') {
-      throw new HttpsError('internal', `Maps API error: ${textData.status}`)
+    // Determine cities to search
+    const stateCities = {
+      AL: ['Birmingham', 'Montgomery', 'Mobile', 'Huntsville', 'Tuscaloosa'],
+      AK: ['Anchorage', 'Juneau', 'Fairbanks'],
+      AZ: ['Phoenix', 'Mesa', 'Scottsdale', 'Chandler', 'Tempe'],
+      AR: ['Little Rock', 'Fayetteville', 'Springdale', 'Jonesboro'],
+      CA: ['Los Angeles', 'San Francisco', 'San Diego', 'Sacramento', 'San Jose', 'Fresno', 'Long Beach'],
+      CO: ['Denver', 'Colorado Springs', 'Aurora', 'Fort Collins', 'Lakewood'],
+      CT: ['Hartford', 'New Haven', 'Bridgeport', 'Waterbury'],
+      DE: ['Wilmington', 'Dover', 'Newark'],
+      FL: ['Jacksonville', 'Miami', 'Tampa', 'Orlando', 'St. Petersburg', 'Fort Lauderdale'],
+      GA: ['Atlanta', 'Savannah', 'Augusta', 'Columbus', 'Athens'],
+      HI: ['Honolulu', 'Hilo'],
+      ID: ['Boise', 'Meridian', 'Pocatello', 'Idaho Falls'],
+      IL: ['Chicago', 'Aurora', 'Rockford', 'Joliet', 'Peoria', 'Springfield'],
+      IN: ['Indianapolis', 'Fort Wayne', 'Evansville', 'South Bend'],
+      IA: ['Des Moines', 'Cedar Rapids', 'Davenport', 'Sioux City'],
+      KS: ['Kansas City', 'Wichita', 'Topeka', 'Overland Park'],
+      KY: ['Louisville', 'Lexington', 'Bowling Green', 'Owensboro'],
+      LA: ['New Orleans', 'Baton Rouge', 'Shreveport', 'Lafayette'],
+      ME: ['Portland', 'Lewiston', 'Bangor'],
+      MD: ['Baltimore', 'Frederick', 'Gaithersburg', 'Bowie'],
+      MA: ['Boston', 'Worcester', 'Springfield', 'Cambridge'],
+      MI: ['Detroit', 'Grand Rapids', 'Warren', 'Sterling Heights', 'Ann Arbor'],
+      MN: ['Minneapolis', 'St. Paul', 'Rochester', 'Duluth', 'St. Cloud'],
+      MS: ['Jackson', 'Gulfport', 'Biloxi', 'Southaven'],
+      MO: ['Kansas City', 'St. Louis', 'Springfield', 'Independence'],
+      MT: ['Billings', 'Missoula', 'Great Falls'],
+      NE: ['Omaha', 'Lincoln', 'Bellevue', 'Grand Island'],
+      NV: ['Las Vegas', 'Henderson', 'Reno', 'North Las Vegas'],
+      NH: ['Manchester', 'Nashua', 'Concord'],
+      NJ: ['Newark', 'Jersey City', 'Paterson', 'Elizabeth', 'Trenton'],
+      NM: ['Albuquerque', 'Las Cruces', 'Santa Fe'],
+      NY: ['New York', 'Buffalo', 'Rochester', 'Yonkers', 'Syracuse'],
+      NC: ['Charlotte', 'Raleigh', 'Greensboro', 'Winston-Salem', 'Durham'],
+      ND: ['Bismarck', 'Fargo', 'Grand Forks'],
+      OH: ['Columbus', 'Cleveland', 'Cincinnati', 'Toledo', 'Akron', 'Dayton'],
+      OK: ['Oklahoma City', 'Tulsa', 'Norman', 'Broken Arrow'],
+      OR: ['Portland', 'Eugene', 'Salem', 'Gresham'],
+      PA: ['Philadelphia', 'Pittsburgh', 'Allentown', 'Erie', 'Reading'],
+      RI: ['Providence', 'Warwick', 'Cranston'],
+      SC: ['Charleston', 'Columbia', 'Greenville', 'Summerville'],
+      SD: ['Sioux Falls', 'Rapid City', 'Pierre'],
+      TN: ['Memphis', 'Nashville', 'Knoxville', 'Chattanooga', 'Clarksville'],
+      TX: ['Houston', 'Dallas', 'Austin', 'San Antonio', 'Fort Worth', 'El Paso', 'Arlington'],
+      UT: ['Salt Lake City', 'Provo', 'Orem', 'Ogden', 'West Valley City'],
+      VT: ['Burlington', 'Rutland'],
+      VA: ['Virginia Beach', 'Richmond', 'Arlington', 'Alexandria', 'Roanoke'],
+      WA: ['Seattle', 'Spokane', 'Tacoma', 'Vancouver', 'Bellevue'],
+      WV: ['Charleston', 'Huntington', 'Parkersburg'],
+      WI: ['Milwaukee', 'Madison', 'Green Bay', 'Kenosha'],
+      WY: ['Cheyenne', 'Casper', 'Laramie'],
     }
 
-    const places = (textData.results || []).slice(0, 20)
+    const citiesToSearch = isStateWide
+      ? (stateCities[state.toUpperCase()] || [])
+      : [city]
+
+    if (citiesToSearch.length === 0) {
+      throw new HttpsError('invalid-argument', `No cities found for state ${state}`)
+    }
+
+    // Search all cities and deduplicate by placeId
+    const allPlaces = {}
+    let totalCalls = 0
+    const radiusMeters = Math.round(radius * 1609)
+
+    for (const searchCity of citiesToSearch) {
+      const searchQuery = `${niche} in ${searchCity}`
+      const textUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&radius=${radiusMeters}&key=${apiKey}`
+
+      const textResp = await fetch(textUrl)
+      const textData = await textResp.json()
+      totalCalls++
+
+      if (textData.status === 'OK' || textData.status === 'ZERO_RESULTS') {
+        (textData.results || []).forEach(place => {
+          if (!allPlaces[place.place_id]) {
+            allPlaces[place.place_id] = place
+          }
+        })
+      }
+    }
+
+    const places = Object.values(allPlaces).slice(0, 200) // Cap at 200 deduplicated leads
 
     // Enrich each place with phone + website via Place Details
     const enriched = await Promise.all(
@@ -936,6 +1016,7 @@ exports.searchLeads = onCall(
           const detailResp = await fetch(detailUrl)
           const detailData = await detailResp.json()
           const d = detailData.result || {}
+          totalCalls++
           return {
             businessName: d.name || place.name || '',
             address: d.formatted_address || place.formatted_address || '',
@@ -961,11 +1042,14 @@ exports.searchLeads = onCall(
 
     // Save batch + items
     const batchRef = db.collection('leads').doc()
+    const searchScope = isStateWide ? `${state} (${citiesToSearch.length} cities)` : city
     await batchRef.set({
       userId: uid,
       niche,
-      city,
-      searchQuery,
+      searchScope,
+      city: isStateWide ? null : city,
+      state: isStateWide ? state : null,
+      searchQuery: isStateWide ? `${niche} across ${state}` : `${niche} in ${city}`,
       totalFound: enriched.length,
       exported: false,
       createdAt: FieldValue.serverTimestamp(),
@@ -977,21 +1061,20 @@ exports.searchLeads = onCall(
     })
     await writeBatch.commit()
 
-    // Deduct 1 credit (non-admin)
+    // Deduct credits (non-admin)
     if (!isAdmin) {
       await db.collection('users').doc(uid).update({
-        'purchases.leadCredits': FieldValue.increment(-1),
+        'purchases.leadCredits': FieldValue.increment(-creditsCost),
       })
     }
 
-    // Increment key usage: 1 TextSearch + up to 20 Details
-    const callsUsed = 1 + enriched.length
+    // Increment key usage
     const updatedKeys = keys.map(k =>
-      k.key === apiKey ? { ...k, usageThisMonth: (k.usageThisMonth || 0) + callsUsed } : k
+      k.key === apiKey ? { ...k, usageThisMonth: (k.usageThisMonth || 0) + totalCalls } : k
     )
     await keysRef.update({ keys: updatedKeys })
 
-    return { batchId: batchRef.id, results: enriched, totalFound: enriched.length }
+    return { batchId: batchRef.id, results: enriched, totalFound: enriched.length, citiesSearched: citiesToSearch.length }
   }
 )
 
