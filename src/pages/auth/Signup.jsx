@@ -58,6 +58,7 @@ export default function Signup() {
       toast(`Welcome to ${HUB_NAME}!`, 'success')
       navigate('/audit')
     } catch (err) {
+      console.error('Signup error:', err)
       const msg = err.code === 'auth/email-already-in-use'
         ? 'An account with this email already exists.'
         : err.message || 'Signup failed. Please try again.'

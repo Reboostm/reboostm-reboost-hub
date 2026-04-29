@@ -26,8 +26,9 @@ export default function Profile() {
     try {
       await updateProfile(data)
       toast('Profile saved.', 'success')
-    } catch {
-      toast('Failed to save profile. Please try again.', 'error')
+    } catch (err) {
+      console.error('Profile save error:', err)
+      toast(err?.message || 'Failed to save profile. Please try again.', 'error')
     }
   }
 
