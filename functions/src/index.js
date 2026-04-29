@@ -574,9 +574,8 @@ exports.adminCreateUser = onCall({ timeoutSeconds: 30 }, async (request) => {
     throw new HttpsError('permission-denied', 'Admin or staff role required.')
   }
 
-  const { email, password, displayName = '', role = 'client' } = request.data
-  if (!email || !password) throw new HttpsError('invalid-argument', 'email and password are required.')
-  if (password.length < 6) throw new HttpsError('invalid-argument', 'Password must be at least 6 characters.')
+  const { email, displayName = '', role = 'client', niche = '', businessName = '', sendInvite = true } = request.data
+  if (!email) throw new HttpsError('invalid-argument', 'email is required.')
 
   const allowed = ['client', 'staff', 'admin']
   if (!allowed.includes(role)) throw new HttpsError('invalid-argument', 'Invalid role.')
@@ -585,15 +584,20 @@ exports.adminCreateUser = onCall({ timeoutSeconds: 30 }, async (request) => {
   }
 
   const auth = getAuth()
-  const user = await auth.createUser({ email, password, displayName })
+
+  // Generate a random temporary password — user will reset via invite link
+  const tempPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-4).toUpperCase()
+  const user = await auth.createUser({ email, password: tempPassword, displayName })
 
   await db.collection('users').doc(user.uid).set({
     email,
     displayName,
     role,
-    businessName: '', phone: '', website: '', address: '',
-    city: '', state: '', zip: '', niche: '', tagline: '', currentOffer: '',
-    logoUrl: null, photoUrls: [], connectedEmail: null,
+    businessName,
+    niche,
+    phone: '', website: '', address: '',
+    city: '', state: '', zip: '', tagline: '', currentOffer: '',
+    logoUrl: null,
     subscriptions: {
       scheduler:     { active: false, tier: null, stripeSubId: null },
       reviewManager: { active: false, stripeSubId: null },
@@ -609,7 +613,63 @@ exports.adminCreateUser = onCall({ timeoutSeconds: 30 }, async (request) => {
     updatedAt: FieldValue.serverTimestamp(),
   })
 
-  return { uid: user.uid }
+  // Send invite email with password setup link
+  let inviteLink = null
+  if (sendInvite) {
+    try {
+      inviteLink = await auth.generatePasswordResetLink(email, {
+        url: `${process.env.APP_URL || 'https://reboost-hub.vercel.app'}/login`,
+      })
+
+      const RESEND_KEY = process.env.RESEND_API_KEY || ''
+      const SENDGRID_KEY = process.env.SENDGRID_API_KEY || ''
+
+      if (RESEND_KEY) {
+        await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from: 'ReBoost Marketing HUB <noreply@reboosthub.com>',
+            to: email,
+            subject: `You've been invited to ReBoost Marketing HUB`,
+            html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a;">
+  <h2>Welcome${displayName ? `, ${displayName}` : ''}!</h2>
+  <p>Your ReBoost Marketing HUB account has been created. Click the button below to set your password and access your dashboard.</p>
+  <p style="margin:28px 0;text-align:center;">
+    <a href="${inviteLink}" style="display:inline-block;background:#2563eb;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;">Set Your Password & Log In</a>
+  </p>
+  <p style="color:#666;font-size:13px;">This link expires in 1 hour. If you didn't expect this email, you can ignore it.</p>
+</div>`,
+          }),
+        })
+      } else if (SENDGRID_KEY) {
+        await fetch('https://api.sendgrid.com/v3/mail/send', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${SENDGRID_KEY}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            personalizations: [{ to: [{ email }] }],
+            from: { email: 'noreply@reboosthub.com', name: 'ReBoost Marketing HUB' },
+            subject: `You've been invited to ReBoost Marketing HUB`,
+            content: [{
+              type: 'text/html',
+              value: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a;">
+  <h2>Welcome${displayName ? `, ${displayName}` : ''}!</h2>
+  <p>Your ReBoost Marketing HUB account has been created. Click the button below to set your password and access your dashboard.</p>
+  <p style="margin:28px 0;text-align:center;">
+    <a href="${inviteLink}" style="display:inline-block;background:#2563eb;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;">Set Your Password & Log In</a>
+  </p>
+  <p style="color:#666;font-size:13px;">This link expires in 1 hour. If you didn't expect this email, you can ignore it.</p>
+</div>`,
+            }],
+          }),
+        })
+      }
+    } catch (inviteErr) {
+      console.error('Invite email failed (account still created):', inviteErr.message)
+    }
+  }
+
+  return { uid: user.uid, inviteLink }
 })
 
 // ─── adminUpdateAccess ───────────────────────────────────────────────────────
