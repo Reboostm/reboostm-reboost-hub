@@ -1006,29 +1006,56 @@ exports.searchLeads = onCall(
       throw new HttpsError('invalid-argument', `No cities found for state ${state}`)
     }
 
-    // Search all cities and deduplicate by placeId
+    // Load user's existing saved placeIds to skip duplicates across searches
+    const existingBatchesSnap = await db.collection('leads')
+      .where('userId', '==', uid)
+      .limit(50)
+      .get()
+    const existingPlaceIds = new Set()
+    await Promise.all(existingBatchesSnap.docs.map(async batchDoc => {
+      const itemsSnap = await batchDoc.ref.collection('items').select('placeId').get()
+      itemsSnap.docs.forEach(d => { if (d.data().placeId) existingPlaceIds.add(d.data().placeId) })
+    }))
+
+    // Search all cities and deduplicate by placeId. Uses next_page_token to get up to 3 pages (~60 results) per city.
     const allPlaces = {}
     let totalCalls = 0
     const radiusMeters = Math.round(radius * 1609)
 
     for (const searchCity of citiesToSearch) {
       const searchQuery = `${niche} in ${searchCity}`
-      const textUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&radius=${radiusMeters}&key=${apiKey}`
+      let pageToken = null
+      let cityPages = 0
 
-      const textResp = await fetch(textUrl)
-      const textData = await textResp.json()
-      totalCalls++
+      do {
+        const url = pageToken
+          ? `https://maps.googleapis.com/maps/api/place/textsearch/json?pagetoken=${pageToken}&key=${apiKey}`
+          : `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&radius=${radiusMeters}&key=${apiKey}`
 
-      if (textData.status === 'OK' || textData.status === 'ZERO_RESULTS') {
-        (textData.results || []).forEach(place => {
-          if (!allPlaces[place.place_id]) {
-            allPlaces[place.place_id] = place
-          }
-        })
-      }
+        // Google requires a short delay before using a next_page_token
+        if (pageToken) await new Promise(r => setTimeout(r, 2000))
+
+        const resp = await fetch(url)
+        const data = await resp.json()
+        totalCalls++
+        cityPages++
+
+        if (data.status === 'OK' || data.status === 'ZERO_RESULTS') {
+          ;(data.results || []).forEach(place => {
+            if (!allPlaces[place.place_id]) {
+              allPlaces[place.place_id] = place
+            }
+          })
+          pageToken = data.next_page_token || null
+        } else {
+          pageToken = null
+        }
+      } while (pageToken && cityPages < 3) // max 3 pages = ~60 results per city
     }
 
-    const places = Object.values(allPlaces).slice(0, 200) // Cap at 200 deduplicated leads
+    const places = Object.values(allPlaces)
+      .filter(p => !existingPlaceIds.has(p.place_id)) // skip already-saved leads
+      .slice(0, 300) // cap at 300
 
     // Enrich each place with phone + website via Place Details
     const enriched = await Promise.all(

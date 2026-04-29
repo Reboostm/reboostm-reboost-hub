@@ -20,7 +20,7 @@ export default function ProtectedRoute() {
 
   // Force profile completion on first login (clients only, not admin/staff)
   const isOnSettings = location.pathname === '/settings'
-  const hasCompleteProfile = userProfile?.niche && userProfile?.businessName && userProfile?.phone && userProfile?.address
+  const hasCompleteProfile = userProfile?.niche && userProfile?.businessName
   const isAdmin = userProfile?.role === 'admin' || userProfile?.role === 'staff'
 
   if (!hasCompleteProfile && !isOnSettings && !isAdmin && !location.pathname.startsWith('/admin') && !location.pathname.startsWith('/setup')) {
