@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'firestore.rules'
+      - 'storage.rules'
       - 'firebase.json'
       - '.firebaserc'
 
@@ -14,12 +15,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
-      - name: Deploy Firestore Rules
-        run: firebase deploy --only firestore:rules --project reboost-hub
+      - name: Deploy Firebase Rules
+        run: firebase deploy --only firestore:rules,storage --project reboost-hub --token ${{ secrets.FIREBASE_TOKEN }}
