@@ -11,6 +11,16 @@ import Badge from '../../components/ui/Badge'
 import Spinner from '../../components/ui/Spinner'
 import { Plus, Trash2, Edit2, Save, X, Play, FileText, Mail, ChevronUp, ChevronDown } from 'lucide-react'
 
+const SUGGESTED_SECTIONS = [
+  'Getting Started', 'SEO Audit', 'Citations', 'Rank Tracker',
+  'Review Manager', 'Lead Generator', 'Celebrity Content',
+  'Content Scheduler', 'AI Creator', 'DFY Services',
+]
+
+function sectionId(name) {
+  return `section-${name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '')}`
+}
+
 export default function TrainingAndSupport() {
   const { isStaff } = useAuth()
   const { toast } = useToast()
@@ -264,12 +274,28 @@ export default function TrainingAndSupport() {
 
         {isStaff && showVideoForm && (
           <form onSubmit={handleSaveVideo} className="p-4 bg-hub-input/30 rounded-lg border border-hub-border mb-4 space-y-3">
-            <Input
-              label="Section Name (e.g., Citations, Content Calendar)"
-              value={videoForm.section}
-              onChange={e => setVideoForm(p => ({ ...p, section: e.target.value }))}
-              placeholder="Citations"
-            />
+            <div>
+              <Input
+                label="Section Name"
+                value={videoForm.section}
+                onChange={e => setVideoForm(p => ({ ...p, section: e.target.value }))}
+                placeholder="e.g., Citations, SEO Audit"
+              />
+              {!videoForm.section && (
+                <div className="flex flex-wrap gap-1.5 mt-2">
+                  {SUGGESTED_SECTIONS.map(s => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setVideoForm(p => ({ ...p, section: s }))}
+                      className="text-xs px-2 py-1 rounded-full bg-hub-input border border-hub-border text-hub-text-muted hover:text-hub-blue hover:border-hub-blue transition-colors"
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
             <Textarea
               label="Description"
               value={videoForm.description}
@@ -307,17 +333,34 @@ export default function TrainingAndSupport() {
           <div className="p-8 text-center text-hub-text-muted">
             <Play className="w-8 h-8 mx-auto mb-2 opacity-40" />
             <p>No training videos yet.</p>
-            {isStaff && <p className="text-xs mt-2 opacity-60">Tip: Give sections numbered names like "1. Getting Started" to control their order.</p>}
+            {isStaff && <p className="text-xs mt-2 opacity-60">Click "Add Video" and pick a section from the suggestions.</p>}
           </div>
         ) : (
-          <div className="space-y-4 p-4">
+          <>
+            {/* Jump-to navigation */}
+            <div className="px-4 pb-2">
+              <p className="text-xs text-hub-text-muted mb-2 font-medium uppercase tracking-wide">Jump to:</p>
+              <div className="flex flex-wrap gap-1.5">
+                {sortedSectionNames.map(s => (
+                  <a
+                    key={s}
+                    href={`#${sectionId(s)}`}
+                    className="text-xs px-2.5 py-1 rounded-full bg-hub-input border border-hub-border text-hub-text-secondary hover:text-hub-blue hover:border-hub-blue transition-colors"
+                  >
+                    {s}
+                  </a>
+                ))}
+              </div>
+            </div>
+
+          <div className="space-y-6 p-4">
             {sortedSectionNames.map((section) => {
               const sectionVideos = videosBySection[section]
               const idx = sortedSectionNames.indexOf(section)
               return (
-              <div key={section}>
-                <div className="flex items-center gap-2 mb-2">
-                  <h3 className="text-sm font-semibold text-hub-text flex-1">{section}</h3>
+              <div key={section} id={sectionId(section)}>
+                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-hub-border">
+                  <h3 className="text-base font-semibold text-hub-text flex-1">{section}</h3>
                   {isStaff && (
                     <div className="flex gap-0.5">
                       <button
@@ -339,13 +382,13 @@ export default function TrainingAndSupport() {
                     </div>
                   )}
                 </div>
-                <div className="space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   {sectionVideos.map(video => {
                     const youtubeId = getYoutubeId(video.youtubeUrl)
                     return (
                       <div key={video.id} className="border border-hub-border rounded-lg overflow-hidden bg-hub-input/30">
                         {youtubeId && (
-                          <div className="w-full h-40 bg-black flex items-center justify-center">
+                          <div className="w-full aspect-video bg-black">
                             <iframe
                               width="100%"
                               height="100%"
@@ -391,6 +434,7 @@ export default function TrainingAndSupport() {
             )
           })}
           </div>
+          </>
         )}
       </Card>
 
