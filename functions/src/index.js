@@ -1919,12 +1919,25 @@ exports.handleStripeWebhook = onRequest(async (req, res) => {
 })
 
 async function handleCheckoutComplete(session) {
-  const { uid, offerId, unlocksFeature } = session.metadata || {}
-  if (!uid || !offerId) {
-    console.warn('Checkout session missing metadata:', session.id)
+  const { uid, offerId } = session.metadata || {}
+
+  // In-app checkout — uid and offerId passed as Stripe metadata
+  if (uid && offerId) {
+    await handleInAppCheckout(session, uid, offerId)
     return
   }
 
+  // External funnel checkout — no uid, look up by email
+  const email = session.customer_details?.email || session.customer_email
+  if (email) {
+    await handleExternalFunnelCheckout(session, email)
+    return
+  }
+
+  console.warn('Checkout session has no uid metadata and no email:', session.id)
+}
+
+async function handleInAppCheckout(session, uid, offerId) {
   const offerSnap = await db.collection('offers').doc(offerId).get()
   if (!offerSnap.exists) {
     console.warn('Offer not found:', offerId)
@@ -1934,27 +1947,158 @@ async function handleCheckoutComplete(session) {
   const offer = offerSnap.data()
   const userRef = db.collection('users').doc(uid)
 
-  // Store Stripe customer ID
   if (session.customer) {
-    console.log('Setting stripeCustomerId:', { uid, customerId: session.customer })
     await userRef.update({ stripeCustomerId: session.customer })
-  } else {
-    console.warn('No customer ID in checkout session:', { uid, sessionId: session.id })
   }
 
-  // Unlock feature based on offer type
   if (offer.type === 'subscription') {
-    // For subscriptions, store the subscription ID
     if (session.subscription) {
       const subscription = await stripe.subscriptions.retrieve(session.subscription)
       await unlockSubscription(uid, offer, subscription.id)
     }
   } else {
-    // For one-time purchases
     await unlockPurchase(uid, offer)
   }
 
-  console.log(`✓ Checkout completed: user=${uid}, offer=${offerId}, feature=${unlocksFeature}`)
+  console.log(`✓ In-app checkout: user=${uid}, offer=${offerId}, feature=${offer.unlocksFeature}`)
+}
+
+async function handleExternalFunnelCheckout(session, email) {
+  // 1. Find offer by Stripe price ID from line items
+  const lineItems = await stripe.checkout.sessions.listLineItems(session.id, { limit: 1 })
+  const priceId = lineItems.data[0]?.price?.id
+  if (!priceId) {
+    console.warn('External funnel checkout has no price ID:', session.id)
+    return
+  }
+
+  const offersSnap = await db.collection('offers').where('stripePriceId', '==', priceId).limit(1).get()
+  if (offersSnap.empty) {
+    console.warn('No offer found for price ID:', priceId, '— skipping access grant')
+    return
+  }
+  const offer = offersSnap.docs[0].data()
+
+  // 2. Find or create Firebase Auth user
+  const auth = getAuth()
+  let uid
+  let isNewUser = false
+
+  try {
+    const existingUser = await auth.getUserByEmail(email)
+    uid = existingUser.uid
+  } catch {
+    const newUser = await auth.createUser({ email, emailVerified: false })
+    uid = newUser.uid
+    isNewUser = true
+
+    await db.collection('users').doc(uid).set({
+      email,
+      displayName: session.customer_details?.name || '',
+      businessName: '',
+      niche: '',
+      role: 'client',
+      subscriptions: {
+        scheduler:     { active: false, tier: null, stripeSubId: null },
+        reviewManager: { active: false, stripeSubId: null },
+        rankTracker:   { active: false, stripeSubId: null },
+      },
+      purchases: {
+        citationsPackageId: null,
+        leadCredits: 0,
+        videoPackage: { unlocked: false },
+      },
+      stripeCustomerId: session.customer || null,
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    })
+  }
+
+  const userRef = db.collection('users').doc(uid)
+
+  // 3. Store Stripe customer ID
+  if (session.customer) {
+    await userRef.update({ stripeCustomerId: session.customer })
+  }
+
+  // 4. Grant access
+  if (offer.type === 'subscription') {
+    if (session.subscription) {
+      const subscription = await stripe.subscriptions.retrieve(session.subscription)
+      await unlockSubscription(uid, offer, subscription.id)
+    }
+  } else {
+    await unlockPurchase(uid, offer)
+  }
+
+  // 5. Send welcome email via SendGrid (non-fatal — don't fail the webhook if email fails)
+  const SENDGRID_KEY = process.env.SENDGRID_API_KEY || ''
+  if (SENDGRID_KEY) {
+    try {
+      let loginLink = 'https://reboosthub.com/login'
+      try {
+        loginLink = await auth.generatePasswordResetLink(email)
+      } catch (err) {
+        console.warn('Could not generate password reset link:', err.message)
+      }
+
+      const greeting = session.customer_details?.name
+        ? `Hi ${session.customer_details.name},`
+        : 'Hi there,'
+
+      const subject = isNewUser
+        ? `Welcome to ReBoost Marketing HUB — Your ${offer.name} is ready`
+        : `Your ${offer.name} has been activated on ReBoost Hub`
+
+      const html = `
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a1a; background: #f9fafb; padding: 32px;">
+  <div style="background: white; border-radius: 12px; padding: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+    <h1 style="color: #2563eb; margin: 0 0 16px 0; font-size: 24px;">ReBoost Marketing HUB</h1>
+    <p>${greeting}</p>
+    <p>Your <strong>${offer.name}</strong> has been activated and your account is ready to use.</p>
+    ${isNewUser ? `
+    <p>We created an account for you at <strong>${email}</strong>. Click below to set your password and access your tools:</p>
+    <p style="margin: 28px 0; text-align: center;">
+      <a href="${loginLink}" style="display: inline-block; background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+        Set Password &amp; Log In →
+      </a>
+    </p>
+    <p style="color: #666; font-size: 13px;">This link expires in 1 hour. If it expires, use "Forgot Password" on the login page.</p>
+    ` : `
+    <p>Log in to access your newly unlocked feature:</p>
+    <p style="margin: 28px 0; text-align: center;">
+      <a href="https://reboosthub.com/login" style="display: inline-block; background: #2563eb; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
+        Log In to ReBoost Hub →
+      </a>
+    </p>
+    `}
+    <p style="color: #666; font-size: 13px; margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 16px;">
+      Questions? Reply to this email anytime.<br>— The ReBoost Team
+    </p>
+  </div>
+</div>`
+
+      await fetch('https://api.sendgrid.com/v3/mail/send', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SENDGRID_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          personalizations: [{ to: [{ email }] }],
+          from: { email: process.env.SENDGRID_FROM_EMAIL || 'noreply@reboosthub.com', name: 'ReBoost Hub' },
+          subject,
+          content: [{ type: 'text/html', value: html }],
+        }),
+        signal: AbortSignal.timeout(10000),
+      })
+      console.log(`✓ Welcome email sent to ${email}`)
+    } catch (err) {
+      console.warn('Welcome email failed (non-fatal):', err.message)
+    }
+  }
+
+  console.log(`✓ External funnel checkout: user=${uid}, offer=${offer.name}, newUser=${isNewUser}`)
 }
 
 async function handleSubscriptionEvent(subscription) {

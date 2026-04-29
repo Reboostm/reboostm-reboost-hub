@@ -12,26 +12,36 @@ import Spinner from '../../components/ui/Spinner'
 import EmptyState from '../../components/ui/EmptyState'
 import ToolGate from '../../components/ui/ToolGate'
 import ImageEditor from '../../components/ui/ImageEditor'
-import { Search, Calendar as CalendarIcon, Download, Clock, Lock } from 'lucide-react'
+import { Search, Calendar as CalendarIcon } from 'lucide-react'
+import { CATEGORIES } from '../admin/ContentManager'
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
+const CATEGORY_COLORS = {
+  funny: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/30',
+  educational: 'bg-blue-500/10 text-blue-400 border-blue-500/30',
+  promotional: 'bg-purple-500/10 text-purple-400 border-purple-500/30',
+  checklist: 'bg-green-500/10 text-green-400 border-green-500/30',
+  story: 'bg-pink-500/10 text-pink-400 border-pink-500/30',
+  seasonal: 'bg-orange-500/10 text-orange-400 border-orange-500/30',
+}
+
 export default function CelebrityContent() {
   const navigate = useNavigate()
   const { userProfile, isStaff } = useAuth()
-  const { hasCalendar, hasAICreator } = useBilling()
+  const { hasCalendar } = useBilling()
   const { toast } = useToast()
 
   const [content, setContent] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [selectedCategory, setSelectedCategory] = useState('')
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth())
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear())
   const [editingItem, setEditingItem] = useState(null)
   const [editorOpen, setEditorOpen] = useState(false)
 
-  // Load content — admins see all niches, users see their niche only
   useEffect(() => {
     if (!isStaff && !userProfile?.niche) {
       setLoading(false)
@@ -79,10 +89,13 @@ export default function CelebrityContent() {
     )
   }
 
-  const filteredContent = content.filter(item =>
-    item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.description?.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  const filteredContent = content.filter(item => {
+    const matchesSearch =
+      item.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    const matchesCategory = !selectedCategory || item.category === selectedCategory
+    return matchesSearch && matchesCategory
+  })
 
   const monthName = MONTHS[selectedMonth]
   const daysInMonth = selectedMonth === 1 && selectedYear % 4 === 0 ? 29 : DAYS_IN_MONTH[selectedMonth]
@@ -96,10 +109,14 @@ export default function CelebrityContent() {
     }
   })
 
+  const nicheDisplay = isStaff ? 'All Niches' : (userProfile?.niche || '')
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
       <div>
-        <h1 className="text-2xl font-semibold text-hub-text">Celebrity {userProfile.niche} Content</h1>
+        <h1 className="text-2xl font-semibold text-hub-text capitalize">
+          Celebrity {nicheDisplay} Content
+        </h1>
         <p className="text-hub-text-secondary text-sm mt-1">
           Your 12-month calendar of pre-made content. Click a day to see posts, edit with your branding, and schedule to social media.
         </p>
@@ -108,7 +125,6 @@ export default function CelebrityContent() {
       {/* Calendar */}
       <Card>
         <div className="p-6 space-y-6">
-          {/* Month/Year selector */}
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-hub-text">
               {monthName} {selectedYear}
@@ -118,12 +134,8 @@ export default function CelebrityContent() {
                 size="sm"
                 variant="ghost"
                 onClick={() => {
-                  if (selectedMonth === 0) {
-                    setSelectedMonth(11)
-                    setSelectedYear(selectedYear - 1)
-                  } else {
-                    setSelectedMonth(selectedMonth - 1)
-                  }
+                  if (selectedMonth === 0) { setSelectedMonth(11); setSelectedYear(selectedYear - 1) }
+                  else setSelectedMonth(selectedMonth - 1)
                 }}
               >
                 ← Previous
@@ -132,12 +144,8 @@ export default function CelebrityContent() {
                 size="sm"
                 variant="ghost"
                 onClick={() => {
-                  if (selectedMonth === 11) {
-                    setSelectedMonth(0)
-                    setSelectedYear(selectedYear + 1)
-                  } else {
-                    setSelectedMonth(selectedMonth + 1)
-                  }
+                  if (selectedMonth === 11) { setSelectedMonth(0); setSelectedYear(selectedYear + 1) }
+                  else setSelectedMonth(selectedMonth + 1)
                 }}
               >
                 Next →
@@ -145,7 +153,6 @@ export default function CelebrityContent() {
             </div>
           </div>
 
-          {/* Day grid */}
           <div className="grid grid-cols-7 gap-1">
             {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
               <div key={day} className="text-center text-xs font-semibold text-hub-text-muted py-2">
@@ -187,7 +194,7 @@ export default function CelebrityContent() {
       {/* Content library */}
       <Card>
         <div className="p-6 space-y-4">
-          <div className="flex items-center justify-between mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
             <h2 className="text-lg font-semibold text-hub-text">Content Library</h2>
             <div className="relative w-64">
               <Search className="w-4 h-4 absolute left-3 top-3 text-hub-text-muted" />
@@ -201,11 +208,38 @@ export default function CelebrityContent() {
             </div>
           </div>
 
+          {/* Category filter chips */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setSelectedCategory('')}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                selectedCategory === ''
+                  ? 'bg-hub-blue text-white border-hub-blue'
+                  : 'bg-hub-input text-hub-text-secondary border-hub-border hover:border-hub-blue'
+              }`}
+            >
+              All
+            </button>
+            {CATEGORIES.map(cat => (
+              <button
+                key={cat.value}
+                onClick={() => setSelectedCategory(selectedCategory === cat.value ? '' : cat.value)}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors capitalize ${
+                  selectedCategory === cat.value
+                    ? 'bg-hub-blue text-white border-hub-blue'
+                    : `${CATEGORY_COLORS[cat.value] || 'bg-hub-input text-hub-text-secondary border-hub-border'} hover:border-hub-blue`
+                }`}
+              >
+                {cat.label}
+              </button>
+            ))}
+          </div>
+
           {filteredContent.length === 0 ? (
             <div className="text-center py-12">
               <CalendarIcon className="w-8 h-8 text-hub-text-muted mx-auto mb-3" />
               <p className="text-hub-text-secondary text-sm">
-                {searchTerm ? 'No content matches your search.' : 'No content available yet.'}
+                {searchTerm || selectedCategory ? 'No content matches your filters.' : 'No content available yet.'}
               </p>
             </div>
           ) : (
@@ -214,10 +248,7 @@ export default function CelebrityContent() {
                 <div
                   key={item.id}
                   className="border border-hub-border rounded-lg overflow-hidden bg-hub-input/30 hover:border-hub-blue transition-colors group cursor-pointer"
-                  onClick={() => {
-                    setEditingItem(item)
-                    setEditorOpen(true)
-                  }}
+                  onClick={() => { setEditingItem(item); setEditorOpen(true) }}
                 >
                   {item.imageUrl && (
                     <div className="w-full h-40 bg-hub-input flex items-center justify-center overflow-hidden relative">
@@ -226,6 +257,11 @@ export default function CelebrityContent() {
                         alt={item.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform"
                       />
+                      {item.category && (
+                        <div className={`absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-semibold border capitalize ${CATEGORY_COLORS[item.category] || 'bg-hub-card text-hub-text-muted border-hub-border'}`}>
+                          {item.category}
+                        </div>
+                      )}
                     </div>
                   )}
                   <div className="p-3">
@@ -236,20 +272,18 @@ export default function CelebrityContent() {
                     <p className="text-xs text-hub-text-muted mb-3">
                       {item.month} {item.year}
                     </p>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="flex-1"
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          setEditingItem(item)
-                          setEditorOpen(true)
-                        }}
-                      >
-                        Edit
-                      </Button>
-                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="w-full"
+                      onClick={e => {
+                        e.stopPropagation()
+                        setEditingItem(item)
+                        setEditorOpen(true)
+                      }}
+                    >
+                      Edit & Download
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -263,7 +297,7 @@ export default function CelebrityContent() {
         <ImageEditor
           imageUrl={editingItem.imageUrl}
           userProfile={userProfile}
-          onSave={(canvas) => {
+          onSave={canvas => {
             if (canvas) {
               const link = document.createElement('a')
               link.href = canvas.toDataURL('image/png')
@@ -273,10 +307,7 @@ export default function CelebrityContent() {
               setEditorOpen(false)
             }
           }}
-          onClose={() => {
-            setEditorOpen(false)
-            setEditingItem(null)
-          }}
+          onClose={() => { setEditorOpen(false); setEditingItem(null) }}
         />
       )}
     </div>

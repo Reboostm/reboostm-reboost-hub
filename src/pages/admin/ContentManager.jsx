@@ -1,36 +1,55 @@
-import { useState, useEffect } from 'react'
-import { Image as ImageIcon, Plus, Trash2, Loader2, Upload } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Image as ImageIcon, Plus, Trash2, Upload, X } from 'lucide-react'
 import Card, { CardHeader, CardTitle } from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
-import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
 import Textarea from '../../components/ui/Textarea'
+import Input from '../../components/ui/Input'
 import Badge from '../../components/ui/Badge'
 import Spinner from '../../components/ui/Spinner'
-import { db } from '../../services/firebase'
+import { db, storage } from '../../services/firebase'
 import {
   collection, onSnapshot, addDoc, doc, deleteDoc, serverTimestamp,
 } from 'firebase/firestore'
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage'
 import { useToast } from '../../hooks/useToast'
 import { NICHES } from '../../config'
 
+const CATEGORIES = [
+  { value: 'funny', label: 'Funny' },
+  { value: 'educational', label: 'Educational' },
+  { value: 'promotional', label: 'Promotional' },
+  { value: 'checklist', label: 'Checklist' },
+  { value: 'story', label: 'Story' },
+  { value: 'seasonal', label: 'Seasonal' },
+]
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December']
+
+export { CATEGORIES }
+
 export default function ContentManager() {
   const { toast } = useToast()
+  const fileInputRef = useRef(null)
+
   const [content, setContent] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
 
   const [form, setForm] = useState({
     niche: '',
     title: '',
     description: '',
+    category: '',
     imageUrl: '',
     month: new Date().toLocaleString('default', { month: 'long' }),
     year: new Date().getFullYear(),
   })
 
-  // Load content
   useEffect(() => {
     const unsub = onSnapshot(collection(db, 'content'), snap => {
       setContent(
@@ -47,16 +66,62 @@ export default function ContentManager() {
       niche: '',
       title: '',
       description: '',
+      category: '',
       imageUrl: '',
       month: new Date().toLocaleString('default', { month: 'long' }),
       year: new Date().getFullYear(),
     })
+    setUploadProgress(0)
+    if (fileInputRef.current) fileInputRef.current.value = ''
+  }
+
+  function handleFileSelect(e) {
+    const file = e.target.files[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      toast('Please select an image file.', 'error')
+      return
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      toast('Image must be under 20MB.', 'error')
+      return
+    }
+
+    setUploading(true)
+    setUploadProgress(0)
+
+    const filename = `${Date.now()}-${file.name.replace(/\s+/g, '_')}`
+    const storageRef = ref(storage, `content-images/${filename}`)
+    const uploadTask = uploadBytesResumable(storageRef, file)
+
+    uploadTask.on(
+      'state_changed',
+      snapshot => {
+        const pct = Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100)
+        setUploadProgress(pct)
+      },
+      () => {
+        toast('Image upload failed.', 'error')
+        setUploading(false)
+      },
+      async () => {
+        const url = await getDownloadURL(uploadTask.snapshot.ref)
+        setForm(p => ({ ...p, imageUrl: url }))
+        setUploading(false)
+        setUploadProgress(100)
+      }
+    )
   }
 
   async function handleSubmit(e) {
     e.preventDefault()
     if (!form.niche || !form.title || !form.imageUrl) {
-      toast('Niche, title, and image URL are required.', 'error')
+      toast('Niche, title, and image are required.', 'error')
+      return
+    }
+    if (uploading) {
+      toast('Please wait for the image to finish uploading.', 'error')
       return
     }
 
@@ -87,10 +152,8 @@ export default function ContentManager() {
     }
   }
 
-  const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
   const years = Array.from({ length: 3 }, (_, i) => new Date().getFullYear() + i)
 
-  // Group by niche value
   const contentByNiche = NICHES.reduce((acc, niche) => {
     acc[niche.value] = content.filter(c => c.niche === niche.value)
     return acc
@@ -102,7 +165,7 @@ export default function ContentManager() {
         <div>
           <h1 className="text-2xl font-semibold text-hub-text">Celebrity Content Manager</h1>
           <p className="text-hub-text-secondary text-sm mt-1">
-            Upload pre-made content templates for each niche. Users will see content matching their selected niche.
+            Upload pre-made content templates for each niche. Users see content matching their niche.
           </p>
         </div>
         <Button onClick={() => setShowForm(!showForm)}>
@@ -133,39 +196,108 @@ export default function ContentManager() {
               />
             </div>
 
-            <Textarea
-              label="Description (optional)"
-              value={form.description}
-              onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
-              placeholder="What should users post with this?"
-              rows={2}
-            />
-
-            <Input
-              label="Image URL"
-              value={form.imageUrl}
-              onChange={e => setForm(p => ({ ...p, imageUrl: e.target.value }))}
-              placeholder="https://..."
-            />
-
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Select
+                label="Category"
+                value={form.category}
+                onChange={e => setForm(p => ({ ...p, category: e.target.value }))}
+                options={CATEGORIES}
+                placeholder="Select category (optional)"
+              />
               <Select
                 label="Month"
                 value={form.month}
                 onChange={e => setForm(p => ({ ...p, month: e.target.value }))}
-                options={months.map(m => ({ value: m, label: m }))}
+                options={MONTHS.map(m => ({ value: m, label: m }))}
               />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <Select
                 label="Year"
                 value={form.year}
                 onChange={e => setForm(p => ({ ...p, year: parseInt(e.target.value) }))}
                 options={years.map(y => ({ value: y, label: String(y) }))}
               />
+              <Textarea
+                label="Description (optional)"
+                value={form.description}
+                onChange={e => setForm(p => ({ ...p, description: e.target.value }))}
+                placeholder="What should users post with this?"
+                rows={2}
+              />
+            </div>
+
+            {/* Image upload */}
+            <div>
+              <label className="block text-sm font-medium text-hub-text-secondary mb-1.5">
+                Content Image <span className="text-hub-red">*</span>
+              </label>
+
+              {form.imageUrl ? (
+                <div className="flex items-start gap-4">
+                  <div className="w-32 h-32 rounded-lg overflow-hidden border border-hub-border bg-hub-input flex-shrink-0">
+                    <img src={form.imageUrl} alt="Preview" className="w-full h-full object-cover" />
+                  </div>
+                  <div className="flex flex-col gap-2 pt-1">
+                    <span className="text-sm text-hub-text-secondary">Image uploaded</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setForm(p => ({ ...p, imageUrl: '' }))
+                        setUploadProgress(0)
+                        if (fileInputRef.current) fileInputRef.current.value = ''
+                      }}
+                    >
+                      <X className="w-3.5 h-3.5 mr-1" /> Remove
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div
+                  onClick={() => !uploading && fileInputRef.current?.click()}
+                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                    uploading
+                      ? 'border-hub-border cursor-not-allowed'
+                      : 'border-hub-border hover:border-hub-blue cursor-pointer'
+                  }`}
+                >
+                  {uploading ? (
+                    <div className="space-y-2">
+                      <Spinner size="sm" className="mx-auto" />
+                      <p className="text-sm text-hub-text-secondary">Uploading… {uploadProgress}%</p>
+                      <div className="w-full bg-hub-input rounded-full h-1.5 max-w-xs mx-auto">
+                        <div
+                          className="bg-hub-blue h-1.5 rounded-full transition-all"
+                          style={{ width: `${uploadProgress}%` }}
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <Upload className="w-8 h-8 text-hub-text-muted mx-auto" />
+                      <p className="text-sm text-hub-text-secondary">
+                        Click to upload image <span className="text-hub-text-muted">(JPG, PNG, WebP — max 20MB)</span>
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
             </div>
 
             <div className="flex gap-2">
-              <Button type="submit" loading={saving}>Save Content</Button>
-              <Button type="button" variant="ghost" onClick={() => setShowForm(false)}>Cancel</Button>
+              <Button type="submit" loading={saving} disabled={uploading}>Save Content</Button>
+              <Button type="button" variant="ghost" onClick={() => { setShowForm(false); resetForm() }}>Cancel</Button>
             </div>
           </form>
         </Card>
@@ -192,7 +324,7 @@ export default function ContentManager() {
 
                 {nicheContent.length === 0 ? (
                   <div className="p-4 text-center text-hub-text-muted text-sm">
-                    No content yet. {' '}
+                    No content yet.{' '}
                     <button onClick={() => setShowForm(true)} className="text-hub-blue hover:underline">
                       Upload some
                     </button>
@@ -207,20 +339,23 @@ export default function ContentManager() {
                               src={item.imageUrl}
                               alt={item.title}
                               className="w-full h-full object-cover"
-                              onError={e => {
-                                e.target.style.display = 'none'
-                              }}
+                              onError={e => { e.target.style.display = 'none' }}
                             />
                           </div>
                         )}
                         <div className="p-3">
                           <p className="font-medium text-sm text-hub-text mb-1">{item.title}</p>
+                          <div className="flex flex-wrap gap-1 mb-2">
+                            {item.category && (
+                              <Badge variant="default" className="text-[10px] capitalize">
+                                {item.category}
+                              </Badge>
+                            )}
+                            <span className="text-xs text-hub-text-muted">{item.month} {item.year}</span>
+                          </div>
                           {item.description && (
                             <p className="text-xs text-hub-text-muted mb-2 line-clamp-2">{item.description}</p>
                           )}
-                          <p className="text-xs text-hub-text-muted mb-3">
-                            {item.month} {item.year}
-                          </p>
                           <Button
                             size="sm"
                             variant="ghost"
