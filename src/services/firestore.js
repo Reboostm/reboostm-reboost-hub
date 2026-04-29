@@ -32,10 +32,12 @@ export async function createUserProfile(uid, data) {
 }
 
 export async function updateUserProfile(uid, data) {
-  await updateDoc(doc(db, 'users', uid), {
+  // setDoc with merge creates the doc if it doesn't exist (handles cases where
+  // signup's createUserProfile failed mid-way and left no Firestore document)
+  await setDoc(doc(db, 'users', uid), {
     ...data,
     updatedAt: serverTimestamp(),
-  })
+  }, { merge: true })
 }
 
 export function subscribeToUserProfile(uid, callback) {
