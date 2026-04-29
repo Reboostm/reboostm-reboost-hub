@@ -122,7 +122,8 @@ export default function ContentManager() {
     const ext = uploadFile.type === 'image/jpeg' ? 'jpg' : file.name.split('.').pop()
     const filename = `${Date.now()}-${file.name.replace(/\s+/g, '_').replace(/\.[^.]+$/, '')}.${ext}`
     const storageRef = ref(storage, `content-images/${filename}`)
-    const uploadTask = uploadBytesResumable(storageRef, uploadFile)
+    const contentType = uploadFile.type || 'image/jpeg'
+    const uploadTask = uploadBytesResumable(storageRef, uploadFile, { contentType })
 
     uploadTask.on(
       'state_changed',

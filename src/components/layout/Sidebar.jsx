@@ -10,9 +10,27 @@ import { useBilling } from '../../hooks/useBilling'
 import Badge from '../ui/Badge'
 import { HUB_NAME } from '../../config'
 
+// Group color dots shown next to each section icon
+const GROUP_DOT = {
+  seo:     'bg-sky-400',
+  leads:   'bg-orange-400',
+  content: 'bg-violet-400',
+  agency:  'bg-teal-400',
+}
+
+// Group separator labels shown when the group changes
+const GROUP_LABEL = {
+  seo:     'SEO & Authority',
+  leads:   'Lead Generation',
+  content: 'Content',
+  agency:  'Agency',
+}
+
 const SECTIONS = [
+  // ── SEO & Authority ──────────────────────────────────────────────────────
   {
     key: 'audit',
+    group: 'seo',
     label: 'SEO Audit',
     icon: Search,
     badge: { text: 'FREE', variant: 'free' },
@@ -24,6 +42,7 @@ const SECTIONS = [
   },
   {
     key: 'citations',
+    group: 'seo',
     label: 'Citations',
     icon: BookOpen,
     badge: { text: 'PAID', variant: 'paid' },
@@ -36,7 +55,33 @@ const SECTIONS = [
     ],
   },
   {
+    key: 'rankTracker',
+    group: 'seo',
+    label: 'Rank Tracker',
+    icon: TrendingUp,
+    badge: { text: 'monthly', variant: 'info' },
+    isLocked: (b) => !b.hasRankTracker,
+    items: [
+      { label: 'My Keywords', path: '/rank-tracker' },
+      { label: 'Rankings Report', path: '/rank-tracker/report' },
+    ],
+  },
+  {
+    key: 'reviews',
+    group: 'seo',
+    label: 'Review Manager',
+    icon: Star,
+    badge: { text: 'monthly', variant: 'info' },
+    isLocked: (b) => !b.hasReviewManager,
+    items: [
+      { label: 'All Reviews', path: '/reviews' },
+      { label: 'Send Review Requests', path: '/reviews/requests' },
+    ],
+  },
+  // ── Lead Generation ───────────────────────────────────────────────────────
+  {
     key: 'leads',
+    group: 'leads',
     label: 'Lead Generator',
     icon: Users,
     badge: { text: 'PAID', variant: 'paid' },
@@ -47,8 +92,20 @@ const SECTIONS = [
       { label: 'Outreach Templates', path: '/leads/outreach' },
     ],
   },
+  // ── Content ───────────────────────────────────────────────────────────────
+  {
+    key: 'calendar',
+    group: 'content',
+    label: 'Celebrity Content',
+    icon: Image,
+    badge: { text: 'PAID', variant: 'paid' },
+    isLocked: (b) => !b.hasCalendar,
+    direct: '/calendar',
+    items: [],
+  },
   {
     key: 'scheduler',
+    group: 'content',
     label: 'Content Scheduler',
     icon: Calendar,
     badge: { text: 'monthly', variant: 'info' },
@@ -61,6 +118,7 @@ const SECTIONS = [
   },
   {
     key: 'creator',
+    group: 'content',
     label: 'AI Creator',
     icon: Sparkles,
     badge: { text: 'PRO', variant: 'orange' },
@@ -70,39 +128,10 @@ const SECTIONS = [
       { label: 'Generate Image', path: '/creator/image' },
     ],
   },
-  {
-    key: 'calendar',
-    label: 'Celebrity Content',
-    icon: Image,
-    badge: { text: 'PAID', variant: 'paid' },
-    isLocked: (b) => !b.hasCalendar,
-    direct: '/calendar',
-    items: [],
-  },
-  {
-    key: 'reviews',
-    label: 'Review Manager',
-    icon: Star,
-    badge: { text: 'monthly', variant: 'info' },
-    isLocked: (b) => !b.hasReviewManager,
-    items: [
-      { label: 'All Reviews', path: '/reviews' },
-      { label: 'Send Review Requests', path: '/reviews/requests' },
-    ],
-  },
-  {
-    key: 'rankTracker',
-    label: 'Rank Tracker',
-    icon: TrendingUp,
-    badge: { text: 'monthly', variant: 'info' },
-    isLocked: (b) => !b.hasRankTracker,
-    items: [
-      { label: 'My Keywords', path: '/rank-tracker' },
-      { label: 'Rankings Report', path: '/rank-tracker/report' },
-    ],
-  },
+  // ── Agency ────────────────────────────────────────────────────────────────
   {
     key: 'agency',
+    group: 'agency',
     label: 'DFY Services',
     icon: Building2,
     badge: null,
@@ -111,6 +140,12 @@ const SECTIONS = [
     items: [],
   },
 ]
+
+function GroupDot({ group }) {
+  const cls = GROUP_DOT[group]
+  if (!cls) return null
+  return <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${cls}`} />
+}
 
 export default function Sidebar() {
   const { isStaff } = useAuth()
@@ -123,6 +158,8 @@ export default function Sidebar() {
   })
 
   const toggle = (key) => setOpenSections(prev => ({ ...prev, [key]: !prev[key] }))
+
+  let lastGroup = null
 
   return (
     <aside className="w-72 h-full bg-hub-sidebar border-r border-hub-border flex flex-col shrink-0">
@@ -140,29 +177,40 @@ export default function Sidebar() {
       <nav className="flex-1 overflow-y-auto py-3 px-2 space-y-0.5">
         {SECTIONS.map(section => {
           const locked = section.isLocked(billing)
+          const showGroupLabel = section.group !== lastGroup
+          lastGroup = section.group
 
-          // Direct sections (no dropdown) — render as a single NavLink
+          const groupLabel = showGroupLabel ? (
+            <p key={`grp-${section.group}`} className="text-[10px] font-semibold text-hub-text-muted uppercase tracking-wider px-3 pt-3 pb-1 first:pt-1">
+              {GROUP_LABEL[section.group]}
+            </p>
+          ) : null
+
+          // Direct sections (no dropdown)
           if (section.direct) {
             const isActive = location.pathname === section.direct || location.pathname.startsWith(`${section.direct}/`)
             return (
-              <NavLink
-                key={section.key}
-                to={section.direct}
-                className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-                  isActive
-                    ? 'bg-hub-blue/10 text-hub-blue'
-                    : 'text-hub-text-secondary hover:text-hub-text hover:bg-hub-card'
-                }`}
-              >
-                <section.icon className="w-4 h-4 shrink-0" />
-                <span className="flex-1 font-medium truncate">{section.label}</span>
-                {locked && <Lock className="w-3 h-3 shrink-0 text-hub-text-muted" />}
-                {!locked && section.badge && (
-                  <Badge variant={section.badge.variant} className="text-[10px] px-1.5 py-0">
-                    {section.badge.text}
-                  </Badge>
-                )}
-              </NavLink>
+              <div key={section.key}>
+                {groupLabel}
+                <NavLink
+                  to={section.direct}
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                    isActive
+                      ? 'bg-hub-blue/10 text-hub-blue'
+                      : 'text-hub-text-secondary hover:text-hub-text hover:bg-hub-card'
+                  }`}
+                >
+                  <GroupDot group={section.group} />
+                  <section.icon className="w-4 h-4 shrink-0" />
+                  <span className="flex-1 font-medium truncate">{section.label}</span>
+                  {locked && <Lock className="w-3 h-3 shrink-0 text-hub-text-muted" />}
+                  {!locked && section.badge && (
+                    <Badge variant={section.badge.variant} className="text-[10px] px-1.5 py-0">
+                      {section.badge.text}
+                    </Badge>
+                  )}
+                </NavLink>
+              </div>
             )
           }
 
@@ -171,15 +219,17 @@ export default function Sidebar() {
 
           return (
             <div key={section.key}>
+              {groupLabel}
               {/* Section header */}
               <button
                 onClick={() => toggle(section.key)}
-                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors group ${
+                className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
                   hasActive
                     ? 'bg-hub-blue/10 text-hub-blue'
                     : 'text-hub-text-secondary hover:text-hub-text hover:bg-hub-card'
                 }`}
               >
+                <GroupDot group={section.group} />
                 <section.icon className="w-4 h-4 shrink-0" />
                 <span className="flex-1 text-left font-medium truncate">{section.label}</span>
                 {locked && <Lock className="w-3 h-3 shrink-0 text-hub-text-muted" />}
@@ -231,24 +281,28 @@ export default function Sidebar() {
             </div>
           )
         })}
-      </nav>
 
-      {/* Support section */}
-      <div className="border-t border-hub-border px-2 py-3">
-        <NavLink
-          to="/support"
-          className={({ isActive }) =>
-            `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
-              isActive
-                ? 'bg-hub-blue/10 text-hub-blue'
-                : 'text-hub-text-secondary hover:text-hub-text hover:bg-hub-card'
-            }`
-          }
-        >
-          <HelpCircle className="w-4 h-4" />
-          <span className="font-medium">Training & Support</span>
-        </NavLink>
-      </div>
+        {/* Training & Support — always at bottom of nav */}
+        <div className="pt-2">
+          <p className="text-[10px] font-semibold text-hub-text-muted uppercase tracking-wider px-3 pb-1">
+            Support
+          </p>
+          <NavLink
+            to="/support"
+            className={({ isActive }) =>
+              `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                isActive
+                  ? 'bg-hub-blue/10 text-hub-blue'
+                  : 'text-hub-text-secondary hover:text-hub-text hover:bg-hub-card'
+              }`
+            }
+          >
+            <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-gray-400" />
+            <HelpCircle className="w-4 h-4" />
+            <span className="font-medium">Training & Support</span>
+          </NavLink>
+        </div>
+      </nav>
 
       {/* Admin section — staff/admin only */}
       {isStaff && (
