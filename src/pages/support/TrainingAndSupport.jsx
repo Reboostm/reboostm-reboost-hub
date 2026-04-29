@@ -240,13 +240,13 @@ export default function TrainingAndSupport() {
 
         {/* Jump-to navigation */}
         <div className="px-5 pb-4 border-b border-hub-border">
-          <p className="text-sm font-semibold text-hub-text-secondary mb-2 uppercase tracking-wide">Jump to:</p>
+          <p className="text-xl font-semibold text-hub-text-secondary mb-3 uppercase tracking-wide">Jump to:</p>
           <div className="flex flex-wrap gap-2">
             {allSections.map(s => (
               <a
                 key={s}
                 href={`#${sectionId(s)}`}
-                className="text-sm px-3 py-1.5 rounded-full bg-hub-input border border-hub-border text-hub-text-secondary hover:text-hub-blue hover:border-hub-blue transition-colors font-medium"
+                className="text-xl px-4 py-2 rounded-full bg-hub-input border border-hub-border text-hub-text-secondary hover:text-hub-blue hover:border-hub-blue transition-colors font-medium"
               >
                 {s}
               </a>
