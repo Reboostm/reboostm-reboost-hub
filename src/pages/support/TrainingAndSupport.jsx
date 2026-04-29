@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, updateDoc, setDoc } from 'firebase/firestore'
+import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from 'firebase/firestore'
 import { db } from '../../services/firebase'
 import { useAuth } from '../../hooks/useAuth'
 import { useToast } from '../../hooks/useToast'
@@ -7,14 +7,21 @@ import Card, { CardHeader, CardTitle } from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Input from '../../components/ui/Input'
 import Textarea from '../../components/ui/Textarea'
-import Badge from '../../components/ui/Badge'
 import Spinner from '../../components/ui/Spinner'
-import { Plus, Trash2, Edit2, Save, X, Play, FileText, Mail, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plus, Trash2, Edit2, Play, FileText, Mail } from 'lucide-react'
 
-const SUGGESTED_SECTIONS = [
-  'Getting Started', 'SEO Audit', 'Citations', 'Rank Tracker',
-  'Review Manager', 'Lead Generator', 'Celebrity Content',
-  'Content Scheduler', 'AI Creator', 'DFY Services',
+// Sections in sidebar order — always shown even when empty
+const FIXED_SECTIONS = [
+  'SEO Audit',
+  'Citations',
+  'Rank Tracker',
+  'Review Manager',
+  'Lead Generator',
+  'Celebrity Content',
+  'Content Scheduler',
+  'AI Creator',
+  'DFY Services',
+  'Getting Started',
 ]
 
 function sectionId(name) {
@@ -27,12 +34,12 @@ export default function TrainingAndSupport() {
 
   const [videos, setVideos] = useState([])
   const [articles, setArticles] = useState([])
-  const [sectionOrder, setSectionOrder] = useState([])
   const [loading, setLoading] = useState(true)
 
-  const [showVideoForm, setShowVideoForm] = useState(false)
+  // Which section the add-video form is open for (null = closed)
+  const [formSection, setFormSection] = useState(null)
   const [editingVideoId, setEditingVideoId] = useState(null)
-  const [videoForm, setVideoForm] = useState({ section: '', description: '', youtubeUrl: '' })
+  const [videoForm, setVideoForm] = useState({ description: '', youtubeUrl: '' })
   const [savingVideo, setSavingVideo] = useState(false)
 
   const [showArticleForm, setShowArticleForm] = useState(false)
@@ -44,18 +51,15 @@ export default function TrainingAndSupport() {
   const [ticketForm, setTicketForm] = useState({ subject: '', message: '', email: '' })
   const [sendingTicket, setSendingTicket] = useState(false)
 
-  // Load videos + section order (stored as a special doc in the same collection)
   useEffect(() => {
     const unsub = onSnapshot(
       collection(db, 'trainingVideos'),
       snap => {
-        const orderDoc = snap.docs.find(d => d.id === '_sectionOrder')
-        if (orderDoc) setSectionOrder(orderDoc.data().order || [])
         setVideos(
           snap.docs
             .filter(d => d.id !== '_sectionOrder')
             .map(d => ({ id: d.id, ...d.data() }))
-            .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+            .sort((a, b) => (a.createdAt?.seconds || 0) - (b.createdAt?.seconds || 0))
         )
         setLoading(false)
       },
@@ -64,7 +68,6 @@ export default function TrainingAndSupport() {
     return unsub
   }, [])
 
-  // Load articles
   useEffect(() => {
     const unsub = onSnapshot(
       collection(db, 'helpArticles'),
@@ -76,53 +79,33 @@ export default function TrainingAndSupport() {
     return unsub
   }, [])
 
-  // Extract YouTube video ID from any YouTube URL format
   function getYoutubeId(url) {
-    const match = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([^&\n?#]+)/)
+    const match = url?.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/shorts\/)([^&\n?#]+)/)
     return match ? match[1] : null
   }
 
-  function getSortedSections(sections) {
-    return [...sections].sort((a, b) => {
-      const ia = sectionOrder.indexOf(a)
-      const ib = sectionOrder.indexOf(b)
-      if (ia === -1 && ib === -1) return a.localeCompare(b)
-      if (ia === -1) return 1
-      if (ib === -1) return -1
-      return ia - ib
-    })
+  function openAddForm(section) {
+    setEditingVideoId(null)
+    setVideoForm({ description: '', youtubeUrl: '' })
+    setFormSection(section)
   }
 
-  async function moveSectionUp(section, currentSorted) {
-    const i = currentSorted.indexOf(section)
-    if (i <= 0) return
-    const newOrder = [...currentSorted];
-    [newOrder[i - 1], newOrder[i]] = [newOrder[i], newOrder[i - 1]]
-    setSectionOrder(newOrder)
-    try {
-      await setDoc(doc(db, 'trainingVideos', '_sectionOrder'), { order: newOrder })
-    } catch {
-      toast('Failed to save section order.', 'error')
-    }
+  function openEditForm(video) {
+    setEditingVideoId(video.id)
+    setVideoForm({ description: video.description || '', youtubeUrl: video.youtubeUrl || '' })
+    setFormSection(video.section)
   }
 
-  async function moveSectionDown(section, currentSorted) {
-    const i = currentSorted.indexOf(section)
-    if (i === -1 || i >= currentSorted.length - 1) return
-    const newOrder = [...currentSorted];
-    [newOrder[i], newOrder[i + 1]] = [newOrder[i + 1], newOrder[i]]
-    setSectionOrder(newOrder)
-    try {
-      await setDoc(doc(db, 'trainingVideos', '_sectionOrder'), { order: newOrder })
-    } catch {
-      toast('Failed to save section order.', 'error')
-    }
+  function closeForm() {
+    setFormSection(null)
+    setEditingVideoId(null)
+    setVideoForm({ description: '', youtubeUrl: '' })
   }
 
   async function handleSaveVideo(e) {
     e.preventDefault()
-    if (!videoForm.section || !videoForm.youtubeUrl) {
-      toast('Section name and YouTube URL are required.', 'error')
+    if (!videoForm.youtubeUrl) {
+      toast('YouTube URL is required.', 'error')
       return
     }
     if (!getYoutubeId(videoForm.youtubeUrl)) {
@@ -134,21 +117,21 @@ export default function TrainingAndSupport() {
     try {
       if (editingVideoId) {
         await updateDoc(doc(db, 'trainingVideos', editingVideoId), {
+          section: formSection,
           ...videoForm,
           updatedAt: serverTimestamp(),
         })
         toast('Video updated!', 'success')
       } else {
         await addDoc(collection(db, 'trainingVideos'), {
+          section: formSection,
           ...videoForm,
           createdAt: serverTimestamp(),
         })
         toast('Video added!', 'success')
       }
-      setVideoForm({ section: '', description: '', youtubeUrl: '' })
-      setEditingVideoId(null)
-      setShowVideoForm(false)
-    } catch (err) {
+      closeForm()
+    } catch {
       toast('Failed to save video.', 'error')
     } finally {
       setSavingVideo(false)
@@ -171,26 +154,19 @@ export default function TrainingAndSupport() {
       toast('Title and content are required.', 'error')
       return
     }
-
     setSavingArticle(true)
     try {
       if (editingArticleId) {
-        await updateDoc(doc(db, 'helpArticles', editingArticleId), {
-          ...articleForm,
-          updatedAt: serverTimestamp(),
-        })
+        await updateDoc(doc(db, 'helpArticles', editingArticleId), { ...articleForm, updatedAt: serverTimestamp() })
         toast('Article updated!', 'success')
       } else {
-        await addDoc(collection(db, 'helpArticles'), {
-          ...articleForm,
-          createdAt: serverTimestamp(),
-        })
+        await addDoc(collection(db, 'helpArticles'), { ...articleForm, createdAt: serverTimestamp() })
         toast('Article added!', 'success')
       }
       setArticleForm({ title: '', content: '' })
       setEditingArticleId(null)
       setShowArticleForm(false)
-    } catch (err) {
+    } catch {
       toast('Failed to save article.', 'error')
     } finally {
       setSavingArticle(false)
@@ -213,15 +189,10 @@ export default function TrainingAndSupport() {
       toast('All fields are required.', 'error')
       return
     }
-
     setSendingTicket(true)
     try {
-      await addDoc(collection(db, 'supportTickets'), {
-        ...ticketForm,
-        status: 'open',
-        createdAt: serverTimestamp(),
-      })
-      toast('Support ticket submitted! We\'ll get back to you soon.', 'success')
+      await addDoc(collection(db, 'supportTickets'), { ...ticketForm, status: 'open', createdAt: serverTimestamp() })
+      toast("Support ticket submitted! We'll get back to you soon.", 'success')
       setTicketForm({ subject: '', message: '', email: '' })
       setShowTicketForm(false)
     } catch {
@@ -239,206 +210,153 @@ export default function TrainingAndSupport() {
     )
   }
 
-  const videosBySection = videos.reduce((acc, video) => {
-    if (!acc[video.section]) acc[video.section] = []
-    acc[video.section].push(video)
+  const videosBySection = videos.reduce((acc, v) => {
+    if (!acc[v.section]) acc[v.section] = []
+    acc[v.section].push(v)
     return acc
   }, {})
 
-  const sortedSectionNames = getSortedSections(Object.keys(videosBySection))
+  // Fixed sections first, then any extras not in the list
+  const extraSections = Object.keys(videosBySection).filter(s => !FIXED_SECTIONS.includes(s))
+  const allSections = [...FIXED_SECTIONS, ...extraSections]
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-semibold text-hub-text">Training & Support</h1>
         <p className="text-hub-text-secondary text-sm mt-1">
-          Learn how to use ReBoost Hub. Watch training videos, read help articles, or submit a support ticket.
+          Watch training videos, read help articles, or submit a support ticket.
         </p>
       </div>
 
-      {/* Videos Section */}
+      {/* Training Videos */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Play className="w-5 h-5 text-hub-blue" />
-              <CardTitle>Training Videos</CardTitle>
-            </div>
-            {isStaff && (
-              <Button size="sm" onClick={() => setShowVideoForm(!showVideoForm)}>
-                <Plus className="w-3.5 h-3.5 mr-1" /> Add Video
-              </Button>
-            )}
+          <div className="flex items-center gap-2">
+            <Play className="w-5 h-5 text-hub-blue" />
+            <CardTitle>Training Videos</CardTitle>
           </div>
         </CardHeader>
 
-        {isStaff && showVideoForm && (
-          <form onSubmit={handleSaveVideo} className="p-4 bg-hub-input/30 rounded-lg border border-hub-border mb-4 space-y-3">
-            <div>
-              <Input
-                label="Section Name"
-                value={videoForm.section}
-                onChange={e => setVideoForm(p => ({ ...p, section: e.target.value }))}
-                placeholder="e.g., Citations, SEO Audit"
-              />
-              {!videoForm.section && (
-                <div className="flex flex-wrap gap-1.5 mt-2">
-                  {SUGGESTED_SECTIONS.map(s => (
-                    <button
-                      key={s}
-                      type="button"
-                      onClick={() => setVideoForm(p => ({ ...p, section: s }))}
-                      className="text-xs px-2 py-1 rounded-full bg-hub-input border border-hub-border text-hub-text-muted hover:text-hub-blue hover:border-hub-blue transition-colors"
-                    >
-                      {s}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <Textarea
-              label="Description"
-              value={videoForm.description}
-              onChange={e => setVideoForm(p => ({ ...p, description: e.target.value }))}
-              placeholder="Brief description of what this video covers..."
-              rows={2}
-            />
-            <Input
-              label="YouTube URL"
-              value={videoForm.youtubeUrl}
-              onChange={e => setVideoForm(p => ({ ...p, youtubeUrl: e.target.value }))}
-              placeholder="https://youtube.com/watch?v=..."
-            />
-            <div className="flex gap-2">
-              <Button type="submit" size="sm" loading={savingVideo}>
-                {editingVideoId ? 'Update Video' : 'Add Video'}
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setShowVideoForm(false)
-                  setEditingVideoId(null)
-                  setVideoForm({ section: '', description: '', youtubeUrl: '' })
-                }}
+        {/* Jump-to navigation */}
+        <div className="px-5 pb-4 border-b border-hub-border">
+          <p className="text-sm font-semibold text-hub-text-secondary mb-2 uppercase tracking-wide">Jump to:</p>
+          <div className="flex flex-wrap gap-2">
+            {allSections.map(s => (
+              <a
+                key={s}
+                href={`#${sectionId(s)}`}
+                className="text-sm px-3 py-1.5 rounded-full bg-hub-input border border-hub-border text-hub-text-secondary hover:text-hub-blue hover:border-hub-blue transition-colors font-medium"
               >
-                Cancel
-              </Button>
-            </div>
-          </form>
-        )}
-
-        {sortedSectionNames.length === 0 ? (
-          <div className="p-8 text-center text-hub-text-muted">
-            <Play className="w-8 h-8 mx-auto mb-2 opacity-40" />
-            <p>No training videos yet.</p>
-            {isStaff && <p className="text-xs mt-2 opacity-60">Click "Add Video" and pick a section from the suggestions.</p>}
+                {s}
+              </a>
+            ))}
           </div>
-        ) : (
-          <>
-            {/* Jump-to navigation */}
-            <div className="px-4 pb-2">
-              <p className="text-xs text-hub-text-muted mb-2 font-medium uppercase tracking-wide">Jump to:</p>
-              <div className="flex flex-wrap gap-1.5">
-                {sortedSectionNames.map(s => (
-                  <a
-                    key={s}
-                    href={`#${sectionId(s)}`}
-                    className="text-xs px-2.5 py-1 rounded-full bg-hub-input border border-hub-border text-hub-text-secondary hover:text-hub-blue hover:border-hub-blue transition-colors"
-                  >
-                    {s}
-                  </a>
-                ))}
-              </div>
-            </div>
+        </div>
 
-          <div className="space-y-6 p-4">
-            {sortedSectionNames.map((section) => {
-              const sectionVideos = videosBySection[section]
-              const idx = sortedSectionNames.indexOf(section)
-              return (
-              <div key={section} id={sectionId(section)}>
-                <div className="flex items-center gap-2 mb-3 pb-2 border-b border-hub-border">
-                  <h3 className="text-base font-semibold text-hub-text flex-1">{section}</h3>
-                  {isStaff && (
-                    <div className="flex gap-0.5">
-                      <button
-                        onClick={() => moveSectionUp(section, sortedSectionNames)}
-                        disabled={idx === 0}
-                        className="p-1 rounded text-hub-text-muted hover:text-hub-text hover:bg-hub-input disabled:opacity-30 transition-colors"
-                        title="Move section up"
-                      >
-                        <ChevronUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => moveSectionDown(section, sortedSectionNames)}
-                        disabled={idx === sortedSectionNames.length - 1}
-                        className="p-1 rounded text-hub-text-muted hover:text-hub-text hover:bg-hub-input disabled:opacity-30 transition-colors"
-                        title="Move section down"
-                      >
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+        {/* Sections */}
+        <div className="divide-y divide-hub-border">
+          {allSections.map(section => {
+            const sectionVideos = videosBySection[section] || []
+            const isFormOpen = formSection === section
+
+            return (
+              <div key={section} id={sectionId(section)} className="p-5">
+                {/* Section header */}
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-base font-semibold text-hub-text">{section}</h3>
+                  {isStaff && !isFormOpen && (
+                    <Button size="sm" variant="ghost" onClick={() => openAddForm(section)}>
+                      <Plus className="w-3.5 h-3.5 mr-1" /> Add Video
+                    </Button>
                   )}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {sectionVideos.map(video => {
-                    const youtubeId = getYoutubeId(video.youtubeUrl)
-                    return (
-                      <div key={video.id} className="border border-hub-border rounded-lg overflow-hidden bg-hub-input/30">
-                        {youtubeId && (
-                          <div className="w-full aspect-video bg-black">
-                            <iframe
-                              width="100%"
-                              height="100%"
-                              src={`https://www.youtube.com/embed/${youtubeId}`}
-                              frameBorder="0"
-                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                              allowFullScreen
-                            />
-                          </div>
-                        )}
-                        <div className="p-3">
-                          {video.description && (
-                            <p className="text-xs text-hub-text-muted mb-2">{video.description}</p>
+
+                {/* Add/edit form — inline per section */}
+                {isStaff && isFormOpen && (
+                  <form onSubmit={handleSaveVideo} className="mb-4 p-4 bg-hub-input/40 rounded-lg border border-hub-border space-y-3">
+                    <p className="text-xs font-semibold text-hub-text-muted uppercase tracking-wide">
+                      {editingVideoId ? 'Edit video' : `Add video to: ${section}`}
+                    </p>
+                    <Input
+                      label="YouTube URL"
+                      value={videoForm.youtubeUrl}
+                      onChange={e => setVideoForm(p => ({ ...p, youtubeUrl: e.target.value }))}
+                      placeholder="https://youtube.com/watch?v=..."
+                    />
+                    <Textarea
+                      label="Description (optional)"
+                      value={videoForm.description}
+                      onChange={e => setVideoForm(p => ({ ...p, description: e.target.value }))}
+                      placeholder="Brief description of what this video covers..."
+                      rows={2}
+                    />
+                    <div className="flex gap-2">
+                      <Button type="submit" size="sm" loading={savingVideo}>
+                        {editingVideoId ? 'Update' : 'Add Video'}
+                      </Button>
+                      <Button type="button" size="sm" variant="ghost" onClick={closeForm}>Cancel</Button>
+                    </div>
+                  </form>
+                )}
+
+                {/* Videos list */}
+                {sectionVideos.length === 0 ? (
+                  <div className="py-6 text-center text-hub-text-muted text-sm">
+                    No videos yet.{' '}
+                    {isStaff && !isFormOpen && (
+                      <button onClick={() => openAddForm(section)} className="text-hub-blue hover:underline">
+                        Add one
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-5">
+                    {sectionVideos.map(video => {
+                      const youtubeId = getYoutubeId(video.youtubeUrl)
+                      return (
+                        <div key={video.id} className="rounded-lg overflow-hidden border border-hub-border bg-hub-input/20 max-w-3xl mx-auto">
+                          {youtubeId && (
+                            <div className="w-full aspect-video bg-black">
+                              <iframe
+                                width="100%"
+                                height="100%"
+                                src={`https://www.youtube.com/embed/${youtubeId}`}
+                                frameBorder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                              />
+                            </div>
                           )}
-                          {isStaff && (
-                            <div className="flex gap-1">
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                  setEditingVideoId(video.id)
-                                  setVideoForm({ section: video.section, description: video.description, youtubeUrl: video.youtubeUrl })
-                                  setShowVideoForm(true)
-                                }}
-                              >
-                                <Edit2 className="w-3.5 h-3.5" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => handleDeleteVideo(video.id)}
-                              >
-                                <Trash2 className="w-3.5 h-3.5 text-hub-red" />
-                              </Button>
+                          {(video.description || isStaff) && (
+                            <div className="px-4 py-3 flex items-center justify-between gap-4">
+                              {video.description && (
+                                <p className="text-sm text-hub-text-secondary">{video.description}</p>
+                              )}
+                              {isStaff && (
+                                <div className="flex gap-1 shrink-0 ml-auto">
+                                  <Button size="sm" variant="ghost" onClick={() => openEditForm(video)}>
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </Button>
+                                  <Button size="sm" variant="ghost" onClick={() => handleDeleteVideo(video.id)}>
+                                    <Trash2 className="w-3.5 h-3.5 text-hub-red" />
+                                  </Button>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
-                      </div>
-                    )
-                  })}
-                </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )
           })}
-          </div>
-          </>
-        )}
+        </div>
       </Card>
 
-      {/* Help Articles Section */}
+      {/* Help Articles */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -473,16 +391,7 @@ export default function TrainingAndSupport() {
               <Button type="submit" size="sm" loading={savingArticle}>
                 {editingArticleId ? 'Update Article' : 'Add Article'}
               </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setShowArticleForm(false)
-                  setEditingArticleId(null)
-                  setArticleForm({ title: '', content: '' })
-                }}
-              >
+              <Button type="button" size="sm" variant="ghost" onClick={() => { setShowArticleForm(false); setEditingArticleId(null); setArticleForm({ title: '', content: '' }) }}>
                 Cancel
               </Button>
             </div>
@@ -502,22 +411,10 @@ export default function TrainingAndSupport() {
                   <h3 className="font-medium text-hub-text">{article.title}</h3>
                   {isStaff && (
                     <div className="flex gap-1 shrink-0">
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setEditingArticleId(article.id)
-                          setArticleForm({ title: article.title, content: article.content })
-                          setShowArticleForm(true)
-                        }}
-                      >
+                      <Button size="sm" variant="ghost" onClick={() => { setEditingArticleId(article.id); setArticleForm({ title: article.title, content: article.content }); setShowArticleForm(true) }}>
                         <Edit2 className="w-3.5 h-3.5" />
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleDeleteArticle(article.id)}
-                      >
+                      <Button size="sm" variant="ghost" onClick={() => handleDeleteArticle(article.id)}>
                         <Trash2 className="w-3.5 h-3.5 text-hub-red" />
                       </Button>
                     </div>
@@ -530,7 +427,7 @@ export default function TrainingAndSupport() {
         )}
       </Card>
 
-      {/* Support Ticket Section */}
+      {/* Support Ticket */}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
@@ -548,38 +445,12 @@ export default function TrainingAndSupport() {
           </div>
         ) : (
           <form onSubmit={handleSubmitTicket} className="p-4 space-y-3">
-            <Input
-              label="Email"
-              type="email"
-              value={ticketForm.email}
-              onChange={e => setTicketForm(p => ({ ...p, email: e.target.value }))}
-              placeholder="your@email.com"
-            />
-            <Input
-              label="Subject"
-              value={ticketForm.subject}
-              onChange={e => setTicketForm(p => ({ ...p, subject: e.target.value }))}
-              placeholder="Brief description of your issue"
-            />
-            <Textarea
-              label="Message"
-              value={ticketForm.message}
-              onChange={e => setTicketForm(p => ({ ...p, message: e.target.value }))}
-              placeholder="Tell us more about your issue..."
-              rows={4}
-            />
+            <Input label="Email" type="email" value={ticketForm.email} onChange={e => setTicketForm(p => ({ ...p, email: e.target.value }))} placeholder="your@email.com" />
+            <Input label="Subject" value={ticketForm.subject} onChange={e => setTicketForm(p => ({ ...p, subject: e.target.value }))} placeholder="Brief description of your issue" />
+            <Textarea label="Message" value={ticketForm.message} onChange={e => setTicketForm(p => ({ ...p, message: e.target.value }))} placeholder="Tell us more about your issue..." rows={4} />
             <div className="flex gap-2">
               <Button type="submit" loading={sendingTicket}>Submit Ticket</Button>
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => {
-                  setShowTicketForm(false)
-                  setTicketForm({ subject: '', message: '', email: '' })
-                }}
-              >
-                Cancel
-              </Button>
+              <Button type="button" variant="ghost" onClick={() => { setShowTicketForm(false); setTicketForm({ subject: '', message: '', email: '' }) }}>Cancel</Button>
             </div>
           </form>
         )}
