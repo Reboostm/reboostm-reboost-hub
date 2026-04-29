@@ -1462,13 +1462,32 @@ exports.sendReviewRequest = onCall({ timeoutSeconds: 60 }, async (request) => {
     throw new HttpsError('invalid-argument', 'Maximum 100 customers per batch.')
   }
 
-  const SENDGRID_KEY = process.env.SENDGRID_API_KEY || ''
-  if (!SENDGRID_KEY) {
-    throw new HttpsError('failed-precondition', 'Email not configured. Set SENDGRID_API_KEY in Function env vars.')
+  // Require Gmail to be connected — emails send from the user's own Gmail
+  if (!userData.gmailRefreshToken) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Connect your Gmail account in Settings → Integrations to send review requests.'
+    )
   }
 
-  const senderEmail = fromEmail || process.env.SENDGRID_FROM_EMAIL || 'noreply@reboosthub.com'
-  const senderName  = fromName || businessName || 'ReBoost Hub'
+  // Refresh the access token
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      refresh_token: userData.gmailRefreshToken,
+      client_id:     process.env.GMAIL_CLIENT_ID || '',
+      client_secret: process.env.GMAIL_CLIENT_SECRET || '',
+      grant_type:    'refresh_token',
+    }),
+  })
+  const tokenData = await tokenRes.json()
+  if (!tokenData.access_token) {
+    throw new HttpsError('internal', 'Gmail token refresh failed. Reconnect Gmail in Settings → Integrations.')
+  }
+  const accessToken = tokenData.access_token
+  const senderEmail = userData.gmailEmail || ''
+  const senderName  = fromName || businessName || ''
 
   let sentCount = 0
   const batch = db.batch()
@@ -1478,41 +1497,49 @@ exports.sendReviewRequest = onCall({ timeoutSeconds: 60 }, async (request) => {
     if (!email?.includes('@')) continue
 
     const greeting = name ? `Hi ${name},` : 'Hi there,'
-    const subject = `How was your experience with ${businessName || 'us'}?`
-    const html = `
-<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #1a1a1a;">
+    const subject  = `How was your experience with ${businessName || 'us'}?`
+    const htmlBody = `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a;">
   <p>${greeting}</p>
   <p>Thank you for choosing <strong>${businessName || 'us'}</strong>! We hope you had a great experience.</p>
-  <p>If you have a moment, we'd love to hear what you think. Your feedback helps us improve and helps others find us.</p>
-  <p style="margin: 28px 0; text-align: center;">
-    <a href="${reviewLink}" style="display: inline-block; background: #4285f4; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
-      ⭐ Leave a Google Review
-    </a>
+  <p>If you have a moment, we'd love to hear what you think. Your feedback helps us improve and helps others find trusted local businesses.</p>
+  <p style="margin:28px 0;text-align:center;">
+    <a href="${reviewLink}" style="display:inline-block;background:#4285f4;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;">⭐ Leave a Google Review</a>
   </p>
-  <p style="color: #666; font-size: 14px;">It only takes a minute and means the world to us. Thank you!</p>
-  <p style="margin-top: 24px;">— ${senderName}</p>
+  <p style="color:#666;font-size:14px;">It only takes a minute and means the world to us. Thank you!</p>
+  <p style="margin-top:24px;">— ${senderName || senderEmail}</p>
 </div>`
+
+    const fromHeader = senderName ? `${senderName} <${senderEmail}>` : senderEmail
+    const toHeader   = name ? `${name} <${email}>` : email
+    const mime = [
+      `From: ${fromHeader}`,
+      `To: ${toHeader}`,
+      `Subject: ${subject}`,
+      'MIME-Version: 1.0',
+      'Content-Type: text/html; charset=utf-8',
+      '',
+      htmlBody,
+    ].join('\r\n')
+    const raw = Buffer.from(mime).toString('base64url')
 
     let sent = false
     try {
-      const sgRes = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      const gmailRes = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${SENDGRID_KEY}`,
+          Authorization:  `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          personalizations: [{ to: [{ email, name: name || '' }] }],
-          from: { email: senderEmail, name: senderName },
-          subject,
-          content: [{ type: 'text/html', value: html }],
-        }),
-        signal: AbortSignal.timeout(10000),
+        body: JSON.stringify({ raw }),
+        signal: AbortSignal.timeout(15000),
       })
-      sent = sgRes.status === 202
-      if (!sent) console.error('SendGrid non-202:', sgRes.status, await sgRes.text())
+      sent = gmailRes.ok
+      if (!sent) {
+        const err = await gmailRes.json()
+        console.error('Gmail send error for', email, ':', JSON.stringify(err))
+      }
     } catch (err) {
-      console.error('SendGrid error for', email, ':', err.message)
+      console.error('Gmail fetch error for', email, ':', err.message)
     }
 
     if (sent) sentCount++
@@ -2269,3 +2296,100 @@ async function unlockPurchase(uid, offer) {
     updatedAt: FieldValue.serverTimestamp(),
   })
 }
+
+// ─── Gmail OAuth ──────────────────────────────────────────────────────────────
+// Allows users to connect their personal Gmail account so that review request
+// emails are sent FROM their own address (not a generic service).
+//
+// Required env vars: GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REDIRECT_URI
+// Setup: Google Cloud Console → APIs & Services → Enable Gmail API → OAuth 2.0
+//        Credentials → add GMAIL_REDIRECT_URI as authorized redirect URI.
+
+exports.getGmailAuthUrl = onCall(async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const clientId     = process.env.GMAIL_CLIENT_ID || ''
+  const redirectUri  = process.env.GMAIL_REDIRECT_URI || ''
+  if (!clientId || !redirectUri) {
+    throw new HttpsError(
+      'failed-precondition',
+      'Gmail OAuth not configured. Set GMAIL_CLIENT_ID and GMAIL_REDIRECT_URI in Firebase Function env vars.'
+    )
+  }
+
+  const params = new URLSearchParams({
+    client_id:     clientId,
+    redirect_uri:  redirectUri,
+    response_type: 'code',
+    scope:         'https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email',
+    access_type:   'offline',
+    prompt:        'consent',  // always show consent screen so we always get a refresh_token
+    state:         uid,
+  })
+
+  return { url: `https://accounts.google.com/o/oauth2/v2/auth?${params}` }
+})
+
+exports.handleGmailOAuthCallback = onCall(async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const { code } = request.data
+  if (!code) throw new HttpsError('invalid-argument', 'Missing authorization code.')
+
+  const clientId     = process.env.GMAIL_CLIENT_ID || ''
+  const clientSecret = process.env.GMAIL_CLIENT_SECRET || ''
+  const redirectUri  = process.env.GMAIL_REDIRECT_URI || ''
+
+  // Exchange authorization code for tokens
+  const tokenRes = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      code,
+      client_id:     clientId,
+      client_secret: clientSecret,
+      redirect_uri:  redirectUri,
+      grant_type:    'authorization_code',
+    }),
+  })
+  const tokens = await tokenRes.json()
+
+  if (tokens.error) {
+    throw new HttpsError('internal', tokens.error_description || tokens.error || 'Token exchange failed.')
+  }
+  if (!tokens.refresh_token) {
+    throw new HttpsError(
+      'failed-precondition',
+      'No refresh token received. Go to myaccount.google.com → Security → Third-party apps, remove ReBoost Hub, then reconnect.'
+    )
+  }
+
+  // Get the connected Gmail address
+  const profileRes = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+    headers: { Authorization: `Bearer ${tokens.access_token}` },
+  })
+  const profile = await profileRes.json()
+
+  await db.collection('users').doc(uid).update({
+    gmailRefreshToken: tokens.refresh_token,
+    gmailEmail:        profile.email || '',
+    gmailConnectedAt:  FieldValue.serverTimestamp(),
+  })
+
+  return { email: profile.email || '' }
+})
+
+exports.disconnectGmail = onCall(async (request) => {
+  const uid = request.auth?.uid
+  if (!uid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  await db.collection('users').doc(uid).update({
+    gmailRefreshToken: null,
+    gmailEmail:        null,
+    gmailConnectedAt:  null,
+  })
+
+  return { success: true }
+})

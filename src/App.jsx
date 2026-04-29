@@ -56,6 +56,7 @@ import AgencyServices from './pages/agency/AgencyServices'
 import Profile from './pages/settings/Profile'
 import Billing from './pages/settings/Billing'
 import Integrations from './pages/settings/Integrations'
+import GmailCallback from './pages/settings/GmailCallback'
 import Pricing from './pages/Pricing'
 
 // Setup (one-time admin claim)
@@ -84,9 +85,10 @@ export default function App() {
               <Route path="/signup" element={<Signup />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
 
-              {/* Setup — protected but no layout */}
+              {/* Setup / OAuth callbacks — protected but no layout */}
               <Route element={<ProtectedRoute />}>
                 <Route path="/setup" element={<Setup />} />
+                <Route path="/integrations/gmail-callback" element={<GmailCallback />} />
               </Route>
 
               {/* Protected — inside HubLayout */}

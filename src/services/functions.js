@@ -37,6 +37,11 @@ export const connectZernioAccount = call('connectZernioAccount')
 export const createCheckoutSession = call('createCheckoutSession')
 export const createPortalSession = call('createPortalSession')
 
+// Gmail OAuth
+export const getGmailAuthUrl = call('getGmailAuthUrl')
+export const handleGmailOAuthCallback = call('handleGmailOAuthCallback')
+export const disconnectGmail = call('disconnectGmail')
+
 // Admin
 export const claimAdminRole = call('claimAdminRole')
 export const adminCreateUser = call('adminCreateUser')
