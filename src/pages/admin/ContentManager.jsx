@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Image as ImageIcon, Plus, Trash2, Upload, X } from 'lucide-react'
+import { Plus, Trash2, Upload, X, Search } from 'lucide-react'
 import Card, { CardHeader, CardTitle } from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Select from '../../components/ui/Select'
@@ -39,6 +39,7 @@ export default function ContentManager() {
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [nicheSearch, setNicheSearch] = useState('')
 
   const [form, setForm] = useState({
     niche: '',
@@ -75,7 +76,29 @@ export default function ContentManager() {
     if (fileInputRef.current) fileInputRef.current.value = ''
   }
 
-  function handleFileSelect(e) {
+  async function compressImage(file, maxDimension = 1920, quality = 0.82) {
+    return new Promise((resolve) => {
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        URL.revokeObjectURL(url)
+        let { width, height } = img
+        if (width > maxDimension || height > maxDimension) {
+          if (width > height) { height = Math.round(height * maxDimension / width); width = maxDimension }
+          else { width = Math.round(width * maxDimension / height); height = maxDimension }
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width
+        canvas.height = height
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height)
+        canvas.toBlob(blob => resolve(blob || file), 'image/jpeg', quality)
+      }
+      img.onerror = () => { URL.revokeObjectURL(url); resolve(file) }
+      img.src = url
+    })
+  }
+
+  async function handleFileSelect(e) {
     const file = e.target.files[0]
     if (!file) return
 
@@ -83,17 +106,23 @@ export default function ContentManager() {
       toast('Please select an image file.', 'error')
       return
     }
-    if (file.size > 20 * 1024 * 1024) {
-      toast('Image must be under 20MB.', 'error')
+    if (file.size > 50 * 1024 * 1024) {
+      toast('Image must be under 50MB.', 'error')
       return
     }
 
     setUploading(true)
     setUploadProgress(0)
 
-    const filename = `${Date.now()}-${file.name.replace(/\s+/g, '_')}`
+    let uploadFile = file
+    if (file.size > 500 * 1024) {
+      uploadFile = await compressImage(file)
+    }
+
+    const ext = uploadFile.type === 'image/jpeg' ? 'jpg' : file.name.split('.').pop()
+    const filename = `${Date.now()}-${file.name.replace(/\s+/g, '_').replace(/\.[^.]+$/, '')}.${ext}`
     const storageRef = ref(storage, `content-images/${filename}`)
-    const uploadTask = uploadBytesResumable(storageRef, file)
+    const uploadTask = uploadBytesResumable(storageRef, uploadFile)
 
     uploadTask.on(
       'state_changed',
@@ -159,18 +188,34 @@ export default function ContentManager() {
     return acc
   }, {})
 
+  const visibleNiches = nicheSearch
+    ? NICHES.filter(n => n.label.toLowerCase().includes(nicheSearch.toLowerCase()))
+    : NICHES
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <div className="mb-6 flex items-center justify-between">
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-semibold text-hub-text">Celebrity Content Manager</h1>
           <p className="text-hub-text-secondary text-sm mt-1">
             Upload pre-made content templates for each niche. Users see content matching their niche.
           </p>
         </div>
-        <Button onClick={() => setShowForm(!showForm)}>
-          <Plus className="w-3.5 h-3.5 mr-1.5" /> Upload Content
-        </Button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Search className="w-4 h-4 absolute left-3 top-2.5 text-hub-text-muted" />
+            <input
+              type="text"
+              placeholder="Filter niches…"
+              value={nicheSearch}
+              onChange={e => setNicheSearch(e.target.value)}
+              className="pl-9 pr-3 py-2 rounded-lg bg-hub-input border border-hub-border text-sm text-hub-text placeholder:text-hub-text-muted focus:outline-none focus:border-hub-blue w-44"
+            />
+          </div>
+          <Button onClick={() => setShowForm(!showForm)}>
+            <Plus className="w-3.5 h-3.5 mr-1.5" /> Upload Content
+          </Button>
+        </div>
       </div>
 
       {/* Upload form */}
@@ -311,7 +356,7 @@ export default function ContentManager() {
         </div>
       ) : (
         <div className="space-y-6">
-          {NICHES.map(niche => {
+          {visibleNiches.map(niche => {
             const nicheContent = contentByNiche[niche.value]
             return (
               <Card key={niche.value}>

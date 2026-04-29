@@ -61,7 +61,7 @@ export const forgotPasswordSchema = z.object({
 export const profileSchema = z.object({
   displayName: z.string().min(2, 'Name required'),
   businessName: z.string().min(2, 'Business name required'),
-  phone: phoneSchema,
+  phone: phoneSchema.optional().or(z.literal('')),
   website: urlSchema,
   address: z.string().optional(),
   city: z.string().min(2, 'City required'),
