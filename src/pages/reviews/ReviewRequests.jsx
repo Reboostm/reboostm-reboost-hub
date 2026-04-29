@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { doc, onSnapshot, collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore'
+import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore'
 import { db } from '../../services/firebase'
 import { useAuth } from '../../hooks/useAuth'
 import { useBilling } from '../../hooks/useBilling'
@@ -11,9 +11,12 @@ import Badge from '../../components/ui/Badge'
 import { useToast } from '../../hooks/useToast'
 import { sendReviewRequest } from '../../services/functions'
 import { useNavigate } from 'react-router-dom'
-import { Send, Copy, CheckCircle, ExternalLink, ChevronDown, ChevronUp, Loader2, AlertCircle } from 'lucide-react'
+import {
+  Send, Copy, CheckCircle, ExternalLink, ChevronDown, ChevronUp,
+  Loader2, AlertCircle, Mail, CheckCircle2,
+} from 'lucide-react'
 
-const PREVIEW_TEMPLATE = (businessName, reviewLink) => `
+const PREVIEW_TEMPLATE = (businessName, reviewLink, fromEmail) => `
 Hi [Customer Name],
 
 Thank you for choosing ${businessName || 'us'}! We hope you had a great experience.
@@ -34,7 +37,6 @@ function parseCustomerList(text) {
     .map(line => line.trim())
     .filter(Boolean)
     .map(line => {
-      // Supports: "Name, email" or "Name <email>" or just "email"
       const angleMatch = line.match(/^(.+?)\s*<(.+?)>$/)
       if (angleMatch) return { name: angleMatch[1].trim(), email: angleMatch[2].trim() }
       const commaMatch = line.match(/^(.+?),\s*(.+@.+)$/)
@@ -47,29 +49,32 @@ function parseCustomerList(text) {
 
 export default function ReviewRequests() {
   const { hasReviewManager } = useBilling()
-  const { user } = useAuth()
+  const { user, userProfile } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
 
+  const gmailConnected = !!userProfile?.gmailRefreshToken
+  const gmailEmail     = userProfile?.gmailEmail || ''
+
   const [reviewProfile, setReviewProfile] = useState(null)
-  const [fromName, setFromName]     = useState('')
-  const [fromEmail, setFromEmail]   = useState('')
-  const [customerList, setCustomerList] = useState('')
-  const [sending, setSending]       = useState(false)
-  const [showPreview, setShowPreview] = useState(false)
-  const [copiedLink, setCopiedLink] = useState(false)
-  const [history, setHistory]       = useState([])
+  const [fromName, setFromName]           = useState('')
+  const [customerList, setCustomerList]   = useState('')
+  const [sending, setSending]             = useState(false)
+  const [showPreview, setShowPreview]     = useState(false)
+  const [copiedLink, setCopiedLink]       = useState(false)
+  const [history, setHistory]             = useState([])
   const [loadingHistory, setLoadingHistory] = useState(true)
 
   useEffect(() => {
     if (!user) return
-    const unsub = onSnapshot(doc(db, 'users', user.uid), snap => {
-      const d = snap.data()
-      setReviewProfile(d?.reviewProfile || null)
-      if (d?.displayName && !fromName) setFromName(d.displayName)
-      if (d?.email && !fromEmail) setFromEmail(d.email)
+    import('firebase/firestore').then(({ doc, onSnapshot }) => {
+      const unsub = onSnapshot(doc(db, 'users', user.uid), snap => {
+        const d = snap.data()
+        setReviewProfile(d?.reviewProfile || null)
+        if (d?.displayName && !fromName) setFromName(d.displayName)
+      })
+      return unsub
     })
-    return unsub
   }, [user])
 
   useEffect(() => {
@@ -80,20 +85,29 @@ export default function ReviewRequests() {
       orderBy('createdAt', 'desc'),
       limit(20)
     )
-    getDocs(q).then(snap => {
-      setHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-      setLoadingHistory(false)
-    })
+    getDocs(q)
+      .then(snap => {
+        setHistory(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+        setLoadingHistory(false)
+      })
+      .catch(() => setLoadingHistory(false))
   }, [user])
 
-  const parsed = parseCustomerList(customerList)
+  const parsed         = parseCustomerList(customerList)
   const validCustomers = parsed.filter(c => c.email?.includes('@'))
-  const reviewLink = reviewProfile?.reviewLink || ''
-  const businessName = reviewProfile?.businessName || fromName || ''
+  const reviewLink     = reviewProfile?.reviewLink || ''
+  const businessName   = reviewProfile?.businessName || fromName || ''
 
   async function handleSend(e) {
     e.preventDefault()
-    if (!validCustomers.length) { toast('Add at least one valid customer email.', 'error'); return }
+    if (!gmailConnected) {
+      toast('Connect your Gmail first in Settings → Integrations.', 'error')
+      return
+    }
+    if (!validCustomers.length) {
+      toast('Add at least one valid customer email.', 'error')
+      return
+    }
     if (!reviewLink) {
       toast('No review link found. Connect your business in All Reviews first.', 'error')
       return
@@ -105,11 +119,9 @@ export default function ReviewRequests() {
         businessName,
         reviewLink,
         fromName: fromName.trim(),
-        fromEmail: fromEmail.trim(),
       })
       toast(`Sent ${sent} of ${total} emails.`, sent === total ? 'success' : 'warning')
       setCustomerList('')
-      // Refresh history
       const q = query(
         collection(db, 'reviewRequests'),
         where('userId', '==', user.uid),
@@ -118,7 +130,7 @@ export default function ReviewRequests() {
       )
       getDocs(q).then(snap => setHistory(snap.docs.map(d => ({ id: d.id, ...d.data() }))))
     } catch (err) {
-      toast(err.message || 'Send failed. Check SENDGRID_API_KEY env var.', 'error')
+      toast(err.message || 'Send failed.', 'error')
     } finally {
       setSending(false)
     }
@@ -147,11 +159,33 @@ export default function ReviewRequests() {
         </Button>
       </div>
 
+      {/* Gmail connection status */}
+      {gmailConnected ? (
+        <div className="flex items-center gap-3 p-3 bg-hub-green/10 border border-hub-green/20 rounded-lg">
+          <CheckCircle2 className="w-4 h-4 text-hub-green shrink-0" />
+          <p className="text-sm text-hub-text-secondary">
+            Emails will send <span className="font-medium text-hub-text">from your Gmail</span>:{' '}
+            <span className="text-hub-green">{gmailEmail}</span>
+          </p>
+        </div>
+      ) : (
+        <div className="flex items-start gap-3 p-4 bg-hub-yellow/10 border border-hub-yellow/20 rounded-lg">
+          <AlertCircle className="w-4 h-4 text-hub-yellow shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-hub-text mb-1">Gmail not connected</p>
+            <p className="text-xs text-hub-text-secondary mb-2">
+              You need to connect your Gmail so review requests send from your own email address — not a generic service.
+            </p>
+            <Button size="sm" onClick={() => navigate('/settings/integrations')}>
+              <Mail className="w-3.5 h-3.5 mr-1.5" /> Connect Gmail in Settings
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Review Link */}
       <Card>
-        <CardHeader>
-          <CardTitle>Your Google Review Link</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>Your Google Review Link</CardTitle></CardHeader>
         {reviewLink ? (
           <div className="flex items-center gap-3">
             <code className="flex-1 text-xs text-hub-blue bg-hub-input border border-hub-border rounded-lg px-3 py-2 truncate">
@@ -160,15 +194,10 @@ export default function ReviewRequests() {
             <Button size="sm" variant="ghost" onClick={copyLink}>
               {copiedLink
                 ? <CheckCircle className="w-3.5 h-3.5 text-hub-green" />
-                : <Copy className="w-3.5 h-3.5" />
-              }
+                : <Copy className="w-3.5 h-3.5" />}
             </Button>
-            <a
-              href={reviewLink}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-1.5 text-hub-text-muted hover:text-hub-blue transition-colors"
-            >
+            <a href={reviewLink} target="_blank" rel="noopener noreferrer"
+              className="p-1.5 text-hub-text-muted hover:text-hub-blue transition-colors">
               <ExternalLink className="w-4 h-4" />
             </a>
           </div>
@@ -189,25 +218,14 @@ export default function ReviewRequests() {
       {/* Send form */}
       <form onSubmit={handleSend}>
         <Card>
-          <CardHeader>
-            <CardTitle>Send Requests</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Send Requests</CardTitle></CardHeader>
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3">
-              <Input
-                label="Your Name / Business Name"
-                value={fromName}
-                onChange={e => setFromName(e.target.value)}
-                placeholder="ABC Plumbing"
-              />
-              <Input
-                label="Reply-To Email"
-                type="email"
-                value={fromEmail}
-                onChange={e => setFromEmail(e.target.value)}
-                placeholder="hello@yourbusiness.com"
-              />
-            </div>
+            <Input
+              label="Your Name / Business Name"
+              value={fromName}
+              onChange={e => setFromName(e.target.value)}
+              placeholder="ABC Plumbing"
+            />
 
             <div>
               <label className="block text-xs font-medium text-hub-text-secondary mb-1.5">
@@ -225,13 +243,12 @@ export default function ReviewRequests() {
               />
               {customerList.trim() && (
                 <p className={`text-xs mt-1 ${validCustomers.length === 0 ? 'text-hub-red' : 'text-hub-text-muted'}`}>
-                  {validCustomers.length} valid email{validCustomers.length !== 1 ? 's' : ''} parsed
+                  {validCustomers.length} valid email{validCustomers.length !== 1 ? 's' : ''}
                   {parsed.length !== validCustomers.length && ` (${parsed.length - validCustomers.length} invalid)`}
                 </p>
               )}
             </div>
 
-            {/* Email preview toggle */}
             <button
               type="button"
               onClick={() => setShowPreview(v => !v)}
@@ -243,23 +260,20 @@ export default function ReviewRequests() {
 
             {showPreview && (
               <div className="bg-hub-input border border-hub-border rounded-lg p-4 text-xs text-hub-text-secondary whitespace-pre-wrap font-mono leading-relaxed">
-                {PREVIEW_TEMPLATE(businessName, reviewLink)}
+                {PREVIEW_TEMPLATE(businessName, reviewLink, gmailEmail)}
               </div>
             )}
-
-            <div className="p-3 bg-hub-input/30 rounded-lg border border-hub-border text-xs text-hub-text-secondary leading-relaxed">
-              Requires <code className="bg-hub-card px-1 rounded text-hub-blue">SENDGRID_API_KEY</code> set
-              in Firebase Functions env vars (Firebase Console → Functions → sendReviewRequest → Edit → Runtime environment variables).
-            </div>
 
             <Button
               type="submit"
               className="w-full"
               loading={sending}
-              disabled={!validCustomers.length || !reviewLink}
+              disabled={!gmailConnected || !validCustomers.length || !reviewLink}
             >
               <Send className="w-4 h-4 mr-2" />
-              Send to {validCustomers.length || 0} Customer{validCustomers.length !== 1 ? 's' : ''}
+              {!gmailConnected
+                ? 'Connect Gmail to Send'
+                : `Send to ${validCustomers.length || 0} Customer${validCustomers.length !== 1 ? 's' : ''}`}
             </Button>
           </div>
         </Card>
@@ -274,9 +288,7 @@ export default function ReviewRequests() {
           </div>
         ) : history.length === 0 ? (
           <Card>
-            <p className="text-sm text-hub-text-muted text-center py-6">
-              No requests sent yet.
-            </p>
+            <p className="text-sm text-hub-text-muted text-center py-6">No requests sent yet.</p>
           </Card>
         ) : (
           <Card padding={false}>
@@ -284,9 +296,7 @@ export default function ReviewRequests() {
               {history.map(req => {
                 const sentAt = req.sentAt?.toDate
                   ? req.sentAt.toDate().toLocaleDateString()
-                  : req.sentAt
-                    ? new Date(req.sentAt).toLocaleDateString()
-                    : '—'
+                  : req.sentAt ? new Date(req.sentAt).toLocaleDateString() : '—'
                 return (
                   <div key={req.id} className="flex items-center gap-4 px-4 py-3">
                     <div className="flex-1 min-w-0">
