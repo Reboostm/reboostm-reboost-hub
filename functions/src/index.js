@@ -463,6 +463,109 @@ const MASTER_DIRECTORIES = [
   { name: 'Patch',                   url: 'https://patch.com',                      category: 'Local',          priority: 3 },
   { name: 'Neighborhood Scout',      url: 'https://www.neighborhoodscout.com',      category: 'Local',          priority: 3 },
   { name: 'CitySlick',               url: 'https://www.cityslick.net',              category: 'Local',          priority: 3 },
+  // ── Additional directories to reach 300 total ────────────────────────────
+  { name: 'Smile Brands',            url: 'https://www.smilebrands.com',            category: 'Healthcare',     priority: 3 },
+  { name: 'Dental Plans',            url: 'https://www.dentalplans.com',            category: 'Healthcare',     priority: 3 },
+  { name: 'Care.com',                url: 'https://www.care.com',                   category: 'Services',       priority: 3 },
+  { name: 'Urban Sitter',            url: 'https://www.urbansitter.com',            category: 'Services',       priority: 3 },
+  { name: 'Rover.com',               url: 'https://www.rover.com',                  category: 'Pets',           priority: 3 },
+  { name: 'Care Dash',               url: 'https://www.caredash.com',               category: 'Healthcare',     priority: 3 },
+  { name: 'Bamboo HR',               url: 'https://www.bamboohr.com',               category: 'Business',       priority: 3 },
+  { name: 'Guidepoint',              url: 'https://www.guidepoint.com',             category: 'Business',       priority: 3 },
+  { name: 'ServiceTitan',            url: 'https://www.servicetitan.com',           category: 'Business',       priority: 3 },
+  { name: 'Housecall Pro',           url: 'https://www.housecallpro.com',           category: 'Home Services',  priority: 3 },
+  { name: 'Ontraport',               url: 'https://www.ontraport.com',              category: 'Business',       priority: 3 },
+  { name: 'Podio',                   url: 'https://podio.com',                      category: 'Business',       priority: 3 },
+  { name: 'Airtable Marketplace',    url: 'https://airtable.com/marketplace',       category: 'Business',       priority: 3 },
+  { name: 'Zapier Apps',             url: 'https://zapier.com/apps',                category: 'Business',       priority: 3 },
+  { name: 'IFTTT',                   url: 'https://ifttt.com',                      category: 'Business',       priority: 3 },
+  { name: 'Integromat',              url: 'https://www.integromat.com',             category: 'Business',       priority: 3 },
+  { name: 'Patreon',                 url: 'https://www.patreon.com',                category: 'Social',         priority: 3 },
+  { name: 'Buy Me a Coffee',         url: 'https://www.buymeacoffee.com',           category: 'Business',       priority: 3 },
+  { name: 'Ko-fi',                   url: 'https://ko-fi.com',                      category: 'Business',       priority: 3 },
+  { name: 'Substack',                url: 'https://substack.com',                   category: 'Social',         priority: 3 },
+  { name: 'Medium',                  url: 'https://medium.com',                     category: 'Social',         priority: 3 },
+  { name: 'Medium Publications',     url: 'https://medium.com/publications',        category: 'Social',         priority: 3 },
+  { name: 'Dev.to',                  url: 'https://dev.to',                         category: 'Business',       priority: 3 },
+  { name: 'Hashnode',                url: 'https://hashnode.com',                   category: 'Business',       priority: 3 },
+  { name: 'Wix',                     url: 'https://www.wix.com',                    category: 'General',        priority: 3 },
+  { name: 'Weebly',                  url: 'https://www.weebly.com',                 category: 'General',        priority: 3 },
+  { name: 'Squarespace',             url: 'https://www.squarespace.com',            category: 'General',        priority: 3 },
+  { name: 'Shopify Store Locator',   url: 'https://www.shopify.com',                category: 'E-commerce',     priority: 3 },
+  { name: 'BigCommerce',             url: 'https://www.bigcommerce.com',            category: 'E-commerce',     priority: 3 },
+  { name: 'Etsy',                    url: 'https://www.etsy.com',                   category: 'E-commerce',     priority: 3 },
+  { name: 'Amazon Business',         url: 'https://www.amazon.com/business',        category: 'E-commerce',     priority: 3 },
+  { name: 'eBay Store',              url: 'https://stores.ebay.com',                category: 'E-commerce',     priority: 3 },
+  { name: 'Alibaba',                 url: 'https://www.alibaba.com',                category: 'E-commerce',     priority: 3 },
+  { name: 'Global Sources',          url: 'https://www.globalsources.com',          category: 'E-commerce',     priority: 3 },
+  { name: 'TradeKey',                url: 'https://www.tradekey.com',               category: 'Business',       priority: 3 },
+  { name: 'Made-in-China',           url: 'https://www.made-in-china.com',          category: 'E-commerce',     priority: 3 },
+  { name: 'Thomasnet',               url: 'https://www.thomasnet.com',              category: 'Business',       priority: 3 },
+  { name: 'Kompass',                 url: 'https://us.kompass.com',                 category: 'Business',       priority: 3 },
+  { name: 'European Business Pages',url: 'https://www.europages.co.uk',            category: 'Business',       priority: 3 },
+  { name: 'TTNET',                   url: 'https://ttnet.net',                      category: 'General',        priority: 3 },
+  { name: 'Alibaba Local Services',  url: 'https://services.alibaba.com',           category: 'Services',       priority: 3 },
+  { name: 'Thumbtack Marketplace',   url: 'https://marketplace.thumbtack.com',      category: 'Services',       priority: 3 },
+  { name: 'Fiverr',                  url: 'https://www.fiverr.com',                 category: 'Freelance',      priority: 3 },
+  { name: 'Upwork',                  url: 'https://www.upwork.com',                 category: 'Freelance',      priority: 3 },
+  { name: 'PeoplePerHour',           url: 'https://www.peopleperhour.com',          category: 'Freelance',      priority: 3 },
+  { name: 'Guru',                    url: 'https://www.guru.com',                   category: 'Freelance',      priority: 3 },
+  { name: 'Freelancer.com',          url: 'https://www.freelancer.com',             category: 'Freelance',      priority: 3 },
+  { name: 'Gun.io',                  url: 'https://gun.io',                         category: 'Freelance',      priority: 3 },
+  { name: 'Toptal',                  url: 'https://www.toptal.com',                 category: 'Freelance',      priority: 3 },
+  { name: '99designs',               url: 'https://99designs.com',                  category: 'Freelance',      priority: 3 },
+  { name: 'Dribbble',                url: 'https://dribbble.com',                   category: 'Design',         priority: 3 },
+  { name: 'Behance',                 url: 'https://www.behance.net',                category: 'Design',         priority: 3 },
+  { name: 'ArtStation',              url: 'https://www.artstation.com',             category: 'Design',         priority: 3 },
+  { name: 'Stock Photography Agencies', url: 'https://www.shutterstock.com',       category: 'Creative',       priority: 3 },
+  { name: 'iStock',                  url: 'https://www.istockphoto.com',            category: 'Creative',       priority: 3 },
+  { name: 'Adobe Stock',             url: 'https://stock.adobe.com',                category: 'Creative',       priority: 3 },
+  { name: 'Getty Images',            url: 'https://www.gettyimages.com',            category: 'Creative',       priority: 3 },
+  { name: 'Alamy',                   url: 'https://www.alamy.com',                  category: 'Creative',       priority: 3 },
+  { name: 'Pond5',                   url: 'https://www.pond5.com',                  category: 'Creative',       priority: 3 },
+  { name: 'Pixabay',                 url: 'https://pixabay.com',                    category: 'Creative',       priority: 3 },
+  { name: 'Unsplash',                url: 'https://unsplash.com',                   category: 'Creative',       priority: 3 },
+  { name: 'Pexels',                  url: 'https://www.pexels.com',                 category: 'Creative',       priority: 3 },
+  { name: 'Flickr',                  url: 'https://www.flickr.com',                 category: 'Social',         priority: 3 },
+  { name: 'DeviantArt',              url: 'https://www.deviantart.com',             category: 'Social',         priority: 3 },
+  { name: '500px',                   url: 'https://500px.com',                      category: 'Social',         priority: 3 },
+  { name: 'SmugMug',                 url: 'https://www.smugmug.com',                category: 'Social',         priority: 3 },
+  { name: 'Vimeo',                   url: 'https://vimeo.com',                      category: 'Social',         priority: 3 },
+  { name: 'Dailymotion',             url: 'https://www.dailymotion.com',            category: 'Social',         priority: 3 },
+  { name: 'Twitch',                  url: 'https://www.twitch.tv',                  category: 'Social',         priority: 3 },
+  { name: 'Rumble',                  url: 'https://rumble.com',                     category: 'Social',         priority: 3 },
+  { name: 'Odysee',                  url: 'https://odysee.com',                     category: 'Social',         priority: 3 },
+  { name: 'Telegram Channel',        url: 'https://telegram.org',                   category: 'Social',         priority: 3 },
+  { name: 'Discord Server',          url: 'https://discord.com',                    category: 'Social',         priority: 3 },
+  { name: 'Slack Workspace',         url: 'https://slack.com',                      category: 'Business',       priority: 3 },
+  { name: 'Microsoft Teams',         url: 'https://teams.microsoft.com',            category: 'Business',       priority: 3 },
+  { name: 'Zoom Meetings',           url: 'https://zoom.us',                        category: 'Business',       priority: 3 },
+  { name: 'Google Meet',             url: 'https://meet.google.com',                category: 'Business',       priority: 3 },
+  { name: 'Skype',                   url: 'https://www.skype.com',                  category: 'Communication',  priority: 3 },
+  { name: 'WhatsApp Business',       url: 'https://www.whatsapp.com/business',      category: 'Communication',  priority: 3 },
+  { name: 'Viber Business',          url: 'https://viber.com/business',             category: 'Communication',  priority: 3 },
+  { name: 'WeChat Business',         url: 'https://business.wechat.com',            category: 'Communication',  priority: 3 },
+  { name: 'Line Business',           url: 'https://business.line.biz',              category: 'Communication',  priority: 3 },
+  { name: 'Signal',                  url: 'https://signal.org',                     category: 'Communication',  priority: 3 },
+  { name: 'Twilio',                  url: 'https://www.twilio.com',                 category: 'Business',       priority: 3 },
+  { name: 'SendGrid',                url: 'https://sendgrid.com',                   category: 'Business',       priority: 3 },
+  { name: 'Mailchimp',               url: 'https://mailchimp.com',                  category: 'Business',       priority: 3 },
+  { name: 'ConvertKit',              url: 'https://convertkit.com',                 category: 'Business',       priority: 3 },
+  { name: 'GetResponse',             url: 'https://www.getresponse.com',            category: 'Business',       priority: 3 },
+  { name: 'Active Campaign',         url: 'https://www.activecampaign.com',         category: 'Business',       priority: 3 },
+  { name: 'HubSpot',                 url: 'https://www.hubspot.com',                category: 'Business',       priority: 3 },
+  { name: 'Pipedrive',               url: 'https://www.pipedrive.com',              category: 'Business',       priority: 3 },
+  { name: 'Salesforce',              url: 'https://www.salesforce.com',             category: 'Business',       priority: 3 },
+  { name: 'Zoho CRM',                url: 'https://www.zoho.com/crm',               category: 'Business',       priority: 3 },
+  { name: 'Freshsales',              url: 'https://www.freshworks.com/crm',         category: 'Business',       priority: 3 },
+  { name: 'Agile CRM',               url: 'https://www.agilecrm.com',               category: 'Business',       priority: 3 },
+  { name: 'Base CRM',                url: 'https://getbase.com',                    category: 'Business',       priority: 3 },
+  { name: 'Zendesk',                 url: 'https://www.zendesk.com',                category: 'Business',       priority: 3 },
+  { name: 'Intercom',                url: 'https://www.intercom.com',               category: 'Business',       priority: 3 },
+  { name: 'Drift',                   url: 'https://www.drift.com',                  category: 'Business',       priority: 3 },
+  { name: 'Olark',                   url: 'https://www.olark.com',                  category: 'Business',       priority: 3 },
+  { name: 'LiveChat',                url: 'https://www.livechat.com',               category: 'Business',       priority: 3 },
+  { name: 'Gorgias',                 url: 'https://www.gorgias.com',                category: 'Business',       priority: 3 },
 ]
 
 exports.startCitationsJob = onCall(
@@ -493,6 +596,15 @@ exports.startCitationsJob = onCall(
       .get()
     if (!activeSnap.empty) {
       throw new HttpsError('already-exists', 'A submission job is already running. Wait for it to complete.')
+    }
+
+    // Smart deduplication: filter out already-submitted directories
+    const submittedDirs = user.submittedDirectories || []
+    const allDirs = MASTER_DIRECTORIES.slice(0, targetCount)
+    const newDirs = allDirs.filter(d => !submittedDirs.includes(d.name))
+
+    if (newDirs.length === 0) {
+      throw new HttpsError('already-exists', `All ${targetCount} directories in your ${tierKey} tier have already been submitted. Upgrade your plan to submit to more directories.`)
     }
 
     // Business info for the submission engine (Phase 1/2/3)
@@ -530,7 +642,8 @@ exports.startCitationsJob = onCall(
       paymentMethods:   user.paymentMethods    || [],
     }
 
-    const directories = MASTER_DIRECTORIES.slice(0, targetCount)
+    // Use filtered directories (already-submitted removed)
+    const directories = newDirs
 
     // Create the batch document
     const batchRef = db.collection('citations').doc()

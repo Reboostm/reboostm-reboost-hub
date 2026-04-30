@@ -1,0 +1,107 @@
+const { chromium } = require('playwright')
+
+class DirectoryHandler {
+  constructor(directoryName) {
+    this.directoryName = directoryName
+    this.browser = null
+  }
+
+  async getBrowser() {
+    if (!this.browser) {
+      this.browser = await chromium.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
+      })
+    }
+    return this.browser
+  }
+
+  async closeBrowser() {
+    if (this.browser) {
+      await this.browser.close()
+      this.browser = null
+    }
+  }
+
+  /**
+   * Main submission method - override in subclasses
+   * @param {Object} params
+   * @param {Object} params.directory - Directory info { name, url, category, priority }
+   * @param {Object} params.businessData - Business info { businessName, phone, address, email, etc. }
+   * @param {Object} params.gmailHandler - Gmail handler for verification email watching
+   * @param {Object} params.captchaHandler - 2Captcha handler for CAPTCHA solving
+   * @returns {Object} { status: 'live'|'pending'|'failed', liveUrl?, emailUsed?, errorMessage? }
+   */
+  async submit({ directory, businessData, gmailHandler, captchaHandler }) {
+    // Generic handler: mark as pending (manual review needed)
+    return {
+      status: 'pending',
+      errorMessage: `${this.directoryName} handler not yet implemented. Manual submission required.`,
+    }
+  }
+
+  /**
+   * Wait for verification email and extract links
+   */
+  async waitForEmailVerification(gmailHandler, email, timeoutSec = 300) {
+    if (!gmailHandler) return []
+
+    const startTime = Date.now()
+    const timeout = timeoutSec * 1000
+
+    while (Date.now() - startTime < timeout) {
+      const links = gmailHandler.getPendingLinks(email)
+      if (links.length > 0) return links
+      await new Promise(r => setTimeout(r, 10000))  // Check every 10s
+    }
+
+    return []
+  }
+
+  /**
+   * Helper: safely fill form field
+   */
+  async fillField(page, selector, value) {
+    try {
+      const element = await page.$(selector)
+      if (element) {
+        await page.fill(selector, value)
+        return true
+      }
+      return false
+    } catch (err) {
+      console.error(`Error filling ${selector}:`, err.message)
+      return false
+    }
+  }
+
+  /**
+   * Helper: safely click element
+   */
+  async clickElement(page, selector, waitNav = false) {
+    try {
+      await page.click(selector)
+      if (waitNav) {
+        await page.waitForNavigation({ waitUntil: 'networkidle', timeout: 5000 }).catch(() => {})
+      }
+      return true
+    } catch (err) {
+      console.error(`Error clicking ${selector}:`, err.message)
+      return false
+    }
+  }
+
+  /**
+   * Helper: wait for element with fallback
+   */
+  async waitForElement(page, selector, timeoutMs = 5000) {
+    try {
+      await page.waitForSelector(selector, { timeout: timeoutMs })
+      return true
+    } catch (err) {
+      return false
+    }
+  }
+}
+
+module.exports = { DirectoryHandler }

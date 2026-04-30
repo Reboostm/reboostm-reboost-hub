@@ -4,7 +4,7 @@ const { getFirestore, FieldValue } = require('firebase-admin/firestore')
 const axios = require('axios')
 const GmailHandler = require('./gmailHandler')
 const CaptchaHandler = require('./captchaHandler')
-const { getDirectoryHandler } = require('./directoryHandlers')
+const { getDirectoryHandler } = require('./handlers')
 
 const app = express()
 const PORT = process.env.PORT || 8080
@@ -157,6 +157,14 @@ class SubmissionEngine {
           })
         }
       }
+
+      // Append submitted directories to user profile (for deduplication on next job)
+      const submittedDirNames = directories.map(dirDoc => dirDoc.data().name)
+      await db.collection('users').doc(batchData.userId).update({
+        submittedDirectories: FieldValue.arrayUnion(...submittedDirNames),
+      }).catch(err => {
+        console.warn(`[BATCH ${batchId}] Warning: Could not update submittedDirectories:`, err.message)
+      })
 
       // Mark batch as completed
       await batchDoc.ref.update({
