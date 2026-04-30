@@ -4,6 +4,7 @@ const { initializeApp } = require('firebase-admin/app')
 const { getFirestore, FieldValue } = require('firebase-admin/firestore')
 const { getAuth } = require('firebase-admin/auth')
 const Stripe = require('stripe')
+const axios = require('axios')
 
 initializeApp()
 const db = getFirestore()
@@ -21,6 +22,22 @@ function scoreToGrade(score) {
 
 function clamp(val, min = 0, max = 100) {
   return Math.min(max, Math.max(min, val))
+}
+
+// Trigger Cloud Run submission engine when a batch is queued
+async function triggerCitationsSubmission() {
+  try {
+    const cloudRunUrl = process.env.CLOUD_RUN_URL
+    if (!cloudRunUrl) {
+      console.warn('CLOUD_RUN_URL env var not set — Cloud Run trigger disabled')
+      return
+    }
+
+    await axios.post(`${cloudRunUrl}/trigger`, {}, { timeout: 5000 })
+    console.log('Cloud Run submission engine triggered')
+  } catch (err) {
+    console.warn('Could not trigger Cloud Run:', err.message)
+  }
 }
 
 // ─── runSeoAudit ─────────────────────────────────────────────────────────────
@@ -553,9 +570,8 @@ exports.startCitationsJob = onCall(
       await batch.commit()
     }
 
-    // TODO: Trigger Cloud Run job here — Cloud Run polls for 'queued' batches,
-    //       uses Playwright + 2Captcha to submit, and updates status/counts in real-time.
-    //       See: github.com/Reboostm/ReBoost-Citations for the automation engine.
+    // Trigger Cloud Run submission engine
+    await triggerCitationsSubmission()
 
     return { batchId: batchRef.id, total: directories.length, tier: tierKey }
   }
