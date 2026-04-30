@@ -672,6 +672,29 @@ exports.adminCreateUser = onCall({ timeoutSeconds: 30 }, async (request) => {
   return { uid: user.uid, inviteLink }
 })
 
+// ─── adminDeleteUser ─────────────────────────────────────────────────────────
+// Admin only: permanently delete a Firebase Auth user + their Firestore doc.
+
+exports.adminDeleteUser = onCall({ timeoutSeconds: 30 }, async (request) => {
+  const callerUid = request.auth?.uid
+  if (!callerUid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+  const callerSnap = await db.collection('users').doc(callerUid).get()
+  if (callerSnap.data()?.role !== 'admin') {
+    throw new HttpsError('permission-denied', 'Admin role required.')
+  }
+
+  const { targetUid } = request.data
+  if (!targetUid) throw new HttpsError('invalid-argument', 'targetUid is required.')
+  if (targetUid === callerUid) throw new HttpsError('invalid-argument', 'Cannot delete your own account.')
+
+  const auth = getAuth()
+  await auth.deleteUser(targetUid)
+  await db.collection('users').doc(targetUid).delete()
+
+  return { deleted: true }
+})
+
 // ─── adminUpdateAccess ───────────────────────────────────────────────────────
 // Admin/staff: update any user's tool access (purchases + subscriptions).
 

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import {
   Users, Loader2, RotateCcw, ChevronDown, ChevronUp, CheckCircle,
-  Search, UserPlus, Eye, EyeOff, BookOpen, Star, TrendingUp,
-  Calendar, Sparkles, Image, Settings2,
+  Search, UserPlus, BookOpen, Star, TrendingUp,
+  Calendar, Sparkles, Image, Settings2, Trash2,
 } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -11,7 +11,7 @@ import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
 import Modal from '../../components/ui/Modal'
 import { getAllUsers } from '../../services/firestore'
-import { setUserRole, resetUserPassword, adminCreateUser, adminUpdateAccess } from '../../services/functions'
+import { setUserRole, resetUserPassword, adminCreateUser, adminUpdateAccess, adminDeleteUser } from '../../services/functions'
 import { formatDate, getInitials } from '../../utils/helpers'
 import { useToast } from '../../hooks/useToast'
 import { useAuth } from '../../hooks/useAuth'
@@ -242,10 +242,8 @@ function CreateUserModal({ isOpen, onClose, onCreated }) {
   const isAdmin = userProfile?.role === 'admin'
 
   const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [role, setRole] = useState('client')
-  const [showPw, setShowPw] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const roleOptions = isAdmin
@@ -254,14 +252,13 @@ function CreateUserModal({ isOpen, onClose, onCreated }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    if (!email.trim() || !password.trim()) { toast('Email and password are required.', 'error'); return }
-    if (password.length < 6) { toast('Password must be at least 6 characters.', 'error'); return }
+    if (!email.trim()) { toast('Email is required.', 'error'); return }
     setSaving(true)
     try {
-      const result = await adminCreateUser({ email: email.trim(), password, displayName: displayName.trim(), role })
-      toast(`User ${email} created successfully.`, 'success')
+      const result = await adminCreateUser({ email: email.trim(), displayName: displayName.trim(), role, sendInvite: true })
+      toast(`Invite sent to ${email}. They'll receive an email to set their password.`, 'success')
       onCreated({ id: result.uid, email: email.trim(), displayName: displayName.trim(), role, createdAt: new Date() })
-      setEmail(''); setPassword(''); setDisplayName(''); setRole('client')
+      setEmail(''); setDisplayName(''); setRole('client')
       onClose()
     } catch (err) {
       toast(err.message || 'Failed to create user.', 'error')
@@ -270,37 +267,48 @@ function CreateUserModal({ isOpen, onClose, onCreated }) {
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Create New User" size="sm"
-      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button loading={saving} onClick={handleSubmit}>Create User</Button></>}
+      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button loading={saving} onClick={handleSubmit}>Send Invite</Button></>}
     >
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Input label="Email address" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="user@example.com" required />
+        <Input label="Email address" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="client@example.com" required />
         <Input label="Display name (optional)" value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="First Last" />
-        <div>
-          <label className="block text-xs font-medium text-hub-text-secondary mb-1.5">Password</label>
-          <div className="relative">
-            <input type={showPw ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Min 6 characters" className="w-full bg-hub-input border border-hub-border rounded-lg px-3 pr-9 py-2.5 text-sm text-hub-text placeholder:text-hub-text-muted focus:outline-none focus:border-hub-blue focus:ring-1 focus:ring-hub-blue/30" />
-            <button type="button" onClick={() => setShowPw(v => !v)} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-hub-text-muted hover:text-hub-text">{showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
-          </div>
-          <p className="text-[11px] text-hub-text-muted mt-1">Default welcome password: 123456</p>
-        </div>
         <Select label="Role" value={role} onChange={e => setRole(e.target.value)} options={roleOptions} />
         {role !== 'client' && <p className="text-xs text-hub-yellow bg-hub-yellow/10 border border-hub-yellow/20 rounded-lg px-3 py-2">{role === 'admin' ? 'Admin accounts have full access and can see all data.' : 'Staff accounts bypass all ToolGates and can manage clients.'}</p>}
+        <p className="text-xs text-hub-text-muted bg-hub-input border border-hub-border rounded-lg px-3 py-2">
+          An invite email will be sent automatically. The client clicks the link to set their own password.
+        </p>
       </form>
     </Modal>
   )
 }
 
-function UserRow({ u, onUpdated, onRoleChanged }) {
+function UserRow({ u, onUpdated, onRoleChanged, onDeleted }) {
   const [open, setOpen] = useState(false)
   const [showAccess, setShowAccess] = useState(false)
+  const [deleting, setDeleting] = useState(false)
   const [userData, setUserData] = useState(u)
   const activeCount = TOOL_FLAGS.filter(f => f.check(userData)).length
   const isClient = userData.role === 'client'
+  const { toast } = useToast()
 
   const handleUpdated = (updated) => setUserData(updated)
   const handleRoleChanged = (uid, newRole) => {
     setUserData(prev => ({ ...prev, role: newRole }))
     onRoleChanged(uid, newRole)
+  }
+
+  const handleDelete = async (e) => {
+    e.stopPropagation()
+    if (!window.confirm(`Delete ${userData.displayName || userData.email}? This cannot be undone.`)) return
+    setDeleting(true)
+    try {
+      await adminDeleteUser({ targetUid: userData.id })
+      toast('User deleted.', 'success')
+      onDeleted(userData.id)
+    } catch (err) {
+      toast(err.message || 'Failed to delete user.', 'error')
+      setDeleting(false)
+    }
   }
 
   return (
@@ -325,6 +333,14 @@ function UserRow({ u, onUpdated, onRoleChanged }) {
               {open ? <ChevronUp className="w-4 h-4 text-hub-text-muted" /> : <ChevronDown className="w-4 h-4 text-hub-text-muted" />}
             </>
           )}
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            title="Delete user"
+            className="p-1.5 rounded-md text-hub-text-muted hover:text-hub-red hover:bg-hub-red/10 transition-colors disabled:opacity-40"
+          >
+            {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+          </button>
         </div>
       </div>
 
@@ -362,6 +378,7 @@ export default function AdminUsers() {
 
   const handleRoleChanged = (uid, newRole) => setUsers(prev => prev.map(u => u.id === uid ? { ...u, role: newRole } : u))
   const handleCreated = (newUser) => setUsers(prev => [newUser, ...prev])
+  const handleDeleted = (uid) => setUsers(prev => prev.filter(u => u.id !== uid))
 
   const filtered = users.filter(u => {
     const matchesSearch = search.trim() === '' || (
@@ -408,7 +425,7 @@ export default function AdminUsers() {
       ) : (
         <Card padding={false}>
           <div className="divide-y divide-hub-border">
-            {filtered.map(u => <UserRow key={u.id} u={u} onUpdated={() => {}} onRoleChanged={handleRoleChanged} />)}
+            {filtered.map(u => <UserRow key={u.id} u={u} onUpdated={() => {}} onRoleChanged={handleRoleChanged} onDeleted={handleDeleted} />)}
           </div>
         </Card>
       )}

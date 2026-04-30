@@ -68,6 +68,13 @@ export default function CitationsHome() {
   const totalSubmitted = batches.reduce((s, b) => s + (b.submitted || 0), 0)
 
   const handleStartJob = async () => {
+    const required = ['businessName', 'phone', 'address', 'city', 'state', 'zip']
+    const missing = required.filter(f => !userProfile?.[f])
+    if (missing.length > 0 || !userProfile?.citationsSetupCompleted) {
+      toast('Complete your Citations Setup first so we have your business info ready.', 'warning')
+      navigate('/citations/setup')
+      return
+    }
     setStarting(true)
     try {
       await startCitationsJob({})

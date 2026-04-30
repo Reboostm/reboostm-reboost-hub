@@ -1,6 +1,8 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { CheckCircle2 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useToast } from '../../hooks/useToast'
 import { profileSchema } from '../../utils/validators'
@@ -13,6 +15,8 @@ import { NICHES, US_STATES } from '../../config'
 export default function Profile() {
   const { userProfile, updateProfile } = useAuth()
   const { toast } = useToast()
+  const navigate = useNavigate()
+  const [saved, setSaved] = useState(false)
 
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm({
     resolver: zodResolver(profileSchema),
@@ -22,23 +26,55 @@ export default function Profile() {
     if (userProfile) reset(userProfile)
   }, [userProfile, reset])
 
+  const isFirstTime = !userProfile?.businessName
+
   const onSubmit = async (data) => {
     try {
       await updateProfile(data)
-      toast('Profile saved.', 'success')
+      if (isFirstTime) {
+        setSaved(true)
+      } else {
+        toast('Profile saved.', 'success')
+      }
     } catch (err) {
       console.error('Profile save error:', err)
       toast(err?.message || 'Failed to save profile. Please try again.', 'error')
     }
   }
 
+  if (saved) {
+    return (
+      <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center">
+        <div className="w-16 h-16 bg-hub-green/10 border border-hub-green/30 rounded-full flex items-center justify-center mx-auto mb-5">
+          <CheckCircle2 className="w-8 h-8 text-hub-green" />
+        </div>
+        <h2 className="text-2xl font-semibold text-hub-text mb-2">You're all set!</h2>
+        <p className="text-hub-text-secondary text-sm max-w-sm mb-6">
+          Your dashboard is now personalized for your business. Everything you need to grow your local presence is ready to go.
+        </p>
+        <Button onClick={() => navigate('/audit')}>Go to My Dashboard</Button>
+      </div>
+    )
+  }
+
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-hub-text">Please Update Your Business Info</h1>
-        <p className="text-hub-text-secondary text-sm mt-2">
-          This information helps us customize your dashboard and is used on your content, reviews, and marketing materials.
-        </p>
+        {isFirstTime ? (
+          <>
+            <h1 className="text-2xl font-semibold text-hub-text">Welcome to ReBoost Marketing HUB!</h1>
+            <p className="text-hub-text-secondary text-sm mt-2">
+              Before you dive in, take 60 seconds to tell us about your business. This personalizes everything in your dashboard — your content, your reports, and your marketing materials — so it all speaks directly to your customers.
+            </p>
+          </>
+        ) : (
+          <>
+            <h1 className="text-2xl font-semibold text-hub-text">Business Profile</h1>
+            <p className="text-hub-text-secondary text-sm mt-2">
+              This information is used on your content, reviews, and marketing materials.
+            </p>
+          </>
+        )}
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">

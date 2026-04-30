@@ -62,7 +62,9 @@ export function AuthProvider({ children }) {
 
   const logout = () => signOut(auth)
 
-  const resetPassword = (email) => sendPasswordResetEmail(auth, email)
+  const resetPassword = (email) => sendPasswordResetEmail(auth, email, {
+    url: `${window.location.origin}/login`,
+  })
 
   const updateProfile_ = async (data) => {
     if (!user) return
