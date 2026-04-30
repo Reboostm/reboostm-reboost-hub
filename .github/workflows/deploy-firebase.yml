@@ -1,0 +1,23 @@
+name: Deploy Firebase Rules & Indexes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'firestore.rules'
+      - 'firestore.indexes.json'
+      - 'storage.rules'
+      - 'firebase.json'
+      - '.firebaserc'
+
+jobs:
+  deploy-firestore-rules:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Deploy Firebase Rules & Indexes
+        run: firebase deploy --only firestore,storage --project reboost-hub --token ${{ secrets.FIREBASE_TOKEN }}
