@@ -6,9 +6,10 @@ import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
 import { createOffer, updateOffer, deleteOffer, getOffers } from '../../services/firestore'
 import { useToast } from '../../hooks/useToast'
+import { db } from '../../services/firebase'
 
 const FEATURE_TABS = [
-  { key: 'citations',       label: 'Citations',          icon: BookOpen,   tiers: [{ value: 'citations_starter', label: 'Starter (100 dirs)' }, { value: 'citations_pro', label: 'Pro (200 dirs)' }, { value: 'citations_premium', label: 'Premium (300 dirs)' }] },
+  { key: 'citations',       label: 'Citations',          icon: BookOpen,   tiers: [] }, // Will be loaded dynamically
   { key: 'scheduler',       label: 'Scheduler',          icon: Calendar,   tiers: [{ value: 'basic', label: 'Basic' }, { value: 'pro', label: 'Pro' }] },
   { key: 'reviewManager',   label: 'Review Manager',     icon: Star,       tiers: [] },
   { key: 'rankTracker',     label: 'Rank Tracker',       icon: TrendingUp, tiers: [] },
@@ -25,7 +26,37 @@ const OFFER_TYPES = [
 function OfferForm({ offer, activeTab, onSave, onCancel }) {
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
-  const tabDef = FEATURE_TABS.find(t => t.key === activeTab) || FEATURE_TABS[0]
+  const [citationTiers, setCitationTiers] = useState([])
+  const [loadingTiers, setLoadingTiers] = useState(false)
+
+  // Load citation packages when citations tab is active
+  useEffect(() => {
+    if (activeTab !== 'citations') return
+
+    const loadTiers = async () => {
+      setLoadingTiers(true)
+      try {
+        const snap = await db.collection('citation_packages').get()
+        const tiers = snap.docs.map(doc => ({
+          value: doc.id,
+          label: doc.data().name + ` (${doc.data().count} sites)`,
+        }))
+        setCitationTiers(tiers)
+      } catch (err) {
+        console.error('Error loading citation packages:', err)
+        toast('Error loading citation packages', 'error')
+      } finally {
+        setLoadingTiers(false)
+      }
+    }
+
+    loadTiers()
+  }, [activeTab, toast])
+
+  const tabDef = {
+    ...FEATURE_TABS.find(t => t.key === activeTab),
+    tiers: activeTab === 'citations' ? citationTiers : FEATURE_TABS.find(t => t.key === activeTab)?.tiers || [],
+  }
 
   const [form, setForm] = useState(() => offer || {
     name: '',
@@ -127,13 +158,16 @@ function OfferForm({ offer, activeTab, onSave, onCancel }) {
       {/* Tier selector — only for features that have tiers */}
       {tabDef.tiers.length > 0 && (
         <div>
-          <label className="text-xs font-medium text-hub-text-muted block mb-1.5">Tier this offer unlocks</label>
+          <label className="text-xs font-medium text-hub-text-muted block mb-1.5">
+            {activeTab === 'citations' ? 'Citation Package' : 'Tier'} this offer unlocks
+          </label>
           <select
             value={form.tier}
             onChange={e => set('tier', e.target.value)}
-            className="w-full bg-hub-input border border-hub-border rounded-lg px-3 py-2.5 text-sm text-hub-text focus:outline-none focus:border-hub-blue"
+            disabled={activeTab === 'citations' && loadingTiers}
+            className="w-full bg-hub-input border border-hub-border rounded-lg px-3 py-2.5 text-sm text-hub-text focus:outline-none focus:border-hub-blue disabled:opacity-50"
           >
-            <option value="">— Select tier —</option>
+            <option value="">— {activeTab === 'citations' && loadingTiers ? 'Loading packages...' : 'Select ' + (activeTab === 'citations' ? 'package' : 'tier') + ' —'}</option>
             {tabDef.tiers.map(t => (
               <option key={t.value} value={t.value}>{t.label}</option>
             ))}
