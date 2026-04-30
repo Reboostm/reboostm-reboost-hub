@@ -16,6 +16,8 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
   const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [impersonatedUserId, setImpersonatedUserId] = useState(null)
+  const [impersonatedProfile, setImpersonatedProfile] = useState(null)
 
   useEffect(() => {
     let unsubProfile = null
@@ -45,6 +47,16 @@ export function AuthProvider({ children }) {
       if (unsubProfile) unsubProfile()
     }
   }, [])
+
+  // Handle admin impersonation subscription
+  useEffect(() => {
+    if (!impersonatedUserId) {
+      setImpersonatedProfile(null)
+      return
+    }
+    const unsubImpersonated = subscribeToUserProfile(impersonatedUserId, setImpersonatedProfile)
+    return () => unsubImpersonated()
+  }, [impersonatedUserId])
 
   const login = (email, password) =>
     signInWithEmailAndPassword(auth, email, password)
@@ -78,6 +90,11 @@ export function AuthProvider({ children }) {
   const isStaff = userProfile?.role === 'staff' || isAdmin
   const isClient = userProfile?.role === 'client'
 
+  // Impersonation derived state
+  const effectiveProfile = impersonatedUserId ? impersonatedProfile : userProfile
+  const effectiveUserId = impersonatedUserId || user?.uid
+  const isViewingAs = !!impersonatedUserId
+
   return (
     <AuthContext.Provider value={{
       user,
@@ -92,6 +109,11 @@ export function AuthProvider({ children }) {
       resetPassword,
       updateProfile: updateProfile_,
       setUserProfile,
+      impersonatedUserId,
+      setImpersonatedUserId,
+      effectiveProfile,
+      effectiveUserId,
+      isViewingAs,
     }}>
       {children}
     </AuthContext.Provider>
@@ -101,5 +123,9 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be used within AuthProvider')
+
+  // Return the context directly - effectiveProfile and effectiveUserId
+  // are already available for use, but don't override user/userProfile by default
+  // Components can opt-in by using effectiveProfile/effectiveUserId
   return ctx
 }

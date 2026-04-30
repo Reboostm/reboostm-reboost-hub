@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   Users, Loader2, RotateCcw, ChevronDown, ChevronUp, CheckCircle,
   Search, UserPlus, BookOpen, Star, TrendingUp,
-  Calendar, Sparkles, Image, Settings2, Trash2,
+  Calendar, Sparkles, Image, Settings2, Trash2, Eye,
 } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -291,6 +291,7 @@ function UserRow({ u, onUpdated, onRoleChanged, onDeleted }) {
   const activeCount = TOOL_FLAGS.filter(f => f.check(userData)).length
   const isClient = userData.role === 'client'
   const { toast } = useToast()
+  const { setImpersonatedUserId } = useAuth()
 
   const handleUpdated = (updated) => setUserData(updated)
   const handleRoleChanged = (uid, newRole) => {
@@ -328,6 +329,14 @@ function UserRow({ u, onUpdated, onRoleChanged, onDeleted }) {
           <RoleDropdown userId={userData.id} currentRole={userData.role || 'client'} onChanged={handleRoleChanged} />
           {isClient && (
             <>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={e => { e.stopPropagation(); setImpersonatedUserId(userData.id) }}
+                title="View as this user"
+              >
+                <Eye className="w-3.5 h-3.5" />
+              </Button>
               <Button size="sm" variant="secondary" onClick={e => { e.stopPropagation(); setShowAccess(true) }}>
                 <Settings2 className="w-3.5 h-3.5 mr-1" /> Manage
               </Button>
