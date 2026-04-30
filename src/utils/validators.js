@@ -86,14 +86,15 @@ export const citationsSetupSchema = z.object({
   state: z.string().min(2, 'State required'),
   zip: z.string().regex(/^\d{5}(-\d{4})?$/, 'Invalid ZIP code'),
 
-  // Phase 1 - Hours & Description
+  // Step 1 - Hours, Category & Description
   businessHours: z.string().min(1, 'Business hours required'),
+  category: z.string().optional(),
   description: z.string().min(10, 'Description at least 10 characters').max(500, 'Max 500 characters'),
 
   // Phase 2 - Full Submission
   shortDesc: z.string().max(160, 'Max 160 characters').optional(),
   longDesc: z.string().max(2000, 'Max 2000 characters').optional(),
-  publicEmail: z.string().email().optional().or(z.literal('')),
+  contactEmail: z.string().email().optional().or(z.literal('')),
   facebook: z.string().url().optional().or(z.literal('')),
   instagram: z.string().url().optional().or(z.literal('')),
   linkedin: z.string().url().optional().or(z.literal('')),

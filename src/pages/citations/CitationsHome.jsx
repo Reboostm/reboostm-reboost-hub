@@ -140,7 +140,7 @@ export default function CitationsHome() {
         <div className="flex gap-2 flex-shrink-0">
           <Button variant="secondary" onClick={() => navigate('/citations/setup')}>
             <Settings className="w-4 h-4" />
-            Business Info
+            Business Submission Info
           </Button>
           {!activeBatch && !batchesLoading && (
             <Button onClick={handleStartJob} loading={starting}>
