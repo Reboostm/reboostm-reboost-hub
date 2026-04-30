@@ -466,7 +466,7 @@ function AddKeywordModal({ isOpen, onClose, userId, onAdded }) {
 
 export default function Keywords() {
   const { hasRankTracker } = useBilling()
-  const { effectiveUserId } = useAuth()
+  const { user, effectiveUserId } = useAuth()
   const { toast } = useToast()
 
   const [keywords, setKeywords] = useState([])
@@ -765,7 +765,7 @@ export default function Keywords() {
       <AddKeywordModal
         isOpen={showAdd}
         onClose={() => setShowAdd(false)}
-        userId={user?.uid}
+        userId={effectiveUserId}
         onAdded={() => {}}
       />
     </div>
