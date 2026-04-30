@@ -13,6 +13,7 @@ import { useToast } from '../../hooks/useToast'
 import ToolGate from '../../components/ui/ToolGate'
 import { subscribeToCitationsBatches } from '../../services/firestore'
 import { startCitationsJob } from '../../services/functions'
+import CitationsPackageBar from '../../components/citations/CitationsPackageBar'
 import { cn } from '../../utils/cn'
 
 const PACKAGE_TIERS = {
@@ -212,6 +213,8 @@ export default function CitationsJobs() {
           </Button>
         )}
       </div>
+
+      <CitationsPackageBar />
 
       {loading ? (
         <Card className="flex items-center justify-center py-16">

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   BookOpen, CheckCircle, List, Activity, BarChart2,
-  Play, Loader2, ChevronRight, Package, Settings, ArrowUpCircle,
+  Play, Loader2, ChevronRight, Package, Settings,
 } from 'lucide-react'
 import Card, { CardHeader, CardTitle } from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -11,9 +11,9 @@ import { useAuth } from '../../hooks/useAuth'
 import { useBilling } from '../../hooks/useBilling'
 import { useToast } from '../../hooks/useToast'
 import ToolGate from '../../components/ui/ToolGate'
+import CitationsPackageBar from '../../components/citations/CitationsPackageBar'
 import { subscribeToCitationsBatches } from '../../services/firestore'
 import { startCitationsJob } from '../../services/functions'
-import { getActiveOffers, redirectToCheckout } from '../../services/stripe'
 import { cn } from '../../utils/cn'
 
 const PACKAGE_TIERS = {
@@ -47,8 +47,6 @@ export default function CitationsHome() {
   const [batches, setBatches] = useState([])
   const [batchesLoading, setBatchesLoading] = useState(true)
   const [starting, setStarting] = useState(false)
-  const [upgradeOffers, setUpgradeOffers] = useState([])
-  const [purchasing, setPurchasing] = useState(null)
 
   useEffect(() => {
     if (!userProfile?.id) return
@@ -60,31 +58,7 @@ export default function CitationsHome() {
   }, [userProfile?.id])
 
   const packageId = userProfile?.purchases?.citationsPackageId
-  const tier = PACKAGE_TIERS[packageId] || { label: 'Active', count: 100, variant: 'info', rank: 1 }
-
-  useEffect(() => {
-    if (!hasCitations) return
-    getActiveOffers()
-      .then(offers => {
-        const upgrades = offers.filter(o =>
-          o.unlocksFeature === 'citations' &&
-          (PACKAGE_TIERS[o.tier]?.rank || 0) > tier.rank
-        )
-        setUpgradeOffers(upgrades)
-      })
-      .catch(() => {})
-  }, [hasCitations, tier.rank])
-
-  const handleUpgrade = async (offerId) => {
-    if (!offerId) return
-    setPurchasing(offerId)
-    try {
-      await redirectToCheckout(offerId)
-    } catch {
-      toast('Could not start checkout. Please try again.', 'error')
-      setPurchasing(null)
-    }
-  }
+  const tier = PACKAGE_TIERS[packageId] || { label: 'Starter', count: 100, variant: 'info', rank: 1 }
 
   if (!hasCitations) return <ToolGate tool="citations" />
 
@@ -98,7 +72,7 @@ export default function CitationsHome() {
     const required = ['businessName', 'phone', 'address', 'city', 'state', 'zip']
     const missing = required.filter(f => !userProfile?.[f])
     if (missing.length > 0 || !userProfile?.citationsSetupCompleted) {
-      toast('Complete your Citations Setup first so we have your business info ready.', 'warning')
+      toast('Complete your Business Submission Info first so we have your business info ready.', 'warning')
       navigate('/citations/setup')
       return
     }
@@ -120,36 +94,31 @@ export default function CitationsHome() {
   return (
     <div className="p-6 max-w-4xl">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
-        <div>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="w-10 h-10 rounded-xl bg-hub-blue/10 flex items-center justify-center">
-              <BookOpen className="w-5 h-5 text-hub-blue" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-2xl font-semibold text-hub-text">Citations</h1>
-                <Badge variant={tier.variant}>{tier.label} — {tier.count} dirs</Badge>
-              </div>
-              <p className="text-hub-text-secondary text-sm mt-0.5">
-                Business listings across top directories
-              </p>
-            </div>
+      <div className="mb-6">
+        <div className="flex items-start justify-between">
+          <div>
+            <h1 className="text-4xl font-bold text-hub-text tracking-tight">Citations</h1>
+            <p className="text-hub-text-secondary text-sm mt-1">
+              Business listings across top directories
+            </p>
+          </div>
+          <div className="flex gap-2 flex-shrink-0 mt-1">
+            <Button variant="secondary" onClick={() => navigate('/citations/setup')}>
+              <Settings className="w-4 h-4" />
+              Business Submission Info
+            </Button>
+            {!activeBatch && !batchesLoading && (
+              <Button onClick={handleStartJob} loading={starting}>
+                <Play className="w-4 h-4" />
+                Start Submission
+              </Button>
+            )}
           </div>
         </div>
-        <div className="flex gap-2 flex-shrink-0">
-          <Button variant="secondary" onClick={() => navigate('/citations/setup')}>
-            <Settings className="w-4 h-4" />
-            Business Submission Info
-          </Button>
-          {!activeBatch && !batchesLoading && (
-            <Button onClick={handleStartJob} loading={starting}>
-              <Play className="w-4 h-4" />
-              Start Submission
-            </Button>
-          )}
-        </div>
       </div>
+
+      {/* Package tier bar */}
+      <CitationsPackageBar />
 
       {/* Stats row */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
@@ -284,40 +253,6 @@ export default function CitationsHome() {
           </Link>
         ))}
       </div>
-
-      {/* Upgrade section — only shown when higher tiers are available */}
-      {upgradeOffers.length > 0 && (
-        <div className="mt-8">
-          <div className="flex items-center gap-2 mb-4">
-            <ArrowUpCircle className="w-5 h-5 text-hub-blue" />
-            <h2 className="text-base font-semibold text-hub-text">Upgrade Your Package</h2>
-            <span className="text-xs text-hub-text-muted">Get more directories at a discounted upgrade price</span>
-          </div>
-          <div className="flex flex-col gap-3">
-            {upgradeOffers.map(offer => (
-              <div key={offer.id} className="flex items-center justify-between bg-hub-card border border-hub-blue/30 rounded-xl px-5 py-4">
-                <div>
-                  <p className="text-sm font-medium text-hub-text">{offer.name}</p>
-                  <p className="text-xs text-hub-text-muted mt-0.5">
-                    {PACKAGE_TIERS[offer.tier]?.count || '?'} directories total
-                  </p>
-                  <p className="text-hub-blue font-semibold mt-0.5">
-                    ${offer.price} {offer.type === 'subscription' ? '/mo' : 'one-time'}
-                  </p>
-                </div>
-                <Button
-                  size="sm"
-                  disabled={!offer.stripePriceId}
-                  loading={purchasing === offer.id}
-                  onClick={() => handleUpgrade(offer.id)}
-                >
-                  {offer.stripePriceId ? 'Upgrade Now' : 'Coming Soon'}
-                </Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   )
 }

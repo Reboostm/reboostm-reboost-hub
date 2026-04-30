@@ -14,6 +14,7 @@ import {
   subscribeToCitationsBatches,
   subscribeToCitationsDirectories,
 } from '../../services/firestore'
+import CitationsPackageBar from '../../components/citations/CitationsPackageBar'
 import { cn } from '../../utils/cn'
 
 const STATUS_CONFIG = {
@@ -108,6 +109,8 @@ export default function CitationsDirs() {
           </p>
         </div>
       </div>
+
+      <CitationsPackageBar />
 
       {batchesLoading ? (
         <Card className="flex items-center justify-center py-16">
