@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Edit2, Trash2, Loader2, DollarSign } from 'lucide-react'
+import { Plus, Edit2, Trash2, Loader2, DollarSign, BookOpen, Star, TrendingUp, Calendar, Sparkles, Users, Tag } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
@@ -7,44 +7,53 @@ import Modal from '../../components/ui/Modal'
 import { createOffer, updateOffer, deleteOffer, getOffers } from '../../services/firestore'
 import { useToast } from '../../hooks/useToast'
 
-const FEATURE_OPTIONS = [
-  'scheduler', 'reviewManager', 'rankTracker', 'citations', 'leadCredits', 'calendar', 'outreachTemplates'
+const FEATURE_TABS = [
+  { key: 'citations',       label: 'Citations',          icon: BookOpen,   tiers: [{ value: 'citations_starter', label: 'Starter (100 dirs)' }, { value: 'citations_pro', label: 'Pro (200 dirs)' }, { value: 'citations_premium', label: 'Premium (300 dirs)' }] },
+  { key: 'scheduler',       label: 'Scheduler',          icon: Calendar,   tiers: [{ value: 'basic', label: 'Basic' }, { value: 'pro', label: 'Pro' }] },
+  { key: 'reviewManager',   label: 'Review Manager',     icon: Star,       tiers: [] },
+  { key: 'rankTracker',     label: 'Rank Tracker',       icon: TrendingUp, tiers: [] },
+  { key: 'leadCredits',     label: 'Lead Generator',     icon: Users,      tiers: [] },
+  { key: 'calendar',        label: 'Celebrity Content',  icon: Sparkles,   tiers: [] },
+  { key: 'other',           label: 'Other',              icon: Tag,        tiers: [] },
 ]
 
 const OFFER_TYPES = [
-  { value: 'subscription', label: 'Subscription (recurring monthly/yearly)' },
-  { value: 'payment', label: 'One-time Purchase' },
+  { value: 'subscription', label: 'Subscription (monthly)' },
+  { value: 'payment',      label: 'One-time Purchase' },
 ]
 
-function OfferForm({ offer, onSave, onCancel }) {
+function OfferForm({ offer, activeTab, onSave, onCancel }) {
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
-  const [form, setForm] = useState(offer || {
+  const tabDef = FEATURE_TABS.find(t => t.key === activeTab) || FEATURE_TABS[0]
+
+  const [form, setForm] = useState(() => offer || {
     name: '',
     description: '',
     price: '',
     stripePriceId: '',
-    type: 'subscription',
-    unlocksFeature: '',
+    type: 'payment',
+    unlocksFeature: activeTab === 'other' ? '' : activeTab,
     tier: '',
+    isUpgrade: false,
     active: true,
   })
 
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
 
   const handleSave = async () => {
-    if (!form.name || !form.price || !form.type || !form.unlocksFeature) {
-      toast('Name, price, type, and feature are required.', 'warning')
+    if (!form.name || !form.price || !form.type || (!form.unlocksFeature && activeTab !== 'other')) {
+      toast('Name, price, and type are required.', 'warning')
       return
     }
-
+    const payload = { ...form, unlocksFeature: activeTab === 'other' ? form.unlocksFeature : activeTab }
     setSaving(true)
     try {
       if (offer?.id) {
-        await updateOffer(offer.id, form)
+        await updateOffer(offer.id, payload)
         toast('Offer updated!', 'success')
       } else {
-        await createOffer(form)
+        await createOffer(payload)
         toast('Offer created!', 'success')
       }
       onSave()
@@ -58,15 +67,32 @@ function OfferForm({ offer, onSave, onCancel }) {
 
   return (
     <div className="space-y-4">
+      {/* Upgrade toggle — shown for features that have tiers */}
+      {tabDef.tiers.length > 0 && (
+        <div className={`flex items-center gap-3 p-3 rounded-xl border ${form.isUpgrade ? 'bg-hub-blue/10 border-hub-blue/40' : 'bg-hub-input border-hub-border'}`}>
+          <input
+            type="checkbox"
+            id="isUpgrade"
+            checked={!!form.isUpgrade}
+            onChange={e => set('isUpgrade', e.target.checked)}
+            className="w-4 h-4 rounded border border-hub-border bg-hub-card accent-hub-blue"
+          />
+          <div>
+            <label htmlFor="isUpgrade" className="text-sm font-medium text-hub-text cursor-pointer">Upgrade offer</label>
+            <p className="text-xs text-hub-text-muted">Check this if customers who already have a lower tier should see this offer (upgrade pricing)</p>
+          </div>
+        </div>
+      )}
+
       <input
-        placeholder="Offer name (e.g., 'Scheduler Pro')"
+        placeholder="Offer name (e.g., 'Citation Starter — 100 Directories')"
         value={form.name}
         onChange={e => set('name', e.target.value)}
         className="w-full bg-hub-input border border-hub-border rounded-lg px-3 py-2.5 text-sm text-hub-text placeholder:text-hub-text-muted focus:outline-none focus:border-hub-blue"
       />
 
       <textarea
-        placeholder="Description (e.g., '10 accounts, unlimited posts')"
+        placeholder="Short description shown to customers (e.g., 'Get listed in 100 top business directories')"
         value={form.description}
         onChange={e => set('description', e.target.value)}
         rows={2}
@@ -74,57 +100,71 @@ function OfferForm({ offer, onSave, onCancel }) {
       />
 
       <div className="grid grid-cols-2 gap-3">
-        <input
-          placeholder="Price (e.g., 49 or 97)"
-          type="number"
-          value={form.price}
-          onChange={e => set('price', e.target.value)}
-          className="bg-hub-input border border-hub-border rounded-lg px-3 py-2.5 text-sm text-hub-text placeholder:text-hub-text-muted focus:outline-none focus:border-hub-blue"
-        />
-        <select
-          value={form.type}
-          onChange={e => set('type', e.target.value)}
-          className="bg-hub-input border border-hub-border rounded-lg px-3 py-2.5 text-sm text-hub-text focus:outline-none focus:border-hub-blue"
-        >
-          {OFFER_TYPES.map(t => (
-            <option key={t.value} value={t.value}>{t.label}</option>
-          ))}
-        </select>
+        <div>
+          <label className="text-xs font-medium text-hub-text-muted block mb-1.5">Price ($)</label>
+          <input
+            placeholder="e.g. 197"
+            type="number"
+            value={form.price}
+            onChange={e => set('price', e.target.value)}
+            className="w-full bg-hub-input border border-hub-border rounded-lg px-3 py-2.5 text-sm text-hub-text placeholder:text-hub-text-muted focus:outline-none focus:border-hub-blue"
+          />
+        </div>
+        <div>
+          <label className="text-xs font-medium text-hub-text-muted block mb-1.5">Payment type</label>
+          <select
+            value={form.type}
+            onChange={e => set('type', e.target.value)}
+            className="w-full bg-hub-input border border-hub-border rounded-lg px-3 py-2.5 text-sm text-hub-text focus:outline-none focus:border-hub-blue"
+          >
+            {OFFER_TYPES.map(t => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <select
-          value={form.unlocksFeature}
-          onChange={e => set('unlocksFeature', e.target.value)}
-          className="bg-hub-input border border-hub-border rounded-lg px-3 py-2.5 text-sm text-hub-text focus:outline-none focus:border-hub-blue"
-        >
-          <option value="">— Feature this unlocks —</option>
-          {FEATURE_OPTIONS.map(f => (
-            <option key={f} value={f}>{f}</option>
-          ))}
-        </select>
+      {/* Tier selector — only for features that have tiers */}
+      {tabDef.tiers.length > 0 && (
+        <div>
+          <label className="text-xs font-medium text-hub-text-muted block mb-1.5">Tier this offer unlocks</label>
+          <select
+            value={form.tier}
+            onChange={e => set('tier', e.target.value)}
+            className="w-full bg-hub-input border border-hub-border rounded-lg px-3 py-2.5 text-sm text-hub-text focus:outline-none focus:border-hub-blue"
+          >
+            <option value="">— Select tier —</option>
+            {tabDef.tiers.map(t => (
+              <option key={t.value} value={t.value}>{t.label}</option>
+            ))}
+          </select>
+        </div>
+      )}
 
-        <input
-          placeholder="Tier (e.g., 'basic' or 'pro') — optional"
-          value={form.tier}
-          onChange={e => set('tier', e.target.value)}
-          className="bg-hub-input border border-hub-border rounded-lg px-3 py-2.5 text-sm text-hub-text placeholder:text-hub-text-muted focus:outline-none focus:border-hub-blue"
-        />
-      </div>
+      {/* Other tab — manual feature selection */}
+      {activeTab === 'other' && (
+        <div>
+          <label className="text-xs font-medium text-hub-text-muted block mb-1.5">Feature this unlocks</label>
+          <input
+            placeholder="e.g. outreachTemplates"
+            value={form.unlocksFeature}
+            onChange={e => set('unlocksFeature', e.target.value)}
+            className="w-full bg-hub-input border border-hub-border rounded-lg px-3 py-2.5 text-sm text-hub-text placeholder:text-hub-text-muted focus:outline-none focus:border-hub-blue"
+          />
+        </div>
+      )}
 
       <div className="bg-hub-input/50 border border-hub-border rounded-lg p-3">
         <label className="text-xs font-medium text-hub-text-muted block mb-2">
-          Stripe Price ID (optional — add later)
+          Stripe Price ID <span className="text-hub-text-muted font-normal">(add later — save without it to test)</span>
         </label>
         <input
-          placeholder="price_... (from Stripe Dashboard)"
+          placeholder="price_xxxxxxxxxxxxxxxxxxxx"
           value={form.stripePriceId}
           onChange={e => set('stripePriceId', e.target.value)}
           className="w-full bg-hub-card border border-hub-border rounded px-2 py-1.5 text-xs text-hub-text placeholder:text-hub-text-muted focus:outline-none focus:border-hub-blue font-mono"
         />
-        <p className="text-xs text-hub-text-muted mt-1.5">
-          ℹ️ Save without this for testing. Add it later when you've created the price in Stripe.
-        </p>
+        <p className="text-xs text-hub-text-muted mt-1.5">Copy from Stripe Dashboard → Products → your product → the price row</p>
       </div>
 
       <label className="flex items-center gap-2 cursor-pointer">
@@ -134,14 +174,46 @@ function OfferForm({ offer, onSave, onCancel }) {
           onChange={e => set('active', e.target.checked)}
           className="w-4 h-4 rounded border border-hub-border bg-hub-input accent-hub-blue"
         />
-        <span className="text-sm text-hub-text">Active (show to customers)</span>
+        <span className="text-sm text-hub-text">Active (visible to customers)</span>
       </label>
 
       <div className="flex gap-2">
         <Button onClick={handleSave} disabled={saving} size="sm">
-          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Offer'}
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : (offer?.id ? 'Save Changes' : 'Create Offer')}
         </Button>
         <Button variant="secondary" onClick={onCancel} size="sm">Cancel</Button>
+      </div>
+    </div>
+  )
+}
+
+function OfferCard({ offer, onEdit, onDelete, deleting }) {
+  return (
+    <div className="flex items-center gap-4 px-5 py-4 border-b border-hub-border/50 last:border-0 hover:bg-hub-input/20 transition-colors">
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <p className="text-sm font-semibold text-hub-text">{offer.name}</p>
+          {offer.isUpgrade && <Badge variant="info" size="sm">Upgrade</Badge>}
+          <Badge variant={offer.active ? 'success' : 'gray'} size="sm">{offer.active ? 'Active' : 'Off'}</Badge>
+          <Badge variant="orange" size="sm">{offer.type === 'subscription' ? 'Monthly' : 'One-time'}</Badge>
+        </div>
+        {offer.description && <p className="text-xs text-hub-text-muted mb-1.5">{offer.description}</p>}
+        <div className="flex gap-3 text-xs text-hub-text-muted flex-wrap">
+          <span className="font-semibold text-hub-text">${offer.price}</span>
+          {offer.tier && <span className="capitalize text-hub-blue">{offer.tier.replace('citations_', '')}</span>}
+          {offer.stripePriceId
+            ? <span className="text-hub-green">Stripe connected</span>
+            : <span className="text-hub-yellow">No Stripe ID yet</span>
+          }
+        </div>
+      </div>
+      <div className="flex gap-1 flex-shrink-0">
+        <button onClick={() => onEdit(offer)} className="text-hub-text-muted hover:text-hub-blue transition-colors p-2 hover:bg-hub-input rounded">
+          <Edit2 className="w-4 h-4" />
+        </button>
+        <button onClick={() => onDelete(offer.id)} disabled={deleting === offer.id} className="text-hub-text-muted hover:text-hub-red transition-colors p-2 hover:bg-hub-input rounded disabled:opacity-40">
+          {deleting === offer.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+        </button>
       </div>
     </div>
   )
@@ -151,9 +223,11 @@ export default function AdminOffers() {
   const { toast } = useToast()
   const [offers, setOffers] = useState([])
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('citations')
   const [modalOpen, setModalOpen] = useState(false)
   const [editingOffer, setEditingOffer] = useState(null)
   const [deleting, setDeleting] = useState(null)
+  const [confirmDelete, setConfirmDelete] = useState(null)
 
   const load = () => {
     setLoading(true)
@@ -162,8 +236,16 @@ export default function AdminOffers() {
 
   useEffect(() => { load() }, [])
 
+  const tabOffers = offers.filter(o =>
+    activeTab === 'other'
+      ? !FEATURE_TABS.slice(0, -1).some(t => t.key === o.unlocksFeature)
+      : o.unlocksFeature === activeTab
+  )
+
+  const newOffers     = tabOffers.filter(o => !o.isUpgrade)
+  const upgradeOffers = tabOffers.filter(o => !!o.isUpgrade)
+
   const handleDelete = async (id) => {
-    if (!window.confirm('Delete this offer?')) return
     setDeleting(id)
     try {
       await deleteOffer(id)
@@ -173,23 +255,16 @@ export default function AdminOffers() {
       toast('Failed to delete.', 'error')
     } finally {
       setDeleting(null)
+      setConfirmDelete(null)
     }
   }
 
-  const openCreate = () => {
-    setEditingOffer(null)
-    setModalOpen(true)
-  }
+  const openCreate = () => { setEditingOffer(null); setModalOpen(true) }
+  const openEdit   = (offer) => { setEditingOffer(offer); setModalOpen(true) }
+  const handleSave = () => { setModalOpen(false); load() }
 
-  const openEdit = (offer) => {
-    setEditingOffer(offer)
-    setModalOpen(true)
-  }
-
-  const handleSave = () => {
-    setModalOpen(false)
-    load()
-  }
+  const tabDef = FEATURE_TABS.find(t => t.key === activeTab)
+  const hasTiers = tabDef?.tiers?.length > 0
 
   return (
     <div className="p-6 max-w-5xl space-y-6">
@@ -197,7 +272,7 @@ export default function AdminOffers() {
         <div>
           <h1 className="text-2xl font-semibold text-hub-text">Offers & Pricing</h1>
           <p className="text-hub-text-secondary text-sm mt-0.5">
-            Create subscriptions and one-time purchases. Add Stripe Price IDs to make them purchasable.
+            Manage pricing for each tool. Add Stripe Price IDs to activate checkout.
           </p>
         </div>
         <Button onClick={openCreate} size="sm">
@@ -205,73 +280,96 @@ export default function AdminOffers() {
         </Button>
       </div>
 
+      {/* Feature tabs */}
+      <div className="flex gap-1.5 flex-wrap">
+        {FEATURE_TABS.map(tab => {
+          const count = offers.filter(o =>
+            tab.key === 'other'
+              ? !FEATURE_TABS.slice(0, -1).some(t => t.key === o.unlocksFeature)
+              : o.unlocksFeature === tab.key
+          ).length
+          const Icon = tab.icon
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                activeTab === tab.key
+                  ? 'bg-hub-blue text-white'
+                  : 'bg-hub-input border border-hub-border text-hub-text-muted hover:text-hub-text hover:border-hub-blue/40'
+              }`}
+            >
+              <Icon className="w-3.5 h-3.5" />
+              {tab.label}
+              {count > 0 && (
+                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${activeTab === tab.key ? 'bg-white/20 text-white' : 'bg-hub-card text-hub-text-muted'}`}>
+                  {count}
+                </span>
+              )}
+            </button>
+          )
+        })}
+      </div>
+
       {loading ? (
         <div className="flex justify-center py-12">
           <Loader2 className="w-5 h-5 animate-spin text-hub-text-muted" />
         </div>
-      ) : offers.length === 0 ? (
-        <Card className="text-center py-10">
-          <DollarSign className="w-8 h-8 text-hub-text-muted mx-auto mb-3 opacity-40" />
-          <p className="text-hub-text-muted text-sm">No offers yet. Create one to get started.</p>
-        </Card>
       ) : (
-        <div className="space-y-3">
-          {offers.map(offer => (
-            <Card key={offer.id} padding={false}>
-              <div className="flex items-center gap-4 px-5 py-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="text-sm font-semibold text-hub-text">{offer.name}</p>
-                    <Badge variant={offer.active ? 'success' : 'gray'} size="sm">
-                      {offer.active ? 'Active' : 'Inactive'}
-                    </Badge>
-                    <Badge variant="orange" size="sm" className="capitalize">
-                      {offer.type === 'subscription' ? 'Recurring' : 'One-time'}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-hub-text-muted mb-2">{offer.description}</p>
-                  <div className="flex gap-3 text-xs text-hub-text-muted">
-                    <span>${offer.price}</span>
-                    <span>→ {offer.unlocksFeature}</span>
-                    {offer.tier && <span className="capitalize">({offer.tier})</span>}
-                    {offer.stripePriceId
-                      ? <span className="text-hub-green">✓ Stripe ID set</span>
-                      : <span className="text-hub-red">⚠ No Stripe ID</span>
-                    }
-                  </div>
-                </div>
-                <div className="flex gap-2 flex-shrink-0">
-                  <button
-                    onClick={() => openEdit(offer)}
-                    className="text-hub-text-muted hover:text-hub-blue transition-colors p-2 hover:bg-hub-input rounded"
-                  >
-                    <Edit2 className="w-4 h-4" />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(offer.id)}
-                    disabled={deleting === offer.id}
-                    className="text-hub-text-muted hover:text-hub-red transition-colors p-2 hover:bg-hub-input rounded disabled:opacity-40"
-                  >
-                    {deleting === offer.id
-                      ? <Loader2 className="w-4 h-4 animate-spin" />
-                      : <Trash2 className="w-4 h-4" />
-                    }
-                  </button>
-                </div>
+        <div className="space-y-4">
+          {/* New customer offers */}
+          <Card padding={false}>
+            <div className="px-5 py-3 border-b border-hub-border flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-hub-text">New Customer Offers</p>
+                <p className="text-xs text-hub-text-muted">Shown to users who don't have this tool yet</p>
               </div>
+            </div>
+            {newOffers.length === 0 ? (
+              <div className="text-center py-8">
+                <DollarSign className="w-7 h-7 text-hub-text-muted mx-auto mb-2 opacity-40" />
+                <p className="text-hub-text-muted text-sm">No new-customer offers yet.</p>
+                <button onClick={openCreate} className="text-xs text-hub-blue hover:underline mt-1">Add one</button>
+              </div>
+            ) : (
+              newOffers.map(o => (
+                <OfferCard key={o.id} offer={o} onEdit={openEdit} onDelete={handleDelete} deleting={deleting} />
+              ))
+            )}
+          </Card>
+
+          {/* Upgrade offers — only shown for tools that have tiers */}
+          {hasTiers && (
+            <Card padding={false}>
+              <div className="px-5 py-3 border-b border-hub-border">
+                <p className="text-sm font-semibold text-hub-text">Upgrade Offers</p>
+                <p className="text-xs text-hub-text-muted">Shown only to existing customers who can upgrade to a higher tier</p>
+              </div>
+              {upgradeOffers.length === 0 ? (
+                <div className="text-center py-8">
+                  <p className="text-hub-text-muted text-sm">No upgrade offers yet.</p>
+                  <p className="text-xs text-hub-text-muted mt-1">Create an offer and check "Upgrade offer" to add one.</p>
+                  <button onClick={openCreate} className="text-xs text-hub-blue hover:underline mt-1">Add upgrade offer</button>
+                </div>
+              ) : (
+                upgradeOffers.map(o => (
+                  <OfferCard key={o.id} offer={o} onEdit={openEdit} onDelete={handleDelete} deleting={deleting} />
+                ))
+              )}
             </Card>
-          ))}
+          )}
         </div>
       )}
 
       <Modal
         isOpen={modalOpen}
         onClose={() => setModalOpen(false)}
-        title={editingOffer ? 'Edit Offer' : 'Create New Offer'}
+        title={editingOffer ? `Edit Offer — ${tabDef?.label}` : `New ${tabDef?.label} Offer`}
         size="lg"
       >
         <OfferForm
           offer={editingOffer}
+          activeTab={activeTab}
           onSave={handleSave}
           onCancel={() => setModalOpen(false)}
         />
