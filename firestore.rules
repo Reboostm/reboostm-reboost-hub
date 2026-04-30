@@ -127,17 +127,6 @@ service cloud.firestore {
       allow update, delete: if isAdmin();
     }
 
-    // ─── Tracked Keywords ────────────────────────────────────────────────────
-    match /trackedKeywords/{id} {
-      allow create: if isAuth();
-      allow read, update: if isAuth() && (
-        resource.data.userId == request.auth.uid || isStaff()
-      );
-      allow delete: if isAuth() && (
-        resource.data.userId == request.auth.uid || isAdmin()
-      );
-    }
-
     // ─── Support Tickets ─────────────────────────────────────────────────────
     match /supportTickets/{id} {
       allow create: if isAuth();

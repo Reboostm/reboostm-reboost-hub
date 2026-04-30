@@ -197,7 +197,7 @@ export async function deleteScheduledPost(postId) {
 
 export function subscribeToKeywords(userId, callback) {
   const q = query(
-    collection(db, 'trackedKeywords'),
+    collection(db, 'rankTracking'),
     where('userId', '==', userId),
     orderBy('createdAt', 'desc')
   )
@@ -207,7 +207,7 @@ export function subscribeToKeywords(userId, callback) {
 }
 
 export async function addKeyword(data) {
-  return addDoc(collection(db, 'trackedKeywords'), {
+  return addDoc(collection(db, 'rankTracking'), {
     ...data,
     currentRank: null,
     previousRank: null,
@@ -218,7 +218,7 @@ export async function addKeyword(data) {
 }
 
 export async function deleteKeyword(keywordId) {
-  await deleteDoc(doc(db, 'trackedKeywords', keywordId))
+  await deleteDoc(doc(db, 'rankTracking', keywordId))
 }
 
 export async function getRankHistory(keywordId) {
