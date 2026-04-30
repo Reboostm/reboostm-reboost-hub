@@ -466,7 +466,7 @@ function AddKeywordModal({ isOpen, onClose, userId, onAdded }) {
 
 export default function Keywords() {
   const { hasRankTracker } = useBilling()
-  const { user } = useAuth()
+  const { effectiveUserId } = useAuth()
   const { toast } = useToast()
 
   const [keywords, setKeywords] = useState([])
@@ -478,9 +478,9 @@ export default function Keywords() {
   const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => {
-    if (!user) return
-    return subscribeToKeywords(user.uid, setKeywords)
-  }, [user])
+    if (!effectiveUserId) return
+    return subscribeToKeywords(effectiveUserId, setKeywords)
+  }, [effectiveUserId])
 
   async function loadHistory(kwId) {
     if (histories[kwId]) return

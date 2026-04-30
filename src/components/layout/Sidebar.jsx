@@ -57,13 +57,12 @@ const SECTIONS = [
   {
     key: 'rankTracker',
     group: 'seo',
-    label: 'Rank Tracker',
+    label: 'Keyword Rank Tracker',
     icon: TrendingUp,
     badge: { text: 'monthly', variant: 'info' },
     isLocked: (b) => !b.hasRankTracker,
-    items: [
-      { label: 'My Keywords', path: '/rank-tracker' },
-    ],
+    direct: '/rank-tracker',
+    items: [],
   },
   {
     key: 'reviews',

@@ -23,7 +23,7 @@ const PAGE_TITLES = {
   '/calendar': 'Celebrity Content',
   '/reviews': 'Review Manager',
   '/reviews/requests': 'Review Requests',
-  '/rank-tracker': 'Rank Tracker',
+  '/rank-tracker': 'Keyword Rank Tracker',
   '/agency': 'Territory Checker',
   '/agency/services': 'Agency Services',
   '/settings': 'Profile Settings',
