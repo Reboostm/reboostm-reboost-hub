@@ -87,7 +87,9 @@ service cloud.firestore {
       allow read, update: if isAuth() && (
         resource.data.userId == request.auth.uid || isStaff()
       );
-      allow delete: if isAdmin();
+      allow delete: if isAuth() && (
+        resource.data.userId == request.auth.uid || isAdmin()
+      );
     }
 
     // ─── Settings (API keys, app config) ─────────────────────────────────────

@@ -474,6 +474,8 @@ export default function Keywords() {
   const [checking, setChecking] = useState({})
   const [histories, setHistories] = useState({})
   const [expanded, setExpanded]   = useState({})
+  const [selectedIds, setSelectedIds] = useState(new Set())
+  const [bulkDeleting, setBulkDeleting] = useState(false)
 
   useEffect(() => {
     if (!user) return
@@ -513,6 +515,37 @@ export default function Keywords() {
       await deleteKeyword(kw.id)
     } catch {
       toast('Failed to delete.', 'error')
+    }
+  }
+
+  function toggleSelect(id) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === keywords.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(keywords.map(k => k.id)))
+    }
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0) return
+    if (!window.confirm(`Delete ${selectedIds.size} keyword(s)?`)) return
+    setBulkDeleting(true)
+    try {
+      await Promise.all([...selectedIds].map(id => deleteKeyword(id)))
+      toast(`Deleted ${selectedIds.size} keyword(s)`, 'success')
+      setSelectedIds(new Set())
+    } catch (err) {
+      toast('Failed to delete some keywords', 'error')
+    } finally {
+      setBulkDeleting(false)
     }
   }
 
@@ -602,14 +635,36 @@ export default function Keywords() {
           {/* Rankings table */}
           <Card padding={false}>
             <div className="px-5 py-3 border-b border-hub-border flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-hub-text">Keyword Rankings</h2>
-              <Button size="sm" variant="secondary" onClick={exportCsv}>
-                <Download className="w-3.5 h-3.5 mr-1.5" /> Export CSV
-              </Button>
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  checked={selectedIds.size === keywords.length && keywords.length > 0}
+                  onChange={toggleSelectAll}
+                  className="w-4 h-4 rounded border-hub-border bg-hub-input accent-hub-blue cursor-pointer"
+                />
+                <h2 className="text-sm font-semibold text-hub-text">Keyword Rankings</h2>
+              </div>
+              <div className="flex items-center gap-2">
+                {selectedIds.size > 0 && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleBulkDelete}
+                    disabled={bulkDeleting}
+                    className="text-hub-red hover:text-hub-red"
+                  >
+                    <Trash2 className="w-3 h-3 mr-1.5" /> Delete {selectedIds.size}
+                  </Button>
+                )}
+                <Button size="sm" variant="secondary" onClick={exportCsv}>
+                  <Download className="w-3.5 h-3.5 mr-1.5" /> Export CSV
+                </Button>
+              </div>
             </div>
 
             {/* Header */}
-            <div className="grid grid-cols-[2fr_1fr_1fr_1fr_80px_36px] gap-3 px-5 py-2 text-[11px] font-semibold text-hub-text-muted uppercase tracking-wide border-b border-hub-border/50">
+            <div className="grid grid-cols-[36px_2fr_1fr_1fr_1fr_80px_36px] gap-3 px-5 py-2 text-[11px] font-semibold text-hub-text-muted uppercase tracking-wide border-b border-hub-border/50">
+              <span />
               <span>Keyword</span>
               <span>Location</span>
               <span>Rank</span>
@@ -624,7 +679,13 @@ export default function Keywords() {
                 const hist = histories[kw.id] || []
                 return (
                   <div key={kw.id}>
-                    <div className="grid grid-cols-[2fr_1fr_1fr_1fr_80px_36px] gap-3 items-center px-5 py-3">
+                    <div className="grid grid-cols-[36px_2fr_1fr_1fr_1fr_80px_36px] gap-3 items-center px-5 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(kw.id)}
+                        onChange={() => toggleSelect(kw.id)}
+                        className="w-4 h-4 rounded border-hub-border bg-hub-input accent-hub-blue cursor-pointer"
+                      />
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-hub-text truncate">{kw.keyword}</p>
                         <p className="text-[11px] text-hub-text-muted font-mono truncate">{kw.domain}</p>
