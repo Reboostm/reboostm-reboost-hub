@@ -3,7 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import {
   Search, BookOpen, Users, Calendar, Sparkles, Image,
   Star, TrendingUp, Building2, ChevronDown, Lock,
-  LayoutDashboard, Zap, Package, MapPin, FileImage, KeyRound, HelpCircle,
+  LayoutDashboard, Zap, Package, MapPin, FileImage, FileText, KeyRound, HelpCircle,
 } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useBilling } from '../../hooks/useBilling'
@@ -315,6 +315,7 @@ export default function Sidebar() {
             { label: 'Offers',          path: '/admin/offers',      icon: Package         },
             { label: 'Territories',     path: '/admin/territories', icon: MapPin          },
             { label: 'Content Manager', path: '/admin/content',     icon: FileImage       },
+            { label: 'Citation Dirs',   path: '/admin/citations-directories', icon: FileText },
             { label: 'API Keys',        path: '/admin/api-keys',    icon: KeyRound        },
           ].map(({ label, path, icon: Icon }) => (
             <NavLink

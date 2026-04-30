@@ -71,6 +71,7 @@ import AdminContent from './pages/admin/ContentManager'
 import AdminTerritories from './pages/admin/Territories'
 import AdminOffers from './pages/admin/Offers'
 import AdminApiKeys from './pages/admin/ApiKeys'
+import CitationsDirectoriesManager from './pages/admin/CitationsDirectoriesManager'
 
 export default function App() {
   return (
@@ -153,6 +154,7 @@ export default function App() {
                     <Route path="admin/territories" element={<AdminTerritories />} />
                     <Route path="admin/offers" element={<AdminOffers />} />
                     <Route path="admin/api-keys" element={<AdminApiKeys />} />
+                    <Route path="admin/citations-directories" element={<CitationsDirectoriesManager />} />
                   </Route>
                 </Route>
               </Route>
