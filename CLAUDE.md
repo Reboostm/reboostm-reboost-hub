@@ -311,7 +311,7 @@ Core build: all major modules, Stripe integration, Firebase setup, basic admin p
 - First-login profile force (ProtectedRoute redirects to /settings)
 - Added RESEND_API_KEY support in ApiKeys admin
 
-### Session 7 (April 2026) — THIS SESSION
+### Session 7 (April 2026)
 **Completed:**
 1. App renamed from "ReBoost Hub" → **"ReBoost Marketing HUB"** (config.js `HUB_NAME`)
 2. Admin Users + Clients tabs merged into single `Users.jsx` page with role filtering + Manage Access modal
@@ -330,6 +330,50 @@ Core build: all major modules, Stripe integration, Firebase setup, basic admin p
 15. Rank Tracker keyword modal — niche selector dropdown + city/state auto-fill from profile
 16. GitHub Actions workflow — `.github/workflows/deploy-firebase.yml` auto-deploys `firestore.rules` on push to main
 17. Vercel auto-deploy fixed — all changes now push to `main` directly (Vercel auto-promotes)
+
+### Session 8 (April 2026) — THIS SESSION: Citations Auto-Submission Engine
+**Completed: Phase 1 & 2 — Cloud Run + Job Engine + Gmail API**
+
+1. **Cloud Run Dockerfile** — Node 22 + Playwright + Chromium container (no sandbox mode)
+2. **cloud-run/src/index.js** — Main engine:
+   - Express server + health/trigger endpoints
+   - Job poller: monitors `citations` collection every 30s for 'queued' batches
+   - Batch processor: loops through directories, calls handlers, updates Firestore in real-time
+   - Status flow: queued → running → completed/failed
+3. **cloud-run/src/gmailHandler.js** — Gmail API integration:
+   - OAuth 2.0 authentication via refresh token
+   - Watches Gmail for verification emails sent to `reboostai+{businessName}@gmail.com`
+   - Extracts verification links from email bodies (regex-based)
+   - Polls for new emails every 10s
+   - Ready for auto-click integration with Playwright
+4. **cloud-run/src/captchaHandler.js** — 2Captcha REST API wrapper:
+   - Solves image CAPTCHAs: `solveImageCaptcha(base64)`
+   - Solves reCAPTCHA v2: `solveRecaptchaV2(sitekey, pageurl)`
+   - Solves hCaptcha: `solveHCaptcha(sitekey, pageurl)`
+   - Polls for results with configurable timeout (2-3 min)
+   - Cost: ~$0.003 per CAPTCHA
+5. **cloud-run/src/directoryHandlers.js** — Directory-specific Playwright scripts:
+   - Base `DirectoryHandler` class with `submit()` method
+   - Handler factory: `getDirectoryHandler(directoryName)` returns handler or generic
+   - Stub handlers for: Yelp, Yellow Pages, Manta, Hotfrog, Superpages, Bing Places
+   - Template shows form filling, CAPTCHA solving, email verification flow
+   - ~95 remaining directories ready for implementation
+6. **Cloud Functions wiring** — `startCitationsJob` now triggers Cloud Run:
+   - Added `triggerCitationsSubmission()` helper
+   - POSTs to `CLOUD_RUN_URL/trigger` after batch creation
+   - Non-blocking (timeout: 5s, wrapped in try/catch)
+   - Added `axios` to functions/package.json
+7. **Documentation**:
+   - `cloud-run/DEPLOYMENT.md` — complete setup (GCP, OAuth, 2Captcha, Cloud Run deploy, env vars)
+   - `cloud-run/README.md` — architecture, handlers guide, troubleshooting, cost estimation
+   - `cloud-run/.env.example` — template for local development
+   - `.gitignore` — excludes node_modules, .env files
+
+**Critical Next Steps:**
+- Deploy Cloud Functions (with `CLOUD_RUN_URL` env var set)
+- Deploy Cloud Run container (with Gmail + 2Captcha secrets configured)
+- Test end-to-end: user starts job → batch created → Cloud Run picks it up → status updates in real-time
+- Implement directory handlers one by one (20-30 priority 1/2 directories first)
 
 ---
 
@@ -400,27 +444,42 @@ Copy this into the next Claude chat:
 
 ---
 
-**Session 8 — ReBoost Marketing HUB**
+**Session 9 — ReBoost Marketing HUB: Citations Engine Phase 3**
 
-We're building a marketing & sales funnel hub for local service businesses. This is a React 19 + Vite + Firebase app deployed on Vercel. Everything lives at `C:\Users\justi\Desktop\ReBoost HUB`. The CLAUDE.md in that directory has full context — read it before doing anything.
+We're building an automated citations submission system for ReBoost Hub (React 19 + Firebase + Cloud Run). Full context in [CLAUDE.md](CLAUDE.md) — read it first.
 
-**Quick status:**
-- App name: "ReBoost Marketing HUB"
-- All code is up to date on `main` branch (Vercel auto-deploys from main)
-- Firestore rules are in `firestore.rules` but NOT deployed to Firebase yet — need the GitHub Actions secret set up (instructions in CLAUDE.md)
-- Several Cloud Functions need deployment too
+**What was just built (Session 8):**
+- Cloud Run service (Node 22 + Playwright + Chromium) — `cloud-run/` directory
+- Job poller that watches for 'queued' batches every 30s
+- Gmail API integration (watches for verification emails, extracts links)
+- 2Captcha handler (solves image/reCAPTCHA/hCaptcha)
+- Directory handlers framework (factory pattern, stub handlers for 6 dirs)
+- Cloud Functions wiring (startCitationsJob now triggers Cloud Run)
+- Complete deployment guide in `cloud-run/DEPLOYMENT.md`
 
-**Priority tasks for this session:**
-1. Content Manager bulk upload — replace Image URL field with Firebase Storage upload so owner can upload Canva images directly
-2. Celebrity Content categories — add category field (funny, educational, promotional, checklist, story, seasonal) + filter UI
-3. Stripe webhook / funnel integration — when someone buys via external funnel, grant Hub access automatically
-4. OR: whatever the owner brings up
+**Current status:**
+- Phase 1 & 2 complete: infrastructure + job engine + Gmail API + 2Captcha
+- Phase 3: Directory handlers — need to build Playwright scripts for 20-30 directories
+- NOT YET DEPLOYED: Cloud Run service + Cloud Functions update haven't been deployed to Firebase yet
+
+**Priority for this session:**
+1. Deploy Cloud Functions to Firebase (set CLOUD_RUN_URL env var first)
+2. Deploy Cloud Run service (build Docker image, push to Artifact Registry, deploy with secrets)
+3. Test end-to-end: user clicks "Start Submission" → batch created → Cloud Run picks it up → real-time status updates
+4. Build first batch of 20-30 directory handlers (Yelp, Yellow Pages, Manta, Hotfrog, etc.)
 
 **Critical rules:**
-- NICHES is `{ value, label }` objects — never render them directly as React children
-- Firestore rules changes auto-deploy via GitHub Actions once the FIREBASE_SERVICE_ACCOUNT secret is set
-- Push all changes to `main` — Vercel auto-promotes
-- No Fabric.js — custom canvas editor only
-- CommonJS only in Cloud Functions (no ES module syntax)
+- Cloud Run uses dynamic import for Playwright (NEVER top-level import)
+- Directory handlers extend `DirectoryHandler` base class, implement `submit()` method
+- Handlers use Playwright to fill forms + solve CAPTCHAs + handle email verification
+- All Cloud Run code is CommonJS (no ES modules)
+- Manual-only dirs: Google Business Profile, Yelp (phone verification), Facebook, Apple Maps, BBB
+- 2Captcha cost: ~$0.003 per solve (~$1-5 per full batch)
+
+**Key files:**
+- `cloud-run/Dockerfile`, `cloud-run/package.json`
+- `cloud-run/src/index.js` (job engine), `gmailHandler.js`, `captchaHandler.js`, `directoryHandlers.js`
+- `cloud-run/DEPLOYMENT.md` (setup guide), `cloud-run/README.md` (architecture)
+- `functions/src/index.js` (updated with `triggerCitationsSubmission()`)
 
 ---
