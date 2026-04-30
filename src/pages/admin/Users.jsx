@@ -286,6 +286,7 @@ function UserRow({ u, onUpdated, onRoleChanged, onDeleted }) {
   const [open, setOpen] = useState(false)
   const [showAccess, setShowAccess] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
   const [userData, setUserData] = useState(u)
   const activeCount = TOOL_FLAGS.filter(f => f.check(userData)).length
   const isClient = userData.role === 'client'
@@ -299,7 +300,6 @@ function UserRow({ u, onUpdated, onRoleChanged, onDeleted }) {
 
   const handleDelete = async (e) => {
     e.stopPropagation()
-    if (!window.confirm(`Delete ${userData.displayName || userData.email}? This cannot be undone.`)) return
     setDeleting(true)
     try {
       await adminDeleteUser({ targetUid: userData.id })
@@ -308,6 +308,7 @@ function UserRow({ u, onUpdated, onRoleChanged, onDeleted }) {
     } catch (err) {
       toast(err.message || 'Failed to delete user.', 'error')
       setDeleting(false)
+      setConfirmingDelete(false)
     }
   }
 
@@ -333,14 +334,24 @@ function UserRow({ u, onUpdated, onRoleChanged, onDeleted }) {
               {open ? <ChevronUp className="w-4 h-4 text-hub-text-muted" /> : <ChevronDown className="w-4 h-4 text-hub-text-muted" />}
             </>
           )}
-          <button
-            onClick={handleDelete}
-            disabled={deleting}
-            title="Delete user"
-            className="p-1.5 rounded-md text-hub-text-muted hover:text-hub-red hover:bg-hub-red/10 transition-colors disabled:opacity-40"
-          >
-            {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
-          </button>
+          {confirmingDelete ? (
+            <div className="flex items-center gap-1.5 bg-hub-red/10 border border-hub-red/30 rounded-lg px-2 py-1" onClick={e => e.stopPropagation()}>
+              <span className="text-xs text-hub-red font-medium">Delete?</span>
+              <button onClick={handleDelete} disabled={deleting} className="text-xs text-hub-red font-bold hover:underline disabled:opacity-50">
+                {deleting ? <Loader2 className="w-3 h-3 animate-spin inline" /> : 'Yes'}
+              </button>
+              <span className="text-hub-text-muted text-xs">/</span>
+              <button onClick={e => { e.stopPropagation(); setConfirmingDelete(false) }} className="text-xs text-hub-text-muted hover:text-hub-text">No</button>
+            </div>
+          ) : (
+            <button
+              onClick={e => { e.stopPropagation(); setConfirmingDelete(true) }}
+              title="Delete user"
+              className="p-1.5 rounded-md text-hub-text-muted hover:text-hub-red hover:bg-hub-red/10 transition-colors"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 

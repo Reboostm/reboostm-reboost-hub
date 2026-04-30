@@ -689,6 +689,7 @@ exports.adminDeleteUser = onCall({ timeoutSeconds: 30 }, async (request) => {
   if (targetUid === callerUid) throw new HttpsError('invalid-argument', 'Cannot delete your own account.')
 
   const auth = getAuth()
+  await auth.revokeRefreshTokens(targetUid)
   await auth.deleteUser(targetUid)
   await db.collection('users').doc(targetUid).delete()
 
@@ -2372,12 +2373,26 @@ async function lockSubscription(uid, offer) {
 
 async function unlockPurchase(uid, offer) {
   const userRef = db.collection('users').doc(uid)
-  const field = `purchases.${offer.unlocksFeature}`
 
-  await userRef.update({
-    [field]: true,
-    updatedAt: FieldValue.serverTimestamp(),
-  })
+  if (offer.unlocksFeature === 'citations') {
+    // Citations use citationsPackageId, not a boolean flag
+    await userRef.update({
+      'purchases.citationsPackageId': offer.tier || 'citations_starter',
+      updatedAt: FieldValue.serverTimestamp(),
+    })
+  } else if (offer.unlocksFeature === 'leadCredits') {
+    const snap = await userRef.get()
+    const current = snap.data()?.purchases?.leadCredits || 0
+    await userRef.update({
+      'purchases.leadCredits': current + (offer.creditAmount || 0),
+      updatedAt: FieldValue.serverTimestamp(),
+    })
+  } else {
+    await userRef.update({
+      [`purchases.${offer.unlocksFeature}`]: true,
+      updatedAt: FieldValue.serverTimestamp(),
+    })
+  }
 }
 
 // ─── Gmail OAuth ──────────────────────────────────────────────────────────────

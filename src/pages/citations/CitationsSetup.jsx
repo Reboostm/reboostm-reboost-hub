@@ -36,7 +36,7 @@ export default function CitationsSetup() {
   const [step, setStep] = useState(1)
   const [logoFile, setLogoFile] = useState(null)
   const [logoPreview, setLogoPreview] = useState(null)
-  const [expandedPhase, setExpandedPhase] = useState(null)
+  const [expandedPhase, setExpandedPhase] = useState(1)
 
   const { register, handleSubmit, formState: { errors, isSubmitting }, reset, watch } = useForm({
     resolver: zodResolver(citationsSetupSchema),
