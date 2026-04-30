@@ -659,6 +659,64 @@ const MASTER_DIRECTORIES = [
   { name: 'Gorgias',                 url: 'https://www.gorgias.com',                category: 'Business',       priority: 3 },
 ]
 
+// ─── initializeCitationPackages ───────────────────────────────────────────
+// Initialize default citation packages if they don't exist.
+// Called on admin page load to ensure starter/pro/premium packages are set up.
+
+exports.initializeCitationPackages = onCall(
+  { timeoutSeconds: 30 },
+  async (request) => {
+    const callerUid = request.auth?.uid
+    if (!callerUid) throw new HttpsError('unauthenticated', 'Must be signed in.')
+
+    const callerSnap = await db.collection('users').doc(callerUid).get()
+    const callerRole = callerSnap.data()?.role
+    if (callerRole !== 'admin' && callerRole !== 'staff') {
+      throw new HttpsError('permission-denied', 'Admin or staff role required.')
+    }
+
+    // Get first 100, 200, 300 directories from MASTER_DIRECTORIES
+    const dirNames100 = MASTER_DIRECTORIES.slice(0, 100).map(d => d.name)
+    const dirNames200 = MASTER_DIRECTORIES.slice(0, 200).map(d => d.name)
+    const dirNames300 = MASTER_DIRECTORIES.slice(0, 300).map(d => d.name)
+
+    // Initialize default packages if they don't exist
+    const packages = {
+      starter: {
+        id: 'starter',
+        name: 'Starter Foundation',
+        directoryNames: dirNames100,
+        count: 100,
+        createdAt: FieldValue.serverTimestamp(),
+      },
+      pro: {
+        id: 'pro',
+        name: 'Builder Pro',
+        directoryNames: dirNames200,
+        count: 200,
+        createdAt: FieldValue.serverTimestamp(),
+      },
+      premium: {
+        id: 'premium',
+        name: 'Local Dominator Premium',
+        directoryNames: dirNames300,
+        count: 300,
+        createdAt: FieldValue.serverTimestamp(),
+      },
+    }
+
+    // Set each package (merge to preserve custom edits)
+    const batch = db.batch()
+    for (const [pkgId, pkgData] of Object.entries(packages)) {
+      const ref = db.collection('citation_packages').doc(pkgId)
+      batch.set(ref, pkgData, { merge: true })
+    }
+    await batch.commit()
+
+    return { message: 'Citation packages initialized', packages: Object.keys(packages) }
+  }
+)
+
 exports.startCitationsJob = onCall(
   { timeoutSeconds: 60, memory: '256MiB' },
   async (request) => {
@@ -675,9 +733,30 @@ exports.startCitationsJob = onCall(
       throw new HttpsError('permission-denied', 'No citations package found on this account.')
     }
 
-    // Resolve tier
+    // Resolve tier — citationsPackageId could be 'starter', 'pro', 'premium', or a custom package ID
     const tierKey = packageId.replace('citations_', '') // 'citations_starter' → 'starter'
-    const targetCount = TIER_COUNTS[tierKey] || 100
+
+    // Look up custom package if it exists, otherwise use default tier
+    let packageDir = null
+    try {
+      const pkgSnap = await db.collection('citation_packages').doc(tierKey).get()
+      if (pkgSnap.exists) {
+        packageDir = pkgSnap.data()
+      }
+    } catch (err) {
+      console.warn(`Could not find citation package: ${tierKey}`)
+    }
+
+    // Fallback to MASTER_DIRECTORIES slicing if package doesn't exist
+    if (!packageDir) {
+      const targetCount = TIER_COUNTS[tierKey] || 100
+      const allDirs = MASTER_DIRECTORIES.slice(0, targetCount)
+      packageDir = {
+        id: tierKey,
+        directoryNames: allDirs.map(d => d.name),
+        count: targetCount,
+      }
+    }
 
     // Block duplicate active jobs
     const activeSnap = await db.collection('citations')
@@ -692,11 +771,11 @@ exports.startCitationsJob = onCall(
     // Smart deduplication: filter out already-submitted + user-excluded directories
     const submittedDirs = user.submittedDirectories || []
     const exclusions = user.citationExclusions || []
-    const allDirs = MASTER_DIRECTORIES.slice(0, targetCount)
+    const allDirs = MASTER_DIRECTORIES.filter(d => packageDir.directoryNames.includes(d.name))
     const newDirs = allDirs.filter(d => !submittedDirs.includes(d.name) && !exclusions.includes(d.name))
 
     if (newDirs.length === 0) {
-      throw new HttpsError('already-exists', `All ${targetCount} directories in your ${tierKey} tier have already been submitted or excluded. Upgrade your plan to submit to more directories.`)
+      throw new HttpsError('already-exists', `All directories in your ${tierKey} package have already been submitted or excluded. Upgrade your plan to submit to more directories.`)
     }
 
     // Business info for the submission engine (Phase 1/2/3)

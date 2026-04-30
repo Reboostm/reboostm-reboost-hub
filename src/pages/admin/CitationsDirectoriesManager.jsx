@@ -1,17 +1,58 @@
-import { useState, useMemo } from 'react'
-import { Search, Filter, Download } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import { Search, Filter, Download, Save, Plus, Trash2 } from 'lucide-react'
 import Card, { CardHeader, CardTitle } from '../../components/ui/Card'
 import Input from '../../components/ui/Input'
 import Badge from '../../components/ui/Badge'
 import Select from '../../components/ui/Select'
 import { MASTER_DIRECTORIES, AGGREGATORS } from '../../config/citations'
 import { cn } from '../../utils/cn'
+import { db } from '../../services/firebase'
+import { useToast } from '../../hooks/useToast'
+import { initializeCitationPackages } from '../../services/functions'
 
 export default function CitationsDirectoriesManager() {
+  const { toast } = useToast()
   const [searchTerm, setSearchTerm] = useState('')
   const [filterPriority, setFilterPriority] = useState('all')
   const [filterCategory, setFilterCategory] = useState('all')
   const [filterTier, setFilterTier] = useState('all')
+  const [packages, setPackages] = useState([])
+  const [packagesLoading, setPackagesLoading] = useState(true)
+  const [selectedPackage, setSelectedPackage] = useState('starter')
+  const [selectedSites, setSelectedSites] = useState(new Set())
+  const [saving, setSaving] = useState(false)
+
+  // Load packages from Firestore (initialize if needed)
+  useEffect(() => {
+    const loadPackages = async () => {
+      try {
+        // Initialize default packages if they don't exist
+        await initializeCitationPackages({})
+
+        const snap = await db.collection('citation_packages').get()
+        const pkgs = snap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+        setPackages(pkgs)
+
+        // Load selected sites for current package
+        const pkg = pkgs.find(p => p.id === selectedPackage)
+        if (pkg?.directoryNames) {
+          setSelectedSites(new Set(pkg.directoryNames))
+        } else {
+          setSelectedSites(new Set())
+        }
+      } catch (err) {
+        console.error('Error loading packages:', err)
+        toast('Error loading packages: ' + err.message, 'error')
+      } finally {
+        setPackagesLoading(false)
+      }
+    }
+
+    loadPackages()
+  }, [selectedPackage, toast])
 
   // Aggregator mapping
   const aggregatorMap = {
@@ -85,46 +126,94 @@ export default function CitationsDirectoriesManager() {
 
   const categories = [...new Set(enrichedDirs.map(d => d.category))].sort()
 
+  const toggleSite = (dirName) => {
+    const newSet = new Set(selectedSites)
+    if (newSet.has(dirName)) {
+      newSet.delete(dirName)
+    } else {
+      newSet.add(dirName)
+    }
+    setSelectedSites(newSet)
+  }
+
+  const handleSavePackage = async () => {
+    if (!selectedPackage) {
+      toast('Select a package first', 'error')
+      return
+    }
+
+    setSaving(true)
+    try {
+      await db.collection('citation_packages').doc(selectedPackage).set({
+        id: selectedPackage,
+        name: packages.find(p => p.id === selectedPackage)?.name || selectedPackage,
+        directoryNames: Array.from(selectedSites),
+        count: selectedSites.size,
+        updatedAt: new Date(),
+      }, { merge: true })
+
+      toast(`Saved ${selectedSites.size} sites to ${selectedPackage}`, 'success')
+    } catch (err) {
+      toast('Error saving package: ' + err.message, 'error')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const currentPkg = packages.find(p => p.id === selectedPackage)
+
   return (
     <div className="p-6 max-w-7xl">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-hub-text mb-2">Citations Directories</h1>
-        <p className="text-hub-text-secondary">Manage 300 citation directories across 3 package tiers</p>
+        <p className="text-hub-text-secondary">Customize which sites are in each package tier</p>
       </div>
 
-      {/* Package Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
-        {['starter', 'pro', 'premium'].map((tier) => {
-          const s = stats[tier]
-          const tierInfo = tierAssignments[tier]
-          return (
-            <Card key={tier} className={cn(
-              'p-4',
-              tier === 'pro' && 'border-hub-orange ring-1 ring-hub-orange/20'
-            )}>
-              <h3 className="font-bold text-hub-text mb-3">{tierInfo.label}</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-hub-text-muted">Direct Submissions</span>
-                  <span className="font-bold text-hub-blue">{s.total}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-hub-text-muted">Top-Tier Sites</span>
-                  <span className="font-bold text-hub-orange">{s.topTier}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-hub-text-muted">Aggregators</span>
-                  <span className="font-bold text-hub-green">{s.aggregators}</span>
-                </div>
-                <div className="border-t border-hub-input pt-2 mt-2 flex justify-between">
-                  <span className="text-hub-text-muted font-semibold">Total Reach</span>
-                  <span className="font-bold text-hub-blue">{s.total + s.reach}+</span>
-                </div>
-              </div>
-            </Card>
-          )
-        })}
-      </div>
+      {/* Package Selector & Editor */}
+      <Card className="mb-6">
+        <CardHeader className="flex items-center justify-between">
+          <CardTitle>Edit Package Assignments</CardTitle>
+          <Button
+            onClick={handleSavePackage}
+            loading={saving}
+            className="gap-2"
+          >
+            <Save className="w-4 h-4" />
+            Save Changes ({selectedSites.size} sites)
+          </Button>
+        </CardHeader>
+
+        <div className="p-4 border-t border-hub-input">
+          <p className="text-sm text-hub-text-muted mb-3">Select package to edit:</p>
+          <div className="flex gap-2">
+            {['starter', 'pro', 'premium'].map((pkgId) => (
+              <button
+                key={pkgId}
+                onClick={() => setSelectedPackage(pkgId)}
+                className={cn(
+                  'px-4 py-2 rounded-lg font-semibold text-sm transition-colors',
+                  selectedPackage === pkgId
+                    ? 'bg-hub-blue text-white'
+                    : 'bg-hub-input text-hub-text hover:bg-hub-input/80'
+                )}
+              >
+                {pkgId === 'starter' ? 'Starter' : pkgId === 'pro' ? 'Pro' : 'Premium'}
+                {currentPkg?.count && selectedPackage === pkgId && (
+                  <span className="ml-2 text-xs opacity-90">({currentPkg.count} sites)</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {!packagesLoading && currentPkg && (
+            <div className="mt-4 p-3 bg-hub-input rounded-lg">
+              <p className="text-sm text-hub-text">
+                <strong>{selectedPackage}:</strong> {currentPkg.count} sites selected
+              </p>
+            </div>
+          )}
+        </div>
+      </Card>
 
       {/* Filters */}
       <Card className="mb-6 p-4">
@@ -180,135 +269,137 @@ export default function CitationsDirectoriesManager() {
         </Button>
       </div>
 
-      {/* Directory Table */}
+      {/* Directory Table with Checkboxes */}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-hub-input border-b border-hub-input">
               <tr>
+                <th className="px-4 py-3 text-center font-semibold text-hub-text w-12">✓</th>
                 <th className="px-4 py-3 text-left font-semibold text-hub-text">#</th>
                 <th className="px-4 py-3 text-left font-semibold text-hub-text">Directory</th>
                 <th className="px-4 py-3 text-left font-semibold text-hub-text">Category</th>
                 <th className="px-4 py-3 text-center font-semibold text-hub-text">Priority</th>
-                <th className="px-4 py-3 text-center font-semibold text-hub-text">Tier</th>
                 <th className="px-4 py-3 text-left font-semibold text-hub-text">Email</th>
                 <th className="px-4 py-3 text-center font-semibold text-hub-text">Aggregator Reach</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((dir, idx) => (
-                <tr key={dir.name} className="border-b border-hub-input hover:bg-hub-input/30 transition-colors">
-                  <td className="px-4 py-3 text-hub-text-muted font-mono text-xs">{dir.index}</td>
-                  <td className="px-4 py-3">
-                    <a
-                      href={dir.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-hub-blue hover:underline font-semibold"
-                    >
-                      {dir.name}
-                    </a>
-                  </td>
-                  <td className="px-4 py-3 text-hub-text-secondary text-xs">{dir.category}</td>
-                  <td className="px-4 py-3 text-center">
-                    <Badge
-                      variant={dir.priority === 1 ? 'success' : dir.priority === 2 ? 'info' : 'gray'}
-                      className="text-xs"
-                    >
-                      P{dir.priority}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    <Badge
-                      variant={dir.tier === 'starter' ? 'info' : dir.tier === 'pro' ? 'paid' : 'orange'}
-                      className="text-xs"
-                    >
-                      {dir.tier === 'starter' ? 'Starter' : dir.tier === 'pro' ? 'Pro' : 'Premium'}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3">
-                    <Badge
-                      variant={dir.priority === 1 ? 'warning' : 'success'}
-                      className="text-xs"
-                    >
-                      {dir.priority === 1 ? 'Real Email' : 'System Email'}
-                    </Badge>
-                  </td>
-                  <td className="px-4 py-3 text-center">
-                    {dir.isAggregator ? (
-                      <span className="text-hub-green font-semibold">+{dir.aggregatorReach}</span>
-                    ) : (
-                      <span className="text-hub-text-muted text-xs">—</span>
+              {filtered.map((dir, idx) => {
+                const isSelected = selectedSites.has(dir.name)
+                return (
+                  <tr
+                    key={dir.name}
+                    className={cn(
+                      'border-b border-hub-input transition-colors cursor-pointer',
+                      isSelected ? 'bg-hub-blue/10' : 'hover:bg-hub-input/30'
                     )}
-                  </td>
-                </tr>
-              ))}
+                  >
+                    <td className="px-4 py-3 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSite(dir.name)}
+                        className="w-4 h-4 rounded cursor-pointer"
+                      />
+                    </td>
+                    <td className="px-4 py-3 text-hub-text-muted font-mono text-xs">{dir.index}</td>
+                    <td className="px-4 py-3">
+                      <a
+                        href={dir.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-hub-blue hover:underline font-semibold"
+                      >
+                        {dir.name}
+                      </a>
+                    </td>
+                    <td className="px-4 py-3 text-hub-text-secondary text-xs">{dir.category}</td>
+                    <td className="px-4 py-3 text-center">
+                      <Badge
+                        variant={dir.priority === 1 ? 'success' : dir.priority === 2 ? 'info' : 'gray'}
+                        className="text-xs"
+                      >
+                        P{dir.priority}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge
+                        variant={dir.priority === 1 ? 'warning' : 'success'}
+                        className="text-xs"
+                      >
+                        {dir.priority === 1 ? 'Real Email' : 'System Email'}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {dir.isAggregator ? (
+                        <span className="text-hub-green font-semibold">+{dir.aggregatorReach}</span>
+                      ) : (
+                        <span className="text-hub-text-muted text-xs">—</span>
+                      )}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
       </Card>
 
-      {/* Marketing copy suggestions */}
-      <Card className="mt-6 p-6">
-        <CardTitle className="mb-4">Package Marketing Copy</CardTitle>
-        <div className="space-y-6">
-          <div>
-            <h4 className="font-bold text-hub-text mb-2">Starter Foundation (100 sites)</h4>
-            <p className="text-hub-text-secondary text-sm">
-              100 high-impact direct submissions across top local search directories and premium review sites.
-              Total reach: <span className="font-bold text-hub-blue">{stats.starter.total} direct listings</span>
-            </p>
-          </div>
-          <div className="p-3 bg-hub-orange/10 border border-hub-orange/20 rounded-lg">
-            <h4 className="font-bold text-hub-text mb-2">⭐ Builder Pro (200 sites) — BEST VALUE</h4>
-            <p className="text-hub-text-secondary text-sm mb-2">
-              200 direct submissions + <span className="font-bold text-hub-green">{stats.pro.aggregators} aggregators</span> that
-              auto-distribute to 300+ additional sites. Includes major data aggregators: Neustar
-              Localeze, Infogroup, Dun & Bradstreet. <span className="font-bold text-hub-blue">Total reach: {stats.pro.total + stats.pro.reach}+ listings</span>
-            </p>
-            <p className="text-xs text-hub-text-muted">
-              User value: 1 submission = {stats.pro.total + stats.pro.reach}+ total listings across the web
-            </p>
-          </div>
-          <div>
-            <h4 className="font-bold text-hub-text mb-2">Local Dominator Premium (300 sites)</h4>
-            <p className="text-hub-text-secondary text-sm">
-              Complete directory dominance: 300 direct submissions + <span className="font-bold text-hub-green">{stats.premium.aggregators} aggregators</span> with 500+ aggregator
-              reach. Includes all major platforms + every significant local search directory.
-              <span className="font-bold text-hub-blue"> Total reach: {stats.premium.total + stats.premium.reach}+ listings</span>
-            </p>
-          </div>
-        </div>
-      </Card>
-
-      {/* Category breakdown */}
-      <Card className="mt-6 p-6">
-        <CardTitle className="mb-4">Category Breakdown (All Tiers)</CardTitle>
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {Object.entries(stats.premium.byCategory).sort((a, b) => b[1] - a[1]).map(([category, count]) => (
-            <div key={category} className="p-3 rounded-lg bg-hub-input">
-              <p className="text-xs text-hub-text-muted mb-1">{category}</p>
-              <p className="text-lg font-bold text-hub-text">{count}</p>
+      {/* Package summary info */}
+      {currentPkg && (
+        <Card className="mt-6 p-6">
+          <CardTitle className="mb-4">Package Summary: {selectedPackage}</CardTitle>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="p-3 rounded-lg bg-hub-input">
+              <p className="text-xs text-hub-text-muted mb-1">Total Sites</p>
+              <p className="text-lg font-bold text-hub-blue">{currentPkg.count}</p>
             </div>
-          ))}
-        </div>
-      </Card>
+            <div className="p-3 rounded-lg bg-hub-input">
+              <p className="text-xs text-hub-text-muted mb-1">Top-Tier (Real Email)</p>
+              <p className="text-lg font-bold text-hub-orange">
+                {enrichedDirs.filter(d => currentPkg.directoryNames?.includes(d.name) && d.priority === 1).length}
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-hub-input">
+              <p className="text-xs text-hub-text-muted mb-1">Aggregators</p>
+              <p className="text-lg font-bold text-hub-green">
+                {enrichedDirs.filter(d => currentPkg.directoryNames?.includes(d.name) && d.isAggregator).length}
+              </p>
+            </div>
+            <div className="p-3 rounded-lg bg-hub-input">
+              <p className="text-xs text-hub-text-muted mb-1">Aggregator Reach</p>
+              <p className="text-lg font-bold text-hub-blue">
+                +{enrichedDirs.filter(d => currentPkg.directoryNames?.includes(d.name) && d.isAggregator).reduce((sum, d) => sum + d.aggregatorReach, 0)}
+              </p>
+            </div>
+          </div>
+        </Card>
+      )}
     </div>
   )
 }
 
-const Button = ({ children, variant = 'primary', size = 'md', className, ...props }) => (
+const Button = ({ children, variant = 'primary', size = 'md', className, loading, disabled, ...props }) => (
   <button
+    disabled={loading || disabled}
     className={cn(
-      'font-semibold rounded-lg transition-colors',
+      'font-semibold rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed',
       size === 'sm' && 'px-3 py-1.5 text-sm',
       size === 'md' && 'px-4 py-2 text-sm',
-      variant === 'primary' && 'bg-hub-blue text-white hover:bg-hub-blue/90',
-      variant === 'secondary' && 'bg-hub-input text-hub-text hover:bg-hub-input/80',
+      variant === 'primary' && 'bg-hub-blue text-white hover:bg-hub-blue/90 disabled:hover:bg-hub-blue',
+      variant === 'secondary' && 'bg-hub-input text-hub-text hover:bg-hub-input/80 disabled:hover:bg-hub-input',
       className
     )}
     {...props}
   >
-    {children}
+    {loading ? (
+      <span className="inline-flex items-center gap-2">
+        <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+        {children}
+      </span>
+    ) : (
+      children
+    )}
   </button>
 )
