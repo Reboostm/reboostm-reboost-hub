@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   BookOpen, CheckCircle, List, Activity, BarChart2,
-  Play, Loader2, ChevronRight, Package, Settings,
+  Play, Loader2, ChevronRight, Package, Settings, Mail,
 } from 'lucide-react'
 import Card, { CardHeader, CardTitle } from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -12,6 +12,7 @@ import { useBilling } from '../../hooks/useBilling'
 import { useToast } from '../../hooks/useToast'
 import ToolGate from '../../components/ui/ToolGate'
 import CitationsPackageBar from '../../components/citations/CitationsPackageBar'
+import CitationExclusionModal from '../../components/citations/CitationExclusionModal'
 import { subscribeToCitationsBatches } from '../../services/firestore'
 import { startCitationsJob } from '../../services/functions'
 import { cn } from '../../utils/cn'
@@ -41,12 +42,13 @@ function formatDate(ts) {
 
 export default function CitationsHome() {
   const { hasCitations } = useBilling()
-  const { userProfile } = useAuth()
+  const { userProfile, user } = useAuth()
   const { toast } = useToast()
   const navigate = useNavigate()
   const [batches, setBatches] = useState([])
   const [batchesLoading, setBatchesLoading] = useState(true)
   const [starting, setStarting] = useState(false)
+  const [showExclusionModal, setShowExclusionModal] = useState(false)
 
   useEffect(() => {
     if (!userProfile?.id) return
@@ -56,6 +58,13 @@ export default function CitationsHome() {
     })
     return unsub
   }, [userProfile?.id])
+
+  // Show exclusion modal on first citation purchase
+  useEffect(() => {
+    if (userProfile?.showCitationExclusionList && hasCitations) {
+      setShowExclusionModal(true)
+    }
+  }, [userProfile?.showCitationExclusionList, hasCitations])
 
   const packageId = userProfile?.purchases?.citationsPackageId
   const tier = PACKAGE_TIERS[packageId] || { label: 'Starter', count: 100, variant: 'info', rank: 1 }
@@ -211,6 +220,41 @@ export default function CitationsHome() {
         </Card>
       )}
 
+      {/* Email routing breakdown card */}
+      {latestBatch && (
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Mail className="w-4 h-4" />
+              Email Routing
+            </CardTitle>
+          </CardHeader>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between p-3 bg-hub-input rounded-lg">
+              <div>
+                <p className="text-sm font-semibold text-hub-text">Your Email</p>
+                <p className="text-xs text-hub-text-muted">Top-tier sites requiring verification</p>
+              </div>
+              <p className="text-xl font-bold text-hub-orange">
+                {latestBatch.topTierCount || 0}
+              </p>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-hub-input rounded-lg">
+              <div>
+                <p className="text-sm font-semibold text-hub-text">System Email</p>
+                <p className="text-xs text-hub-text-muted">Managed by ReBoost HUB</p>
+              </div>
+              <p className="text-xl font-bold text-hub-blue">
+                {latestBatch.systemEmailCount || 0}
+              </p>
+            </div>
+            <p className="text-xs text-hub-text-muted px-1">
+              Monitor your email for verifications on top-tier sites — you own those accounts
+            </p>
+          </div>
+        </Card>
+      )}
+
       {/* Sub-page navigation cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
@@ -253,6 +297,13 @@ export default function CitationsHome() {
           </Link>
         ))}
       </div>
+
+      {/* Exclusion modal */}
+      <CitationExclusionModal
+        isOpen={showExclusionModal}
+        onClose={() => setShowExclusionModal(false)}
+        userId={user?.uid}
+      />
     </div>
   )
 }

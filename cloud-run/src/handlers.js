@@ -4,6 +4,13 @@ const { DirectoryHandler } = require('./handlers/baseHandler')
 
 class YelpHandler extends DirectoryHandler {
   static directoryName = 'Yelp'
+  static metadata = {
+    priority: 1,
+    requiresRealEmail: true,
+    requiresManualVerification: true,
+    isAggregator: false,
+    aggregatorReach: 0,
+  }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     // Yelp requires phone verification — manual only
     return { status: 'pending', errorMessage: 'Yelp requires phone verification' }
@@ -12,20 +19,20 @@ class YelpHandler extends DirectoryHandler {
 
 class YellowPagesHandler extends DirectoryHandler {
   static directoryName = 'Yellow Pages'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: true, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    // Phone verification required
     return { status: 'pending', errorMessage: 'Yellow Pages requires phone verification' }
   }
 }
 
 class MantaHandler extends DirectoryHandler {
   static directoryName = 'Manta'
+  static metadata = { priority: 1, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     const browser = await this.getBrowser()
     const page = await browser.newPage()
     try {
       await page.goto('https://www.manta.com', { timeout: 10000 })
-      // Manta submission logic - email verification
       return { status: 'pending', liveUrl: page.url(), emailUsed: businessData.email }
     } catch (err) {
       return { status: 'failed', errorMessage: err.message }
@@ -37,6 +44,7 @@ class MantaHandler extends DirectoryHandler {
 
 class HotfrogHandler extends DirectoryHandler {
   static directoryName = 'Hotfrog'
+  static metadata = { priority: 1, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -44,6 +52,7 @@ class HotfrogHandler extends DirectoryHandler {
 
 class SuperpagesHandler extends DirectoryHandler {
   static directoryName = 'Superpages'
+  static metadata = { priority: 1, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -51,6 +60,7 @@ class SuperpagesHandler extends DirectoryHandler {
 
 class BingPlacesHandler extends DirectoryHandler {
   static directoryName = 'Bing Places'
+  static metadata = { priority: 1, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -58,6 +68,7 @@ class BingPlacesHandler extends DirectoryHandler {
 
 class CitySearchHandler extends DirectoryHandler {
   static directoryName = 'CitySearch'
+  static metadata = { priority: 3, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -65,6 +76,7 @@ class CitySearchHandler extends DirectoryHandler {
 
 class InsiderPagesHandler extends DirectoryHandler {
   static directoryName = 'InsiderPages'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -72,6 +84,7 @@ class InsiderPagesHandler extends DirectoryHandler {
 
 class EZlocalHandler extends DirectoryHandler {
   static directoryName = 'EZlocal'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -79,6 +92,7 @@ class EZlocalHandler extends DirectoryHandler {
 
 class LocalDotComHandler extends DirectoryHandler {
   static directoryName = 'Local.com'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -103,6 +117,7 @@ const generalDirs = [
 
 class HomeAdvisorHandler extends DirectoryHandler {
   static directoryName = 'HomeAdvisor'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -110,6 +125,7 @@ class HomeAdvisorHandler extends DirectoryHandler {
 
 class AngiHandler extends DirectoryHandler {
   static directoryName = 'Angi'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -117,6 +133,7 @@ class AngiHandler extends DirectoryHandler {
 
 class ThumbTackHandler extends DirectoryHandler {
   static directoryName = 'Thumbtack'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -124,6 +141,7 @@ class ThumbTackHandler extends DirectoryHandler {
 
 class HouzzHandler extends DirectoryHandler {
   static directoryName = 'Houzz'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -131,6 +149,7 @@ class HouzzHandler extends DirectoryHandler {
 
 class PorchHandler extends DirectoryHandler {
   static directoryName = 'Porch'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -138,6 +157,7 @@ class PorchHandler extends DirectoryHandler {
 
 class BarkHandler extends DirectoryHandler {
   static directoryName = 'Bark'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -145,6 +165,7 @@ class BarkHandler extends DirectoryHandler {
 
 class TaskRabbitHandler extends DirectoryHandler {
   static directoryName = 'TaskRabbit'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -159,6 +180,7 @@ const homeServicesDirs = [
 
 class NeustarLocalezeHandler extends DirectoryHandler {
   static directoryName = 'Neustar Localeze'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: true, aggregatorReach: 75 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -166,6 +188,7 @@ class NeustarLocalezeHandler extends DirectoryHandler {
 
 class InfogroupHandler extends DirectoryHandler {
   static directoryName = 'Infogroup / Data Axle'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: true, aggregatorReach: 100 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -173,6 +196,7 @@ class InfogroupHandler extends DirectoryHandler {
 
 class DnBHandler extends DirectoryHandler {
   static directoryName = 'Dun & Bradstreet'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: true, aggregatorReach: 80 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -180,6 +204,7 @@ class DnBHandler extends DirectoryHandler {
 
 class AcxiomHandler extends DirectoryHandler {
   static directoryName = 'Acxiom'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: true, aggregatorReach: 70 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -187,6 +212,7 @@ class AcxiomHandler extends DirectoryHandler {
 
 class ExpressUpdateHandler extends DirectoryHandler {
   static directoryName = 'Express Update'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: true, aggregatorReach: 60 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -196,6 +222,7 @@ class ExpressUpdateHandler extends DirectoryHandler {
 
 class LinkedInCompanyHandler extends DirectoryHandler {
   static directoryName = 'LinkedIn Company'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -209,6 +236,7 @@ const professionalDirs = [
 
 class InstagramHandler extends DirectoryHandler {
   static directoryName = 'Instagram'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -216,6 +244,7 @@ class InstagramHandler extends DirectoryHandler {
 
 class FacebookBusinessHandler extends DirectoryHandler {
   static directoryName = 'Facebook Business'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: true, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     // Manual - requires admin review
     return { status: 'pending', errorMessage: 'Facebook requires manual verification' }
@@ -224,6 +253,7 @@ class FacebookBusinessHandler extends DirectoryHandler {
 
 class LinkedInHandler extends DirectoryHandler {
   static directoryName = 'LinkedIn'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -237,6 +267,7 @@ const socialDirs = [
 
 class GoogleBusinessProfileHandler extends DirectoryHandler {
   static directoryName = 'Google Business Profile'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: true, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     // Manual - phone/postcard verification
     return { status: 'pending', errorMessage: 'Requires phone/postcard verification' }
@@ -245,6 +276,7 @@ class GoogleBusinessProfileHandler extends DirectoryHandler {
 
 class AppleMapsConnectHandler extends DirectoryHandler {
   static directoryName = 'Apple Maps Connect'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: true, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     // Manual - requires approval
     return { status: 'pending', errorMessage: 'Apple Maps requires manual verification' }
@@ -253,6 +285,7 @@ class AppleMapsConnectHandler extends DirectoryHandler {
 
 class BetterBusinessBureauHandler extends DirectoryHandler {
   static directoryName = 'Better Business Bureau'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: true, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     // Manual - phone verification
     return { status: 'pending', errorMessage: 'BBB requires phone verification' }
@@ -267,6 +300,7 @@ const mapsDirs = [
 
 class ZillowHandler extends DirectoryHandler {
   static directoryName = 'Zillow'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -274,6 +308,7 @@ class ZillowHandler extends DirectoryHandler {
 
 class TruliaHandler extends DirectoryHandler {
   static directoryName = 'Trulia'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -287,6 +322,7 @@ const realEstateDirs = [
 
 class ZomatoHandler extends DirectoryHandler {
   static directoryName = 'Zomato'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -294,6 +330,7 @@ class ZomatoHandler extends DirectoryHandler {
 
 class OpenTableHandler extends DirectoryHandler {
   static directoryName = 'OpenTable'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -307,6 +344,7 @@ const foodDirs = [
 
 class HealthgradesHandler extends DirectoryHandler {
   static directoryName = 'Healthgrades'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -314,6 +352,7 @@ class HealthgradesHandler extends DirectoryHandler {
 
 class ZocdocHandler extends DirectoryHandler {
   static directoryName = 'Zocdoc'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -327,6 +366,7 @@ const healthcareDirs = [
 
 class AvvoHandler extends DirectoryHandler {
   static directoryName = 'Avvo'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -334,6 +374,7 @@ class AvvoHandler extends DirectoryHandler {
 
 class FindLawHandler extends DirectoryHandler {
   static directoryName = 'FindLaw'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -347,6 +388,7 @@ const legalDirs = [
 
 class TripAdvisorHandler extends DirectoryHandler {
   static directoryName = 'Tripadvisor'
+  static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -360,6 +402,7 @@ const travelDirs = [
 
 class WeddingWireHandler extends DirectoryHandler {
   static directoryName = 'WeddingWire'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -373,6 +416,7 @@ const eventsDirs = [
 
 class BooksyHandler extends DirectoryHandler {
   static directoryName = 'Booksy'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -386,6 +430,7 @@ const beautySalonDirs = [
 
 class CarsComHandler extends DirectoryHandler {
   static directoryName = 'Cars.com'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -399,6 +444,7 @@ const automotiveDirs = [
 
 class ClutchHandler extends DirectoryHandler {
   static directoryName = 'Clutch.co'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -406,6 +452,7 @@ class ClutchHandler extends DirectoryHandler {
 
 class G2Handler extends DirectoryHandler {
   static directoryName = 'G2'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -419,6 +466,7 @@ const reviewPlatformsDirs = [
 
 class FiverrHandler extends DirectoryHandler {
   static directoryName = 'Fiverr'
+  static metadata = { priority: 3, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -426,6 +474,7 @@ class FiverrHandler extends DirectoryHandler {
 
 class UpworkHandler extends DirectoryHandler {
   static directoryName = 'Upwork'
+  static metadata = { priority: 3, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -439,6 +488,7 @@ const freelanceDirs = [
 
 class EtsyHandler extends DirectoryHandler {
   static directoryName = 'Etsy'
+  static metadata = { priority: 3, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -446,6 +496,7 @@ class EtsyHandler extends DirectoryHandler {
 
 class ShopifyHandler extends DirectoryHandler {
   static directoryName = 'Shopify Store Locator'
+  static metadata = { priority: 3, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -459,6 +510,7 @@ const ecommerceDirs = [
 
 class MeetupHandler extends DirectoryHandler {
   static directoryName = 'Meetup'
+  static metadata = { priority: 3, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -466,6 +518,7 @@ class MeetupHandler extends DirectoryHandler {
 
 class NextdoorHandler extends DirectoryHandler {
   static directoryName = 'Nextdoor'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending' }
   }
@@ -473,6 +526,7 @@ class NextdoorHandler extends DirectoryHandler {
 
 class AlignableHandler extends DirectoryHandler {
   static directoryName = 'Alignable'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     return { status: 'pending', emailUsed: businessData.email }
   }
@@ -484,12 +538,44 @@ const localBusinessDirs = [
 
 // ─── GENERATE REMAINING HANDLERS FROM TEMPLATES ───────────────────────────
 
+const getMetadataForDirectory = (name) => {
+  // Priority 1 (top-tier): Top local search + major platforms
+  const priority1 = [
+    'Realtor.com', 'Point2Homes', 'Redfin', // Real estate
+    'Grubhub', 'DoorDash Business', 'Uber Eats Partner', // Food delivery
+    'Vitals', 'WebMD Find a Doctor', 'VetRatings', // Healthcare
+    'Martindale', 'Justia', // Legal
+    'The Knot', 'GigSalad', 'GigMasters', 'Eventbrite', // Events
+    'StyleSeat', 'Vagaro', 'MindBody', 'ClassPass', // Beauty/salon
+    'CarGurus', 'AutoTrader', 'DealerRater', 'Edmunds', // Automotive
+    'Capterra', 'Trustpilot', 'Sitejabber', // Review platforms
+    'Expedia Local Expert', 'Hotels.com Partner', // Travel
+    'BNI Directory', 'Chamber Direct', 'Business Roundtable', 'Industry Associations', // Professional
+  ]
+
+  // Aggregators: distributed to 50+ additional sites
+  const aggregators = ['YellowMoxie', 'Factual']
+
+  const isAggregator = aggregators.includes(name)
+  const aggregatorReach = isAggregator ? (name === 'YellowMoxie' ? 50 : name === 'Factual' ? 60 : 0) : 0
+  const priority = priority1.includes(name) ? 1 : 2
+
+  return {
+    priority,
+    requiresRealEmail: priority === 1,
+    requiresManualVerification: false,
+    isAggregator,
+    aggregatorReach,
+  }
+}
+
 const generateHandlers = (names) => {
   const handlers = {}
   names.forEach(name => {
     const className = name.replace(/[^a-zA-Z0-9]/g, '') + 'Handler'
     handlers[name] = class extends DirectoryHandler {
       static directoryName = name
+      static metadata = getMetadataForDirectory(name)
       async submit({ directory, businessData, gmailHandler, captchaHandler }) {
         return { status: 'pending', emailUsed: businessData.email }
       }

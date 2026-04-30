@@ -253,6 +253,97 @@ exports.runSeoAudit = onCall(
   }
 )
 
+// ─── sendCitationsPreSubmissionEmail ──────────────────────────────────────────
+// Sends a pre-submission email warning the user which sites require their verification
+// and which use the system email. This is a non-blocking operation.
+
+async function sendCitationsPreSubmissionEmail({ userId, email, businessName, totalDirectories, topTierSites, systemEmailSites }) {
+  try {
+    const resendKey = process.env.RESEND_API_KEY
+    if (!resendKey) {
+      console.warn('RESEND_API_KEY not set — skipping pre-submission email')
+      return
+    }
+
+    const topTierList = topTierSites.join(', ')
+    const systemEmailList = systemEmailSites.slice(0, 5).join(', ') + (systemEmailSites.length > 5 ? `, and ${systemEmailSites.length - 5} more` : '')
+
+    const html = `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #1f2937; margin: 0 0 20px 0;">Citations Submission Starting!</h2>
+
+        <p style="color: #4b5563; line-height: 1.6; margin: 0 0 20px 0;">
+          Hi <strong>${businessName}</strong>,
+        </p>
+
+        <p style="color: #4b5563; line-height: 1.6; margin: 0 0 20px 0;">
+          Your business citations are now being submitted to <strong>${totalDirectories} directories</strong>.
+        </p>
+
+        <div style="background: #fef3c7; border-left: 4px solid #f59e0b; padding: 16px; margin: 20px 0; border-radius: 4px;">
+          <h3 style="color: #92400e; margin: 0 0 12px 0;">⚠️ Important: Top-Tier Sites Require YOUR Verification</h3>
+          <p style="color: #92400e; margin: 0 0 12px 0; line-height: 1.6;">
+            The following sites will use <strong>your real email and account</strong>. You MUST monitor these for:
+          </p>
+          <ul style="color: #92400e; margin: 0 0 12px 0; padding-left: 20px;">
+            <li>Email verification links</li>
+            <li>Account approval/review</li>
+            <li>Future review notifications</li>
+          </ul>
+          <p style="color: #92400e; margin: 0; font-weight: bold;">
+            Sites: ${topTierList}
+          </p>
+        </div>
+
+        <div style="background: #ecfdf5; border-left: 4px solid #10b981; padding: 16px; margin: 20px 0; border-radius: 4px;">
+          <h3 style="color: #065f46; margin: 0 0 12px 0;">✅ System Managed Sites</h3>
+          <p style="color: #065f46; margin: 0 0 12px 0; line-height: 1.6;">
+            These ${systemEmailSites.length} sites will use our system email for verification and notifications:
+          </p>
+          <p style="color: #065f46; margin: 0; font-weight: bold;">
+            ${systemEmailList}
+          </p>
+        </div>
+
+        <p style="color: #4b5563; line-height: 1.6; margin: 20px 0;">
+          <strong>Total reach:</strong> ${totalDirectories} direct submissions + aggregator distribution = 500+ total business listings
+        </p>
+
+        <p style="color: #4b5563; line-height: 1.6; margin: 20px 0;">
+          Check your ReBoost Hub dashboard to monitor submission progress in real-time.
+        </p>
+
+        <p style="color: #6b7280; line-height: 1.6; margin: 20px 0 0 0; font-size: 12px;">
+          Questions? Contact our support team.
+        </p>
+      </div>
+    `
+
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${resendKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: 'ReBoost Marketing HUB <noreply@reboosthub.com>',
+        to: email,
+        subject: `Citations Submission Starting — ${businessName}`,
+        html,
+      }),
+    })
+
+    if (!response.ok) {
+      throw new Error(`Resend API error: ${response.statusText}`)
+    }
+
+    console.log(`[CITATIONS] Pre-submission email sent to ${email}`)
+  } catch (err) {
+    console.warn('[CITATIONS] Pre-submission email failed (non-blocking):', err.message)
+    // Non-blocking — don't throw
+  }
+}
+
 // ─── startCitationsJob ────────────────────────────────────────────────────────
 // Creates a Firestore batch document + all directory sub-documents for the user's
 // package tier. The actual Playwright automation runs in Cloud Run (not here) — it
@@ -598,13 +689,14 @@ exports.startCitationsJob = onCall(
       throw new HttpsError('already-exists', 'A submission job is already running. Wait for it to complete.')
     }
 
-    // Smart deduplication: filter out already-submitted directories
+    // Smart deduplication: filter out already-submitted + user-excluded directories
     const submittedDirs = user.submittedDirectories || []
+    const exclusions = user.citationExclusions || []
     const allDirs = MASTER_DIRECTORIES.slice(0, targetCount)
-    const newDirs = allDirs.filter(d => !submittedDirs.includes(d.name))
+    const newDirs = allDirs.filter(d => !submittedDirs.includes(d.name) && !exclusions.includes(d.name))
 
     if (newDirs.length === 0) {
-      throw new HttpsError('already-exists', `All ${targetCount} directories in your ${tierKey} tier have already been submitted. Upgrade your plan to submit to more directories.`)
+      throw new HttpsError('already-exists', `All ${targetCount} directories in your ${tierKey} tier have already been submitted or excluded. Upgrade your plan to submit to more directories.`)
     }
 
     // Business info for the submission engine (Phase 1/2/3)
@@ -642,8 +734,18 @@ exports.startCitationsJob = onCall(
       paymentMethods:   user.paymentMethods    || [],
     }
 
-    // Use filtered directories (already-submitted removed)
+    // Use filtered directories (already-submitted + excluded removed)
     const directories = newDirs
+
+    // Calculate email routing breakdown for pre-submission email
+    // In cloud-run/src/handlers.js, each handler has metadata with requiresRealEmail flag
+    // For now, we use priority: priority 1 = requires real email, priority 2+ = system email
+    const topTierSites = directories
+      .filter(d => d.priority === 1)
+      .map(d => d.name)
+    const systemEmailSites = directories
+      .filter(d => d.priority >= 2)
+      .map(d => d.name)
 
     // Create the batch document
     const batchRef = db.collection('citations').doc()
@@ -653,6 +755,8 @@ exports.startCitationsJob = onCall(
       packageTier: tierKey,
       targetCount,
       total: directories.length,
+      topTierCount: topTierSites.length,
+      systemEmailCount: systemEmailSites.length,
       status: 'queued',
       submitted: 0,
       live: 0,
@@ -682,6 +786,16 @@ exports.startCitationsJob = onCall(
       })
       await batch.commit()
     }
+
+    // Send pre-submission email (non-blocking)
+    sendCitationsPreSubmissionEmail({
+      userId,
+      email: user.email,
+      businessName: user.businessName,
+      totalDirectories: directories.length,
+      topTierSites,
+      systemEmailSites,
+    }).catch(err => console.warn('Pre-submission email error:', err))
 
     // Trigger Cloud Run submission engine
     await triggerCitationsSubmission()
@@ -2502,16 +2616,28 @@ async function lockSubscription(uid, offer) {
 
 async function unlockPurchase(uid, offer) {
   const userRef = db.collection('users').doc(uid)
+  const userSnap = await userRef.get()
+  const userData = userSnap.data()
 
   if (offer.unlocksFeature === 'citations') {
+    // Check if this is first citations purchase
+    const wasFirstPurchase = !userData?.purchases?.citationsPackageId
+
     // Citations use citationsPackageId, not a boolean flag
-    await userRef.update({
+    const updateData = {
       'purchases.citationsPackageId': offer.tier || 'citations_starter',
       updatedAt: FieldValue.serverTimestamp(),
-    })
+    }
+
+    // If first purchase, trigger exclusion list modal on next login
+    if (wasFirstPurchase) {
+      updateData.firstCitationsPurchaseAt = FieldValue.serverTimestamp()
+      updateData.showCitationExclusionList = true
+    }
+
+    await userRef.update(updateData)
   } else if (offer.unlocksFeature === 'leadCredits') {
-    const snap = await userRef.get()
-    const current = snap.data()?.purchases?.leadCredits || 0
+    const current = userData?.purchases?.leadCredits || 0
     await userRef.update({
       'purchases.leadCredits': current + (offer.creditAmount || 0),
       updatedAt: FieldValue.serverTimestamp(),

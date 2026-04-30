@@ -531,6 +531,69 @@ Handles all formats: `youtube.com/watch?v=`, `youtu.be/`, `youtube.com/embed/`, 
 
 ---
 
+## Aggregator Sites & Marketing Reach (Phase 4)
+
+These directories automatically distribute listings to 50-300+ additional sites. Use this data for package marketing copy:
+
+| Directory | Reach | Marketing Notes |
+|-----------|-------|-----------------|
+| Neustar Localeze | +75 sites | Largest aggregator, hits major data brokers |
+| Infogroup / Data Axle | +100 sites | Widest reach, syndication to 100+ partners |
+| Dun & Bradstreet | +80 sites | B2B focus, reaches enterprise directories |
+| Acxiom | +70 sites | Major data provider, healthcare + retail verticals |
+| YellowMoxie | +50 sites | Yellow Pages syndication network |
+| Factual | +60 sites | Location data, mobile apps + GPS services |
+| **Total Aggregator Reach** | **+500 sites** | — |
+
+### Email Routing Strategy (Phase 4)
+
+**Priority 1 (Top-tier):** ~20 sites requiring user's REAL email
+- Yelp, Google Business Profile, Yellow Pages, Apple Maps, Facebook Business, BBB, etc.
+- User OWNS these accounts and receives review notifications
+- Pre-submission email warns: "YOU must verify these"
+
+**Priority 2+ (Mid/Extended):** ~280 sites using system email `reboostai+businessName@gmail.com`
+- Reduces spam to user's inbox
+- Verification handled by ReBoost HUB
+- Includes aggregators that auto-syndicate
+
+### Package Marketing Copy
+
+**Starter Foundation** (100 sites)
+- 100 high-impact direct submissions  
+- Total reach: **100 listings**
+
+**Builder Pro** (200 sites) ⭐ **BEST VALUE**
+- 200 direct submissions
+- Includes 2 major aggregators (Neustar + Infogroup)
+- Total reach: **400+ listings** (2x expansion)
+
+**Local Dominator Premium** (300 sites)
+- 300 direct submissions
+- Includes 6 aggregators (Neustar, Infogroup, D&B, Acxiom, YellowMoxie, Factual)
+- Total reach: **800+ listings** (3x expansion)
+
+**User Value Prop:** "One-time submission = 800+ total business listings across the web"
+
+### Implementation Details (Phase 4)
+
+✅ **Completed:**
+- Handler metadata: each handler tagged with priority + requiresRealEmail flag
+- First-purchase detection: flag set in Firestore on initial citations purchase
+- CitationExclusionModal: modal shows top 20 dirs, user selects already-submitted sites
+- Pre-submission email: warns about top-tier verification requirements
+- Email routing counts: stored in batch doc (topTierCount, systemEmailCount)
+- Dashboard breakdown: shows split between real email vs system email sites
+
+**Firestore Fields Added:**
+- `users.showCitationExclusionList` (boolean) — triggers modal on first login
+- `users.citationExclusions` (array) — user-selected excluded directories
+- `users.firstCitationsPurchaseAt` (timestamp) — tracks first purchase for upsell timing
+- `citations.topTierCount` (number) — count of top-tier sites in batch
+- `citations.systemEmailCount` (number) — count of system email sites in batch
+
+---
+
 ## Starter Message for Next Session
 
 Copy this into the next Claude chat:
