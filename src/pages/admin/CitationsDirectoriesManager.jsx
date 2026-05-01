@@ -235,12 +235,17 @@ export default function CitationsDirectoriesManager() {
       const existingPkg = packages.find(p => p.offerId === selectedPackage)
       const docId = existingPkg?.id || `pkg_${Date.now()}`
 
+      const dirNames = Array.from(selectedSites)
+      const aggregatorReach = dirNames.reduce((sum, n) => sum + (AGGREGATORS[n] || 0), 0)
+
       await setDoc(doc(db, 'citation_packages', docId), {
         offerId: selectedPackage,
         name: offer.name,
         price: offer.price,
-        directoryNames: Array.from(selectedSites),
-        count: selectedSites.size,
+        directoryNames: dirNames,
+        count: dirNames.length,
+        aggregatorReach,
+        totalReach: dirNames.length + aggregatorReach,
         isUpgrade: offer.isUpgrade || false,
         updatedAt: new Date(),
       }, { merge: true })

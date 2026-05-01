@@ -75,6 +75,8 @@ export default function CitationsPackageBar() {
         return {
           ...offer,
           directoryCount: linkedPkg?.count || 0,
+          aggregatorReach: linkedPkg?.aggregatorReach || 0,
+          totalReach: linkedPkg?.totalReach || linkedPkg?.count || 0,
         }
       })
       .sort((a, b) => a.directoryCount - b.directoryCount)
@@ -149,15 +151,20 @@ export default function CitationsPackageBar() {
                 </p>
               )}
 
-              {/* Directory count */}
+              {/* Directory count + aggregator reach */}
               <div className="mb-3">
                 <p className={cn(
                   'text-3xl font-black',
                   isCurrent ? 'text-hub-green' : isLower ? 'text-hub-text-muted' : 'text-hub-text'
                 )}>
-                  {offer.directoryCount}
+                  {offer.totalReach > offer.directoryCount ? `${offer.totalReach}+` : offer.directoryCount}
                 </p>
-                <p className="text-xs text-hub-text-muted -mt-0.5">directories</p>
+                <p className="text-xs text-hub-text-muted -mt-0.5">total business listings</p>
+                {offer.aggregatorReach > 0 && (
+                  <p className="text-xs text-hub-text-muted/70 mt-0.5">
+                    {offer.directoryCount} direct + {offer.aggregatorReach} via networks
+                  </p>
+                )}
               </div>
 
               {/* Action area */}
