@@ -1,8 +1,10 @@
 import { Lock, Loader2 } from 'lucide-react'
 import Button from './Button'
-import { redirectToCheckout, getActiveOffers } from '../../services/stripe'
+import { redirectToCheckout } from '../../services/stripe'
 import { useState, useEffect } from 'react'
 import { useToast } from '../../hooks/useToast'
+import { db } from '../../services/firebase'
+import { collection, getDocs, query, where } from 'firebase/firestore'
 
 const TOOL_NAMES = {
   citations: 'Citations Manager',
@@ -35,15 +37,27 @@ export default function ToolGate({ tool }) {
   const description = TOOL_DESCRIPTIONS[tool]
 
   useEffect(() => {
-    getActiveOffers()
-      .then(offers => {
-        const matching = offers.filter(o => o.unlocksFeature === tool)
-        setPlans(matching)
-      })
-      .catch(err => {
+    const loadOffers = async () => {
+      try {
+        const q = query(
+          collection(db, 'offers'),
+          where('unlocksFeature', '==', tool),
+          where('active', '==', true)
+        )
+        const snap = await getDocs(q)
+        const offers = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        setPlans(offers)
+      } catch (err) {
         console.error('Failed to load offers:', err)
-      })
-      .finally(() => setLoadingOffers(false))
+      } finally {
+        setLoadingOffers(false)
+      }
+    }
+
+    loadOffers()
+    // Reload every 2 seconds to catch deleted offers immediately
+    const interval = setInterval(loadOffers, 2000)
+    return () => clearInterval(interval)
   }, [tool])
 
   const handleBuy = async (offerId) => {
