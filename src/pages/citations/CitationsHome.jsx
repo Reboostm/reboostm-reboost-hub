@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
-  CheckCircle, List, Activity, ChevronRight, Package, Loader2, AlertCircle,
+  CheckCircle, List, Activity, ChevronRight, Package, Loader2, AlertCircle, ClipboardList, Rocket,
 } from 'lucide-react'
 import Card, { CardHeader, CardTitle } from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -35,6 +36,7 @@ const STATUS_BADGE = {
 export default function CitationsHome() {
   const { hasCitations } = useBilling()
   const { userProfile, user } = useAuth()
+  const navigate = useNavigate()
   const [batches, setBatches] = useState([])
   const [batchesLoading, setBatchesLoading] = useState(true)
   const [showExclusionModal, setShowExclusionModal] = useState(false)
@@ -118,6 +120,19 @@ export default function CitationsHome() {
     }
   }, [packageId, offers, packages])
 
+  const [starting, setStarting] = useState(false)
+
+  const handleStartJob = async () => {
+    setStarting(true)
+    try {
+      await startCitationsJob({})
+    } catch (err) {
+      toast(err.message || 'Failed to start submission', 'error')
+    } finally {
+      setStarting(false)
+    }
+  }
+
   if (!hasCitations) return <ToolGate tool="citations" />
 
   const activeBatch = batches.find(b => b.status === 'running' || b.status === 'queued')
@@ -144,6 +159,40 @@ export default function CitationsHome() {
 
       {/* Package tier bar */}
       <CitationsPackageBar />
+
+      {/* Business info prompt or start submission CTA */}
+      {!userProfile?.citationsSetupCompleted ? (
+        <div className="mb-6 flex items-center justify-between gap-4 p-4 rounded-xl border border-hub-yellow/40 bg-hub-yellow/5">
+          <div className="flex items-center gap-3">
+            <ClipboardList className="w-5 h-5 text-hub-yellow flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-hub-text">Complete your business info first</p>
+              <p className="text-xs text-hub-text-secondary mt-0.5">We need your NAP, description, and contact details before submitting to directories.</p>
+            </div>
+          </div>
+          <Button onClick={() => navigate('/citations/setup')} size="sm" className="flex-shrink-0">
+            Fill Out Now
+          </Button>
+        </div>
+      ) : !activeBatch ? (
+        <div className="mb-6 flex items-center justify-between gap-4 p-4 rounded-xl border border-hub-blue/40 bg-hub-blue/5">
+          <div className="flex items-center gap-3">
+            <Rocket className="w-5 h-5 text-hub-blue flex-shrink-0" />
+            <div>
+              <p className="text-sm font-semibold text-hub-text">Ready to submit</p>
+              <p className="text-xs text-hub-text-secondary mt-0.5">Start submitting your business to your {tier.count} directories now.</p>
+            </div>
+          </div>
+          <div className="flex gap-2 flex-shrink-0">
+            <Button variant="secondary" size="sm" onClick={() => navigate('/citations/setup')}>
+              Edit Info
+            </Button>
+            <Button size="sm" loading={starting} onClick={handleStartJob}>
+              Start Submission
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {/* Overall stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
