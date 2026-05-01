@@ -45,9 +45,36 @@ export default function ToolGate({ tool }) {
           where('active', '==', true)
         )
         const snap = await getDocs(q)
-        const offers = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-        // Upgrade offers are only relevant to existing customers — never show them here
-        setPlans(offers.filter(o => !o.isUpgrade))
+        let offers = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+        offers = offers.filter(o => !o.isUpgrade)
+
+        // For citations, load packages and attach cumulative reach numbers
+        if (tool === 'citations') {
+          const pkgsSnap = await getDocs(collection(db, 'citation_packages'))
+          const pkgMap = {}
+          pkgsSnap.docs.forEach(d => { pkgMap[d.id] = d.data() })
+
+          // Sort by price to accumulate tiers in order
+          const sorted = [...offers].sort((a, b) => (a.price || 0) - (b.price || 0))
+          let cumDirect = 0
+          let cumAgg = 0
+          const cumulativeByOffer = {}
+          sorted.forEach(o => {
+            const pkg = pkgMap[o.tier] || {}
+            cumDirect += pkg.count || 0
+            cumAgg += pkg.aggregatorReach || 0
+            cumulativeByOffer[o.id] = { cumDirect, cumAgg }
+          })
+
+          offers = sorted.map(o => ({
+            ...o,
+            cumulativeDirectCount: cumulativeByOffer[o.id]?.cumDirect || 0,
+            cumulativeAggReach: cumulativeByOffer[o.id]?.cumAgg || 0,
+            cumulativeTotalReach: (cumulativeByOffer[o.id]?.cumDirect || 0) + (cumulativeByOffer[o.id]?.cumAgg || 0),
+          }))
+        }
+
+        setPlans(offers)
       } catch (err) {
         console.error('Failed to load offers:', err)
       } finally {
@@ -103,6 +130,15 @@ export default function ToolGate({ tool }) {
                   <p className="text-sm font-medium text-hub-text">{plan.name}</p>
                   {plan.description && (
                     <p className="text-xs text-hub-text-secondary mt-0.5 max-w-xs">{plan.description}</p>
+                  )}
+                  {plan.cumulativeTotalReach > 0 && (
+                    <p className="text-xs text-hub-text-secondary mt-0.5">
+                      <span className="font-semibold text-hub-text">
+                        {plan.cumulativeAggReach > 0 ? `${plan.cumulativeTotalReach}+` : plan.cumulativeDirectCount}
+                      </span>{' '}
+                      total listings
+                      {plan.cumulativeAggReach > 0 && ` · ${plan.cumulativeDirectCount} direct + ${plan.cumulativeAggReach} via networks`}
+                    </p>
                   )}
                   <p className="text-hub-blue font-semibold mt-1">
                     ${plan.price} {plan.type === 'subscription' ? '/mo' : 'one-time'}

@@ -67,19 +67,45 @@ export default function CitationsPackageBar() {
     }
   }
 
-  // Sort offers by directory count (via linked package)
+  // Sort offers by directory count (via linked package) and attach cumulative display totals.
+  // Raw directoryCount stays as-is for tier ordering/comparison (isLower, isUpgrade).
+  // cumulativeTotalReach / cumulativeDirectCount are what the customer actually receives
+  // (all tiers below + this tier combined), used only for display.
   const sortedOffers = useMemo(() => {
-    return allOffers
+    const enriched = allOffers
       .map(offer => {
         const linkedPkg = packages.find(p => p.id === offer.tier)
         return {
           ...offer,
           directoryCount: linkedPkg?.count || 0,
-          aggregatorReach: linkedPkg?.aggregatorReach || 0,
-          totalReach: linkedPkg?.totalReach || linkedPkg?.count || 0,
+          ownAggregatorReach: linkedPkg?.aggregatorReach || 0,
         }
       })
       .sort((a, b) => a.directoryCount - b.directoryCount)
+
+    // Walk up the base-offer ladder (sorted by price) accumulating totals
+    const baseSortedByPrice = enriched
+      .filter(o => !o.isUpgrade)
+      .sort((a, b) => (a.price || 0) - (b.price || 0))
+
+    let cumDirect = 0
+    let cumAgg = 0
+    const cumulativeByTier = {}
+    baseSortedByPrice.forEach(o => {
+      cumDirect += o.directoryCount
+      cumAgg += o.ownAggregatorReach
+      cumulativeByTier[o.tier] = { cumDirect, cumAgg }
+    })
+
+    return enriched.map(o => {
+      const cum = cumulativeByTier[o.tier] || { cumDirect: o.directoryCount, cumAgg: o.ownAggregatorReach }
+      return {
+        ...o,
+        cumulativeDirectCount: cum.cumDirect,
+        cumulativeAggReach: cum.cumAgg,
+        cumulativeTotalReach: cum.cumDirect + cum.cumAgg,
+      }
+    })
   }, [allOffers, packages])
 
   // Build the display list:
@@ -151,18 +177,18 @@ export default function CitationsPackageBar() {
                 </p>
               )}
 
-              {/* Directory count + aggregator reach */}
+              {/* Directory count + aggregator reach (cumulative across all tiers up to this one) */}
               <div className="mb-3">
                 <p className={cn(
                   'text-3xl font-black',
                   isCurrent ? 'text-hub-green' : isLower ? 'text-hub-text-muted' : 'text-hub-text'
                 )}>
-                  {offer.totalReach > offer.directoryCount ? `${offer.totalReach}+` : offer.directoryCount}
+                  {offer.cumulativeAggReach > 0 ? `${offer.cumulativeTotalReach}+` : offer.cumulativeDirectCount}
                 </p>
                 <p className="text-xs text-hub-text-muted -mt-0.5">total business listings</p>
-                {offer.aggregatorReach > 0 && (
+                {offer.cumulativeAggReach > 0 && (
                   <p className="text-xs text-hub-text-muted/70 mt-0.5">
-                    {offer.directoryCount} direct + {offer.aggregatorReach} via networks
+                    {offer.cumulativeDirectCount} direct + {offer.cumulativeAggReach} via networks
                   </p>
                 )}
               </div>
