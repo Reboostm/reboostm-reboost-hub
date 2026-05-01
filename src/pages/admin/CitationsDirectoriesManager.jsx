@@ -171,6 +171,20 @@ export default function CitationsDirectoriesManager() {
     setSelectedSites(newSet)
   }
 
+  const toggleSelectAll = () => {
+    if (selectedSites.size === filtered.length) {
+      setSelectedSites(new Set())
+    } else {
+      const selectableNames = filtered
+        .filter(dir => !assignedToOtherOffers.has(dir.name))
+        .map(dir => dir.name)
+      setSelectedSites(new Set(selectableNames))
+    }
+  }
+
+  const allSelectableSelected = filtered.length > 0 &&
+    filtered.every(dir => selectedSites.has(dir.name) || assignedToOtherOffers.has(dir.name))
+
   const handleSavePackage = async () => {
     if (!selectedPackage) {
       toast('Select a package first', 'error')
@@ -338,7 +352,15 @@ export default function CitationsDirectoriesManager() {
           <table className="w-full text-sm">
             <thead className="bg-hub-input border-b border-hub-input">
               <tr>
-                <th className="px-4 py-3 text-center font-semibold text-hub-text w-12">✓</th>
+                <th className="px-4 py-3 text-center font-semibold text-hub-text w-12">
+                  <input
+                    type="checkbox"
+                    checked={allSelectableSelected}
+                    onChange={toggleSelectAll}
+                    title="Select all visible directories"
+                    className="w-4 h-4 rounded cursor-pointer"
+                  />
+                </th>
                 <th className="px-4 py-3 text-left font-semibold text-hub-text">#</th>
                 <th className="px-4 py-3 text-left font-semibold text-hub-text">Directory</th>
                 <th className="px-4 py-3 text-left font-semibold text-hub-text">Category</th>

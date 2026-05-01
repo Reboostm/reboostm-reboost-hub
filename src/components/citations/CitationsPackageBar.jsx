@@ -90,18 +90,30 @@ export default function CitationsPackageBar() {
         const isLower = tier.rank < currentRank
         const isUpgrade = tier.rank > currentRank
 
-        // Find an offer linked to a package in this tier's range
+        // Match offer by tier rank — check if offer has correct directory count OR is named for this tier
+        const tierCount = [100, 200, 300][tier.rank - 1]
+
         const offer = allOffers.find(o => {
+          // First try: match by linked package ID + directory count
           const linkedPackage = packages.find(p => p.id === o.tier)
-          if (!linkedPackage) return false
-          // Match by directory count to tier
-          const tierCount = [100, 200, 300][tier.rank - 1]
-          return linkedPackage.count === tierCount
+          if (linkedPackage && linkedPackage.count === tierCount) return true
+
+          // Fallback: match by offer's tier name if it follows the pattern
+          // This handles cases where tier field might be wrong or the offer name suggests the tier
+          const tierNameLower = tier.defaultLabel.toLowerCase()
+          const offerNameLower = o.name?.toLowerCase() || ''
+
+          // Check if offer name contains the tier name
+          if (offerNameLower.includes(tierNameLower)) {
+            return true
+          }
+
+          return false
         })
 
-        const linkedPackage = offer ? packages.find(p => p.id === offer.tier) : null
+        const linkedPackage = offer && offer.tier ? packages.find(p => p.id === offer.tier) : null
         const displayName = offer?.name || tier.defaultLabel
-        const directoryCount = linkedPackage?.count || tier.count
+        const directoryCount = linkedPackage?.count || tierCount
         const description = offer?.description || ''
 
         return (
