@@ -276,5 +276,12 @@ export async function updateOffer(offerId, data) {
 }
 
 export async function deleteOffer(offerId) {
+  // Also delete associated citation packages
+  const pkgsQuery = query(collection(db, 'citation_packages'), where('offerId', '==', offerId))
+  const pkgsSnap = await getDocs(pkgsQuery)
+  const deletePromises = pkgsSnap.docs.map(doc => deleteDoc(doc.ref))
+  await Promise.all(deletePromises)
+
+  // Delete the offer itself
   await deleteDoc(doc(db, 'offers', offerId))
 }

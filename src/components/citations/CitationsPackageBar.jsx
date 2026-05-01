@@ -48,12 +48,19 @@ export default function CitationsPackageBar() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [offersResult, packagesSnap] = await Promise.all([
-          getActiveOffers(),
-          getDocs(collection(db, 'citation_packages'))
-        ])
+        // Use real-time listener for offers instead of cached getActiveOffers()
+        const offersQuery = query(
+          collection(db, 'offers'),
+          where('unlocksFeature', '==', 'citations'),
+          where('active', '==', true)
+        )
+        const offersSnap = await getDocs(offersQuery)
+        const citationOffers = offersSnap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
 
-        const citationOffers = offersResult.filter(o => o.unlocksFeature === 'citations')
+        const packagesSnap = await getDocs(collection(db, 'citation_packages'))
         const citationPackages = packagesSnap.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
@@ -67,6 +74,9 @@ export default function CitationsPackageBar() {
     }
 
     loadData()
+    // Reload every 2 seconds to catch new/deleted offers
+    const interval = setInterval(loadData, 2000)
+    return () => clearInterval(interval)
   }, [])
 
   const packageId = userProfile?.purchases?.citationsPackageId

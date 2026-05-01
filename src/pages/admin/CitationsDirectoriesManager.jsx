@@ -335,15 +335,38 @@ export default function CitationsDirectoriesManager() {
         </div>
       </Card>
 
-      {/* Results count */}
+      {/* Results count + quick actions */}
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-hub-text-muted">
           Showing {filtered.length} of {MASTER_DIRECTORIES.length} directories
+          {selectedSites.size > 0 && ` — ${selectedSites.size} selected`}
         </p>
-        <Button variant="secondary" size="sm" className="gap-2">
-          <Download className="w-4 h-4" />
-          Export CSV
-        </Button>
+        <div className="flex gap-2">
+          {selectedSites.size > 0 && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => setSelectedSites(new Set())}
+              className="text-xs"
+            >
+              Uncheck All
+            </Button>
+          )}
+          {filtered.some(dir => !assignedToOtherOffers.has(dir.name) && !selectedSites.has(dir.name)) && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={toggleSelectAll}
+              className="text-xs"
+            >
+              Select All
+            </Button>
+          )}
+          <Button variant="secondary" size="sm" className="gap-2">
+            <Download className="w-4 h-4" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       {/* Directory Table with Checkboxes */}
