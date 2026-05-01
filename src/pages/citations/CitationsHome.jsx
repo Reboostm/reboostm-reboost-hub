@@ -265,7 +265,7 @@ export default function CitationsHome() {
         previousTier={lastPackageId}
         currentTier={packageId}
         tier={tier}
-        newDirs={Math.max(0, (PACKAGE_TIERS[packageId]?.count || 100) - (PACKAGE_TIERS[lastPackageId]?.count || 0))}
+        newDirs={Math.max(0, (packages.find(p => p.id === packageId)?.count || 0) - (packages.find(p => p.id === lastPackageId)?.count || 0))}
       />
     </div>
   )
