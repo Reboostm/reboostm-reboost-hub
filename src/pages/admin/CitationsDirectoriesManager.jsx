@@ -149,7 +149,19 @@ export default function CitationsDirectoriesManager() {
 
   const categories = [...new Set(enrichedDirs.map(d => d.category))].sort()
 
-  const toggleSite = (dirName) => {
+  // Get all directories assigned to OTHER offers
+  const assignedToOtherOffers = useMemo(() => {
+    const allAssigned = new Set()
+    packages.forEach(pkg => {
+      if (pkg.offerId !== selectedPackage && pkg.directoryNames) {
+        pkg.directoryNames.forEach(dir => allAssigned.add(dir))
+      }
+    })
+    return allAssigned
+  }, [packages, selectedPackage])
+
+  const toggleSite = (dirName, isAssignedElsewhere) => {
+    if (isAssignedElsewhere) return
     const newSet = new Set(selectedSites)
     if (newSet.has(dirName)) {
       newSet.delete(dirName)
@@ -338,20 +350,27 @@ export default function CitationsDirectoriesManager() {
             <tbody>
               {filtered.map((dir, idx) => {
                 const isSelected = selectedSites.has(dir.name)
+                const isAssignedElsewhere = assignedToOtherOffers.has(dir.name)
                 return (
                   <tr
                     key={dir.name}
                     className={cn(
-                      'border-b border-hub-input transition-colors cursor-pointer',
-                      isSelected ? 'bg-hub-blue/10' : 'hover:bg-hub-input/30'
+                      'border-b border-hub-input transition-colors',
+                      isAssignedElsewhere
+                        ? 'bg-hub-input/20 opacity-60 cursor-not-allowed'
+                        : isSelected
+                          ? 'bg-hub-blue/10 cursor-pointer'
+                          : 'hover:bg-hub-input/30 cursor-pointer'
                     )}
                   >
                     <td className="px-4 py-3 text-center">
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => toggleSite(dir.name)}
-                        className="w-4 h-4 rounded cursor-pointer"
+                        onChange={() => toggleSite(dir.name, isAssignedElsewhere)}
+                        disabled={isAssignedElsewhere}
+                        title={isAssignedElsewhere ? 'Already assigned to another offer' : ''}
+                        className="w-4 h-4 rounded cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
                       />
                     </td>
                     <td className="px-4 py-3 text-hub-text-muted font-mono text-xs">{dir.index}</td>
