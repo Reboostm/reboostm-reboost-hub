@@ -338,7 +338,9 @@ export default function AdminOffers() {
   const handleSave = () => { setModalOpen(false); load() }
 
   const tabDef = FEATURE_TABS.find(t => t.key === activeTab)
-  const hasTiers = tabDef?.tiers?.length > 0
+  // Citations loads tiers dynamically so the static tiers[] is always empty —
+  // force hasTiers true for citations so the Upgrade Offers section always renders.
+  const hasTiers = tabDef?.tiers?.length > 0 || activeTab === 'citations'
 
   return (
     <div className="p-6 max-w-5xl space-y-6">

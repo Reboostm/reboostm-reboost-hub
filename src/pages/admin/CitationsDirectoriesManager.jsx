@@ -37,15 +37,19 @@ export default function CitationsDirectoriesManager() {
         )
         const offersSnap = await getDocs(offersQuery)
 
-        const citationOffers = offersSnap.docs.map(doc => ({
+        const allCitationOffers = offersSnap.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
         }))
-        setOffers(citationOffers)
 
-        // Load packages and filter to only those linked to active offers
+        // Upgrade offers reuse an existing package — exclude them from directory
+        // assignment since their directories are managed via the base offer.
+        const baseOffers = allCitationOffers.filter(o => !o.isUpgrade)
+        setOffers(baseOffers)
+
+        // Load packages and filter to only those linked to active base offers
         const allPkgsSnap = await getDocs(collection(db, 'citation_packages'))
-        const activeOfferTiers = new Set(citationOffers.map(o => o.tier).filter(Boolean))
+        const activeOfferTiers = new Set(baseOffers.map(o => o.tier).filter(Boolean))
 
         const pkgs = allPkgsSnap.docs
           .filter(doc => activeOfferTiers.has(doc.id) || !doc.data().offerId)
@@ -55,9 +59,9 @@ export default function CitationsDirectoriesManager() {
           }))
         setPackages(pkgs)
 
-        // Auto-select first offer if none selected
-        if (citationOffers.length > 0 && !selectedPackage) {
-          setSelectedPackage(citationOffers[0].id)
+        // Auto-select first base offer if none selected
+        if (baseOffers.length > 0 && !selectedPackage) {
+          setSelectedPackage(baseOffers[0].id)
         }
       } catch (err) {
         console.error('Error loading offers/packages:', err)
