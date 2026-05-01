@@ -80,13 +80,10 @@ export default function CitationsPackageBar() {
       .sort((a, b) => a.directoryCount - b.directoryCount)
   }, [allOffers, packages])
 
-  // Which offers to actually display:
-  // - No package yet: only base offers (upgrade offers require an existing purchase)
-  // - Has package: base offers always, upgrade offers only if they're a step UP from current tier
+  // Only show base (non-upgrade) offers — upgrade offers are never shown in the package bar
   const displayOffers = useMemo(() => {
-    if (!packageId) return sortedOffers.filter(o => !o.isUpgrade)
-    return sortedOffers.filter(o => !o.isUpgrade || o.directoryCount > userPackageCount)
-  }, [sortedOffers, packageId, userPackageCount])
+    return sortedOffers.filter(o => !o.isUpgrade)
+  }, [sortedOffers])
 
   return (
     <div className="grid grid-cols-3 gap-3 mb-6">
