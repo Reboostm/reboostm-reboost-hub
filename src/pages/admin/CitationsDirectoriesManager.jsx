@@ -175,17 +175,26 @@ export default function CitationsDirectoriesManager() {
 
   const currentPkg = packages.find(p => p.offerId === selectedPackage)
 
-  // Directories that belong to lower-tier packages (fewer total dirs) are locked —
-  // they're already submitted when a customer upgrades, so higher packages only
-  // need the new directories. Lock them so admin can't accidentally re-assign them.
+  // Use offer price to establish tier order (cheaper = lower tier).
+  // We can't rely on saved package.count because packages may have equal counts
+  // before being properly configured. Price is always distinct per tier.
+  const offersSortedByPrice = useMemo(
+    () => [...offers].sort((a, b) => (a.price || 0) - (b.price || 0)),
+    [offers]
+  )
+  const currentOfferIndex = offersSortedByPrice.findIndex(o => o.id === selectedPackage)
+
+  // Collect all directory names from packages whose offer sits at a LOWER price
+  // tier than the currently selected one — those are locked (already submitted on upgrade).
   const lowerTierDirNames = useMemo(() => {
-    if (!currentPkg) return new Set()
+    if (currentOfferIndex <= 0) return new Set()
     const locked = new Set()
-    packages
-      .filter(p => p.offerId !== selectedPackage && (p.count || 0) < currentPkg.count)
-      .forEach(p => (p.directoryNames || []).forEach(n => locked.add(n)))
+    offersSortedByPrice.slice(0, currentOfferIndex).forEach(offer => {
+      const pkg = packages.find(p => p.offerId === offer.id)
+      if (pkg) (pkg.directoryNames || []).forEach(n => locked.add(n))
+    })
     return locked
-  }, [packages, selectedPackage, currentPkg])
+  }, [packages, offersSortedByPrice, currentOfferIndex])
 
   const toggleSite = (dirName) => {
     if (lowerTierDirNames.has(dirName)) return
