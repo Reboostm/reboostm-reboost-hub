@@ -8,10 +8,12 @@ import Button from '../../components/ui/Button'
 import Modal from '../../components/ui/Modal'
 import { useAuth } from '../../hooks/useAuth'
 import { useBilling } from '../../hooks/useBilling'
+import { useToast } from '../../hooks/useToast'
 import ToolGate from '../../components/ui/ToolGate'
 import CitationsPackageBar from '../../components/citations/CitationsPackageBar'
 import CitationExclusionModal from '../../components/citations/CitationExclusionModal'
 import { subscribeToCitationsBatches } from '../../services/firestore'
+import { startCitationsJob } from '../../services/functions'
 import { cn } from '../../utils/cn'
 
 const PACKAGE_TIERS = {
@@ -229,12 +231,29 @@ export default function CitationsHome() {
 
 // Fun upgrade confirmation modal
 function UpgradeConfirmationModal({ isOpen, onClose, currentTier, tier, newDirs }) {
+  const { toast } = useToast()
   const [step, setStep] = useState('confirm') // confirm, progress, done
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleAutoSubmit = async () => {
+    setStep('progress')
+    setSubmitting(true)
+    try {
+      await startCitationsJob({})
+      setTimeout(() => {
+        setStep('done')
+      }, 2000)
+    } catch (err) {
+      toast(err.message || 'Failed to start submission', 'error')
+      setSubmitting(false)
+      setStep('confirm')
+    }
+  }
 
   if (!isOpen) return null
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} size="lg" title="">
+    <Modal isOpen={isOpen} onClose={submitting ? undefined : onClose} size="lg" title="">
       {step === 'confirm' && (
         <div className="text-center space-y-6 py-6">
           <div className="text-5xl">🎉</div>
@@ -261,7 +280,8 @@ function UpgradeConfirmationModal({ isOpen, onClose, currentTier, tier, newDirs 
           <div className="space-y-3 pt-4">
             <Button
               className="w-full"
-              onClick={() => setStep('progress')}
+              onClick={handleAutoSubmit}
+              loading={submitting}
             >
               <span>🚀</span> Let's Go! Auto-Submit Now
             </Button>
@@ -290,6 +310,24 @@ function UpgradeConfirmationModal({ isOpen, onClose, currentTier, tier, newDirs 
           <Button disabled className="w-full">
             <Loader2 className="w-4 h-4 animate-spin" />
             In Progress
+          </Button>
+        </div>
+      )}
+
+      {step === 'done' && (
+        <div className="text-center space-y-6 py-8">
+          <div className="text-5xl">✅</div>
+          <div>
+            <h2 className="text-2xl font-bold text-hub-text mb-2">Submission Started!</h2>
+            <p className="text-hub-text-secondary">Your {newDirs} new directories are being submitted right now.</p>
+          </div>
+
+          <div className="bg-hub-green/10 border border-hub-green/25 rounded-lg p-4">
+            <p className="text-sm text-hub-green font-medium">Check the Submission Progress card below to track real-time status.</p>
+          </div>
+
+          <Button className="w-full" onClick={onClose}>
+            Got It! Close Modal
           </Button>
         </div>
       )}
