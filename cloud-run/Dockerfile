@@ -19,8 +19,4 @@ COPY src ./src
 ENV PORT=8080
 ENV NODE_ENV=production
 
-# Create non-root user for security
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
-USER appuser
-
 CMD ["node", "src/index.js"]
