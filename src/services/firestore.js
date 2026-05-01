@@ -285,3 +285,21 @@ export async function deleteOffer(offerId) {
   // Delete the offer itself
   await deleteDoc(doc(db, 'offers', offerId))
 }
+
+export async function deleteOrphanedCitationPackages() {
+  // Get IDs of all active offers
+  const activeOffersSnap = await getDocs(
+    query(collection(db, 'offers'), where('active', '==', true))
+  )
+  const activeOfferIds = new Set(activeOffersSnap.docs.map(d => d.id))
+
+  // Delete any citation_package that has no offerId OR whose offerId points to a non-active offer
+  const pkgsSnap = await getDocs(collection(db, 'citation_packages'))
+  const toDelete = pkgsSnap.docs.filter(d => {
+    const offerId = d.data().offerId
+    return !offerId || !activeOfferIds.has(offerId)
+  })
+
+  await Promise.all(toDelete.map(d => deleteDoc(d.ref)))
+  return toDelete.length
+}

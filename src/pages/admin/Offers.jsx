@@ -4,7 +4,7 @@ import Card from '../../components/ui/Card'
 import Button from '../../components/ui/Button'
 import Badge from '../../components/ui/Badge'
 import Modal from '../../components/ui/Modal'
-import { createOffer, updateOffer, deleteOffer, getOffers } from '../../services/firestore'
+import { createOffer, updateOffer, deleteOffer, getOffers, deleteOrphanedCitationPackages } from '../../services/firestore'
 import { useToast } from '../../hooks/useToast'
 import { db } from '../../services/firebase'
 import { collection, getDocs, query, where } from 'firebase/firestore'
@@ -287,6 +287,7 @@ export default function AdminOffers() {
   const [editingOffer, setEditingOffer] = useState(null)
   const [deleting, setDeleting] = useState(null)
   const [confirmDelete, setConfirmDelete] = useState(null)
+  const [cleaning, setCleaning] = useState(false)
 
   const load = () => {
     setLoading(true)
@@ -310,11 +311,25 @@ export default function AdminOffers() {
       await deleteOffer(id)
       setOffers(prev => prev.filter(o => o.id !== id))
       toast('Offer deleted.', 'success')
-    } catch {
-      toast('Failed to delete.', 'error')
+    } catch (err) {
+      console.error('Delete offer failed:', err)
+      toast(`Failed to delete: ${err.message}`, 'error')
     } finally {
       setDeleting(null)
       setConfirmDelete(null)
+    }
+  }
+
+  const handleCleanOrphans = async () => {
+    setCleaning(true)
+    try {
+      const count = await deleteOrphanedCitationPackages()
+      toast(count > 0 ? `Deleted ${count} orphaned package(s).` : 'No orphaned packages found.', 'success')
+    } catch (err) {
+      console.error('Cleanup failed:', err)
+      toast(`Cleanup failed: ${err.message}`, 'error')
+    } finally {
+      setCleaning(false)
     }
   }
 
@@ -334,9 +349,17 @@ export default function AdminOffers() {
             Manage pricing for each tool. Add Stripe Price IDs to activate checkout.
           </p>
         </div>
-        <Button onClick={openCreate} size="sm">
-          <Plus className="w-4 h-4" /> New Offer
-        </Button>
+        <div className="flex gap-2">
+          {activeTab === 'citations' && (
+            <Button variant="secondary" onClick={handleCleanOrphans} size="sm" disabled={cleaning}>
+              {cleaning ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              {cleaning ? 'Cleaning...' : 'Clean Orphaned Packages'}
+            </Button>
+          )}
+          <Button onClick={openCreate} size="sm">
+            <Plus className="w-4 h-4" /> New Offer
+          </Button>
+        </div>
       </div>
 
       {/* Feature tabs */}

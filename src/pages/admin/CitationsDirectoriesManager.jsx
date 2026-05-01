@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Search, Filter, Download, Save, Plus, Trash2 } from 'lucide-react'
 import Card, { CardHeader, CardTitle } from '../../components/ui/Card'
 import Input from '../../components/ui/Input'
@@ -23,6 +23,7 @@ export default function CitationsDirectoriesManager() {
   const [selectedPackage, setSelectedPackage] = useState(null)
   const [selectedSites, setSelectedSites] = useState(new Set())
   const [saving, setSaving] = useState(false)
+  const loadedForPackageRef = useRef(null)
 
   // Load offers from citations, then load packages
   useEffect(() => {
@@ -74,22 +75,21 @@ export default function CitationsDirectoriesManager() {
 
   // Load selected sites for current package + auto-switch if offer was deleted
   useEffect(() => {
-    if (!selectedPackage || !packages.length) return
+    if (!selectedPackage) return
 
-    const pkg = packages.find(p => p.offerId === selectedPackage)
-
-    // If selected offer no longer exists, auto-switch to first available
-    const offerExists = offers.some(o => o.id === selectedPackage)
-    if (!offerExists && offers.length > 0) {
+    // Auto-switch if selected offer was deleted
+    if (offers.length > 0 && !offers.some(o => o.id === selectedPackage)) {
       setSelectedPackage(offers[0].id)
       return
     }
 
-    if (pkg?.directoryNames) {
-      setSelectedSites(new Set(pkg.directoryNames))
-    } else {
-      setSelectedSites(new Set())
-    }
+    // Only reset selectedSites when selectedPackage actually changes, not on every
+    // polling cycle. The ref tracks which package we've already loaded for.
+    if (!packages.length || loadedForPackageRef.current === selectedPackage) return
+    loadedForPackageRef.current = selectedPackage
+
+    const pkg = packages.find(p => p.offerId === selectedPackage)
+    setSelectedSites(new Set(pkg?.directoryNames || []))
   }, [selectedPackage, packages, offers])
 
   // Aggregator mapping
