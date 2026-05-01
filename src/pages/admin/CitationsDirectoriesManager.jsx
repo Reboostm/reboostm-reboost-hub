@@ -173,6 +173,20 @@ export default function CitationsDirectoriesManager() {
 
   const categories = [...new Set(enrichedDirs.map(d => d.category))].sort()
 
+  const currentPkg = packages.find(p => p.offerId === selectedPackage)
+
+  // Directories that belong to lower-tier packages (fewer total dirs) are locked —
+  // they're already submitted when a customer upgrades, so higher packages only
+  // need the new directories. Lock them so admin can't accidentally re-assign them.
+  const lowerTierDirNames = useMemo(() => {
+    if (!currentPkg) return new Set()
+    const locked = new Set()
+    packages
+      .filter(p => p.offerId !== selectedPackage && (p.count || 0) < currentPkg.count)
+      .forEach(p => (p.directoryNames || []).forEach(n => locked.add(n)))
+    return locked
+  }, [packages, selectedPackage, currentPkg])
+
   const toggleSite = (dirName) => {
     if (lowerTierDirNames.has(dirName)) return
     const newSet = new Set(selectedSites)
@@ -240,20 +254,6 @@ export default function CitationsDirectoriesManager() {
       setSaving(false)
     }
   }
-
-  const currentPkg = packages.find(p => p.offerId === selectedPackage)
-
-  // Directories that belong to lower-tier packages (fewer total dirs) are locked —
-  // they're already submitted when a customer upgrades, so higher packages only
-  // need the new directories. Lock them so admin can't accidentally re-assign them.
-  const lowerTierDirNames = useMemo(() => {
-    if (!currentPkg) return new Set()
-    const locked = new Set()
-    packages
-      .filter(p => p.offerId !== selectedPackage && (p.count || 0) < currentPkg.count)
-      .forEach(p => (p.directoryNames || []).forEach(n => locked.add(n)))
-    return locked
-  }, [packages, selectedPackage, currentPkg])
 
   return (
     <div className="p-6 max-w-7xl">
