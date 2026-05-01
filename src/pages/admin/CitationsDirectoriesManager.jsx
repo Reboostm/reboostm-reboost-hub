@@ -235,7 +235,8 @@ export default function CitationsDirectoriesManager() {
       const existingPkg = packages.find(p => p.offerId === selectedPackage)
       const docId = existingPkg?.id || `pkg_${Date.now()}`
 
-      const dirNames = Array.from(selectedSites)
+      // Strip locked (lower-tier) dirs before saving — they belong to the lower package
+      const dirNames = Array.from(selectedSites).filter(n => !lowerTierDirNames.has(n))
       const aggregatorReach = dirNames.reduce((sum, n) => sum + (AGGREGATORS[n] || 0), 0)
 
       await setDoc(doc(db, 'citation_packages', docId), {
@@ -443,7 +444,7 @@ export default function CitationsDirectoriesManager() {
             <tbody>
               {filtered.map((dir, idx) => {
                 const isLocked = lowerTierDirNames.has(dir.name)
-                const isSelected = selectedSites.has(dir.name)
+                const isSelected = !isLocked && selectedSites.has(dir.name)
                 return (
                   <tr
                     key={dir.name}
