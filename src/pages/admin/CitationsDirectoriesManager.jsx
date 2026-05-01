@@ -173,19 +173,9 @@ export default function CitationsDirectoriesManager() {
 
   const categories = [...new Set(enrichedDirs.map(d => d.category))].sort()
 
-  // Get all directories assigned to OTHER offers
-  const assignedToOtherOffers = useMemo(() => {
-    const allAssigned = new Set()
-    packages.forEach(pkg => {
-      if (pkg.offerId !== selectedPackage && pkg.directoryNames) {
-        pkg.directoryNames.forEach(dir => allAssigned.add(dir))
-      }
-    })
-    return allAssigned
-  }, [packages, selectedPackage])
-
-  const toggleSite = (dirName, isAssignedElsewhere) => {
-    if (isAssignedElsewhere) return
+  // Directories can be shared across packages (tiers are cumulative),
+  // so we don't lock dirs to a single offer.
+  const toggleSite = (dirName) => {
     const newSet = new Set(selectedSites)
     if (newSet.has(dirName)) {
       newSet.delete(dirName)
@@ -199,15 +189,12 @@ export default function CitationsDirectoriesManager() {
     if (selectedSites.size === filtered.length) {
       setSelectedSites(new Set())
     } else {
-      const selectableNames = filtered
-        .filter(dir => !assignedToOtherOffers.has(dir.name))
-        .map(dir => dir.name)
-      setSelectedSites(new Set(selectableNames))
+      setSelectedSites(new Set(filtered.map(dir => dir.name)))
     }
   }
 
   const allSelectableSelected = filtered.length > 0 &&
-    filtered.every(dir => selectedSites.has(dir.name) || assignedToOtherOffers.has(dir.name))
+    filtered.every(dir => selectedSites.has(dir.name))
 
   const handleSavePackage = async () => {
     if (!selectedPackage) {
@@ -382,7 +369,7 @@ export default function CitationsDirectoriesManager() {
               Uncheck All
             </Button>
           )}
-          {filtered.some(dir => !assignedToOtherOffers.has(dir.name) && !selectedSites.has(dir.name)) && (
+          {filtered.some(dir => !selectedSites.has(dir.name)) && (
             <Button
               variant="secondary"
               size="sm"
@@ -425,27 +412,23 @@ export default function CitationsDirectoriesManager() {
             <tbody>
               {filtered.map((dir, idx) => {
                 const isSelected = selectedSites.has(dir.name)
-                const isAssignedElsewhere = assignedToOtherOffers.has(dir.name)
                 return (
                   <tr
                     key={dir.name}
+                    onClick={() => toggleSite(dir.name)}
                     className={cn(
-                      'border-b border-hub-input transition-colors',
-                      isAssignedElsewhere
-                        ? 'bg-hub-input/20 opacity-60 cursor-not-allowed'
-                        : isSelected
-                          ? 'bg-hub-blue/10 cursor-pointer'
-                          : 'hover:bg-hub-input/30 cursor-pointer'
+                      'border-b border-hub-input transition-colors cursor-pointer',
+                      isSelected
+                        ? 'bg-hub-blue/10'
+                        : 'hover:bg-hub-input/30'
                     )}
                   >
                     <td className="px-4 py-3 text-center">
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => toggleSite(dir.name, isAssignedElsewhere)}
-                        disabled={isAssignedElsewhere}
-                        title={isAssignedElsewhere ? 'Already assigned to another offer' : ''}
-                        className="w-4 h-4 rounded cursor-pointer disabled:cursor-not-allowed disabled:opacity-40"
+                        onChange={() => toggleSite(dir.name)}
+                        className="w-4 h-4 rounded cursor-pointer"
                       />
                     </td>
                     <td className="px-4 py-3 text-hub-text-muted font-mono text-xs">{dir.index}</td>

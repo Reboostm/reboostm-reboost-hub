@@ -11,6 +11,8 @@ import Input from '../../components/ui/Input'
 import Select from '../../components/ui/Select'
 import Modal from '../../components/ui/Modal'
 import { getAllUsers } from '../../services/firestore'
+import { db } from '../../services/firebase'
+import { collection, getDocs, query, where } from 'firebase/firestore'
 import { setUserRole, resetUserPassword, adminCreateUser, adminUpdateAccess, adminDeleteUser } from '../../services/functions'
 import { formatDate, getInitials } from '../../utils/helpers'
 import { useToast } from '../../hooks/useToast'
@@ -26,13 +28,6 @@ const TOOL_FLAGS = [
   { key: 'scheduler',   label: 'Scheduler',    icon: Calendar,   check: u => u.subscriptions?.scheduler?.active },
   { key: 'aiCreator',   label: 'AI Creator',   icon: Sparkles,   check: u => u.subscriptions?.scheduler?.tier === 'pro' },
   { key: 'calendar',    label: 'Calendar',     icon: Image,      check: u => (u.purchases?.calendarNiches || []).length > 0 },
-]
-
-const CITATION_TIERS = [
-  { value: '',                   label: 'None' },
-  { value: 'citations_starter',  label: 'Starter (100 dirs)' },
-  { value: 'citations_pro',      label: 'Pro (200 dirs)' },
-  { value: 'citations_premium',  label: 'Premium (300 dirs)' },
 ]
 
 const SCHEDULER_TIERS = [
@@ -151,6 +146,7 @@ function ManageAccessModal({ user, isOpen, onClose, onUpdated }) {
   const { toast } = useToast()
   const [saving, setSaving] = useState(false)
   const [citationsTier, setCitationsTier] = useState(user.purchases?.citationsPackageId || '')
+  const [citationPackageOptions, setCitationPackageOptions] = useState([{ value: '', label: 'None' }])
   const [leadCredits, setLeadCredits] = useState(user.purchases?.leadCredits ?? 0)
   const [outreachTemplates, setOutreachTemplates] = useState(user.purchases?.outreachTemplates ?? false)
   const [calendarNiches, setCalendarNiches] = useState(user.purchases?.calendarNiches ?? [])
@@ -158,6 +154,32 @@ function ManageAccessModal({ user, isOpen, onClose, onUpdated }) {
   const [schedulerTier, setSchedulerTier] = useState(user.subscriptions?.scheduler?.tier || 'basic')
   const [reviewsActive, setReviewsActive] = useState(user.subscriptions?.reviewManager?.active ?? false)
   const [rankActive, setRankActive] = useState(user.subscriptions?.rankTracker?.active ?? false)
+
+  useEffect(() => {
+    if (!isOpen) return
+    const load = async () => {
+      try {
+        const offersSnap = await getDocs(query(
+          collection(db, 'offers'),
+          where('unlocksFeature', '==', 'citations'),
+          where('active', '==', true)
+        ))
+        const activeOfferIds = new Set(offersSnap.docs.map(d => d.id))
+        const pkgsSnap = await getDocs(collection(db, 'citation_packages'))
+        const opts = [{ value: '', label: 'None' }]
+        pkgsSnap.docs.forEach(d => {
+          const data = d.data()
+          if (activeOfferIds.has(data.offerId)) {
+            opts.push({ value: d.id, label: `${data.name} (${data.count} dirs)` })
+          }
+        })
+        setCitationPackageOptions(opts)
+      } catch (err) {
+        console.error('Failed to load citation packages:', err)
+      }
+    }
+    load()
+  }, [isOpen])
 
   function toggleNiche(niche) {
     setCalendarNiches(prev => prev.includes(niche) ? prev.filter(n => n !== niche) : [...prev, niche])
@@ -192,7 +214,7 @@ function ManageAccessModal({ user, isOpen, onClose, onUpdated }) {
         <div>
           <h3 className="text-xs font-semibold text-hub-text-muted uppercase tracking-wider mb-3">One-Time Purchases</h3>
           <div className="space-y-4">
-            <Select label="Citations Package" value={citationsTier} onChange={e => setCitationsTier(e.target.value)} options={CITATION_TIERS} />
+            <Select label="Citations Package" value={citationsTier} onChange={e => setCitationsTier(e.target.value)} options={citationPackageOptions} />
             <div>
               <label className="block text-xs font-medium text-hub-text-secondary mb-1.5">Lead Credits</label>
               <div className="flex items-center gap-2">
