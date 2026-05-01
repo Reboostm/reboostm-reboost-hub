@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { X, CheckCircle2 } from 'lucide-react'
 import Button from '../ui/Button'
 import { db } from '../../services/firebase'
+import { doc, updateDoc } from 'firebase/firestore'
 
 const TOP_20_DIRECTORIES = [
   'Yelp',
@@ -47,7 +48,7 @@ export default function CitationExclusionModal({ isOpen, onClose, userId }) {
 
     setSaving(true)
     try {
-      await db.collection('users').doc(userId).update({
+      await updateDoc(doc(db, 'users', userId), {
         citationExclusions: Array.from(selected),
         showCitationExclusionList: false,
       })

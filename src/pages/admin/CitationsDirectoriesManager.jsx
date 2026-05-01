@@ -7,6 +7,7 @@ import Select from '../../components/ui/Select'
 import { MASTER_DIRECTORIES, AGGREGATORS } from '../../config/citations'
 import { cn } from '../../utils/cn'
 import { db } from '../../services/firebase'
+import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore'
 import { useToast } from '../../hooks/useToast'
 import { initializeCitationPackages } from '../../services/functions'
 
@@ -28,10 +29,12 @@ export default function CitationsDirectoriesManager() {
     const loadData = async () => {
       try {
         // Load all citation offers (not upgrades)
-        const offersSnap = await db.collection('offers')
-          .where('unlocksFeature', '==', 'citations')
-          .where('isUpgrade', '==', false)
-          .get()
+        const offersQuery = query(
+          collection(db, 'offers'),
+          where('unlocksFeature', '==', 'citations'),
+          where('isUpgrade', '==', false)
+        )
+        const offersSnap = await getDocs(offersQuery)
 
         const citationOffers = offersSnap.docs.map(doc => ({
           id: doc.id,
@@ -40,7 +43,7 @@ export default function CitationsDirectoriesManager() {
         setOffers(citationOffers)
 
         // Load packages
-        const pkgsSnap = await db.collection('citation_packages').get()
+        const pkgsSnap = await getDocs(collection(db, 'citation_packages'))
         const pkgs = pkgsSnap.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
@@ -172,9 +175,9 @@ export default function CitationsDirectoriesManager() {
     try {
       // Find existing package doc or create new one
       const existingPkg = packages.find(p => p.offerId === selectedPackage)
-      const docId = existingPkg?.id || db.collection('citation_packages').doc().id
+      const docId = existingPkg?.id || `pkg_${Date.now()}`
 
-      await db.collection('citation_packages').doc(docId).set({
+      await setDoc(doc(db, 'citation_packages', docId), {
         offerId: selectedPackage,
         name: offer.name,
         price: offer.price,
@@ -187,7 +190,7 @@ export default function CitationsDirectoriesManager() {
       toast(`Saved ${selectedSites.size} sites to "${offer.name}"`, 'success')
 
       // Refresh packages
-      const refreshSnap = await db.collection('citation_packages').get()
+      const refreshSnap = await getDocs(collection(db, 'citation_packages'))
       const refreshPkgs = refreshSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
       setPackages(refreshPkgs)
     } catch (err) {

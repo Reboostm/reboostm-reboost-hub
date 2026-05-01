@@ -7,6 +7,7 @@ import Modal from '../../components/ui/Modal'
 import { createOffer, updateOffer, deleteOffer, getOffers } from '../../services/firestore'
 import { useToast } from '../../hooks/useToast'
 import { db } from '../../services/firebase'
+import { collection, getDocs } from 'firebase/firestore'
 
 const FEATURE_TABS = [
   { key: 'citations',       label: 'Citations',          icon: BookOpen,   tiers: [] }, // Will be loaded dynamically
@@ -36,7 +37,7 @@ function OfferForm({ offer, activeTab, onSave, onCancel }) {
     const loadTiers = async () => {
       setLoadingTiers(true)
       try {
-        const snap = await db.collection('citation_packages').get()
+        const snap = await getDocs(collection(db, 'citation_packages'))
         const tiers = snap.docs.map(doc => ({
           value: doc.id,
           label: doc.data().name + ` (${doc.data().count} sites)`,
