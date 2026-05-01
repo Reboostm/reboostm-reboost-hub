@@ -13,6 +13,9 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
+# Install Playwright's Chromium browser binary
+RUN npx playwright install chromium
+
 COPY src ./src
 
 # Cloud Run expects PORT env var
