@@ -173,28 +173,26 @@ export default function CitationsDirectoriesManager() {
 
   const categories = [...new Set(enrichedDirs.map(d => d.category))].sort()
 
-  // Directories can be shared across packages (tiers are cumulative),
-  // so we don't lock dirs to a single offer.
   const toggleSite = (dirName) => {
+    if (lowerTierDirNames.has(dirName)) return
     const newSet = new Set(selectedSites)
-    if (newSet.has(dirName)) {
-      newSet.delete(dirName)
-    } else {
-      newSet.add(dirName)
-    }
+    if (newSet.has(dirName)) newSet.delete(dirName)
+    else newSet.add(dirName)
     setSelectedSites(newSet)
   }
 
+  const selectableDirs = filtered.filter(d => !lowerTierDirNames.has(d.name))
+
   const toggleSelectAll = () => {
-    if (selectedSites.size === filtered.length) {
-      setSelectedSites(new Set())
-    } else {
-      setSelectedSites(new Set(filtered.map(dir => dir.name)))
-    }
+    const allSelected = selectableDirs.length > 0 && selectableDirs.every(d => selectedSites.has(d.name))
+    const newSet = new Set(selectedSites)
+    if (allSelected) selectableDirs.forEach(d => newSet.delete(d.name))
+    else selectableDirs.forEach(d => newSet.add(d.name))
+    setSelectedSites(newSet)
   }
 
-  const allSelectableSelected = filtered.length > 0 &&
-    filtered.every(dir => selectedSites.has(dir.name))
+  const allSelectableSelected = selectableDirs.length > 0 &&
+    selectableDirs.every(dir => selectedSites.has(dir.name))
 
   const handleSavePackage = async () => {
     if (!selectedPackage) {
@@ -244,6 +242,18 @@ export default function CitationsDirectoriesManager() {
   }
 
   const currentPkg = packages.find(p => p.offerId === selectedPackage)
+
+  // Directories that belong to lower-tier packages (fewer total dirs) are locked —
+  // they're already submitted when a customer upgrades, so higher packages only
+  // need the new directories. Lock them so admin can't accidentally re-assign them.
+  const lowerTierDirNames = useMemo(() => {
+    if (!currentPkg) return new Set()
+    const locked = new Set()
+    packages
+      .filter(p => p.offerId !== selectedPackage && (p.count || 0) < currentPkg.count)
+      .forEach(p => (p.directoryNames || []).forEach(n => locked.add(n)))
+    return locked
+  }, [packages, selectedPackage, currentPkg])
 
   return (
     <div className="p-6 max-w-7xl">
@@ -352,6 +362,13 @@ export default function CitationsDirectoriesManager() {
         </div>
       </Card>
 
+      {/* Locked-dirs notice */}
+      {lowerTierDirNames.size > 0 && (
+        <div className="mb-4 px-4 py-3 rounded-lg bg-hub-input border border-hub-border text-sm text-hub-text-secondary">
+          <strong className="text-hub-text">{lowerTierDirNames.size} directories locked</strong> — already assigned to a lower-tier package. When a customer upgrades, those are skipped (already submitted). Only select the <em>new</em> directories for this package.
+        </div>
+      )}
+
       {/* Results count + quick actions */}
       <div className="flex items-center justify-between mb-4">
         <p className="text-sm text-hub-text-muted">
@@ -411,24 +428,28 @@ export default function CitationsDirectoriesManager() {
             </thead>
             <tbody>
               {filtered.map((dir, idx) => {
+                const isLocked = lowerTierDirNames.has(dir.name)
                 const isSelected = selectedSites.has(dir.name)
                 return (
                   <tr
                     key={dir.name}
-                    onClick={() => toggleSite(dir.name)}
+                    onClick={() => !isLocked && toggleSite(dir.name)}
                     className={cn(
-                      'border-b border-hub-input transition-colors cursor-pointer',
-                      isSelected
-                        ? 'bg-hub-blue/10'
-                        : 'hover:bg-hub-input/30'
+                      'border-b border-hub-input transition-colors',
+                      isLocked
+                        ? 'opacity-35 cursor-not-allowed'
+                        : isSelected
+                        ? 'bg-hub-blue/10 cursor-pointer'
+                        : 'hover:bg-hub-input/30 cursor-pointer'
                     )}
                   >
                     <td className="px-4 py-3 text-center">
                       <input
                         type="checkbox"
                         checked={isSelected}
-                        onChange={() => toggleSite(dir.name)}
-                        className="w-4 h-4 rounded cursor-pointer"
+                        disabled={isLocked}
+                        onChange={() => !isLocked && toggleSite(dir.name)}
+                        className="w-4 h-4 rounded cursor-pointer disabled:cursor-not-allowed"
                       />
                     </td>
                     <td className="px-4 py-3 text-hub-text-muted font-mono text-xs">{dir.index}</td>
