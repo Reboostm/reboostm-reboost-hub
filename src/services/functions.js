@@ -8,6 +8,7 @@ function call(name) {
 // Citations
 export const startCitationsJob = call('startCitationsJob')
 export const getCitationsJobStatus = call('getCitationsJobStatus')
+export const initializeCitationPackages = call('initializeCitationPackages')
 
 // SEO Audit
 export const runSeoAudit = call('runSeoAudit')
