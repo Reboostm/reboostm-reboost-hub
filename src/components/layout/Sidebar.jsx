@@ -47,12 +47,8 @@ const SECTIONS = [
     icon: BookOpen,
     badge: { text: 'PAID', variant: 'paid' },
     isLocked: (b) => !b.hasCitations,
-    items: [
-      { label: 'Overview', path: '/citations' },
-      { label: 'My Directories', path: '/citations/directories' },
-      { label: 'Jobs & Progress', path: '/citations/jobs' },
-      { label: 'Analytics', path: '/citations/analytics' },
-    ],
+    direct: '/citations',
+    items: [],
   },
   {
     key: 'rankTracker',
