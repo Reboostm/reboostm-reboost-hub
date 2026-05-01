@@ -101,7 +101,10 @@ export default function ToolGate({ tool }) {
               >
                 <div className="text-left">
                   <p className="text-sm font-medium text-hub-text">{plan.name}</p>
-                  <p className="text-hub-blue font-semibold mt-0.5">
+                  {plan.description && (
+                    <p className="text-xs text-hub-text-secondary mt-0.5 max-w-xs">{plan.description}</p>
+                  )}
+                  <p className="text-hub-blue font-semibold mt-1">
                     ${plan.price} {plan.type === 'subscription' ? '/mo' : 'one-time'}
                   </p>
                 </div>

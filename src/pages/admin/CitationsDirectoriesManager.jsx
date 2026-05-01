@@ -7,7 +7,7 @@ import Select from '../../components/ui/Select'
 import { MASTER_DIRECTORIES, AGGREGATORS } from '../../config/citations'
 import { cn } from '../../utils/cn'
 import { db } from '../../services/firebase'
-import { collection, query, where, getDocs, doc, setDoc } from 'firebase/firestore'
+import { collection, query, where, getDocs, doc, setDoc, updateDoc } from 'firebase/firestore'
 import { useToast } from '../../hooks/useToast'
 import { initializeCitationPackages } from '../../services/functions'
 
@@ -48,12 +48,14 @@ export default function CitationsDirectoriesManager() {
         const baseOffers = allCitationOffers.filter(o => !o.isUpgrade)
         setOffers(baseOffers)
 
-        // Load packages and filter to only those linked to active base offers
+        // Load packages — filter by offerId pointing to an active base offer.
+        // We use the offerId (package→offer) direction instead of offer.tier
+        // (offer→package) because offer.tier gets set only after the first save.
         const allPkgsSnap = await getDocs(collection(db, 'citation_packages'))
-        const activeOfferTiers = new Set(baseOffers.map(o => o.tier).filter(Boolean))
+        const activeOfferIds = new Set(baseOffers.map(o => o.id))
 
         const pkgs = allPkgsSnap.docs
-          .filter(doc => activeOfferTiers.has(doc.id) || !doc.data().offerId)
+          .filter(doc => activeOfferIds.has(doc.data().offerId) || !doc.data().offerId)
           .map(doc => ({
             id: doc.id,
             ...doc.data(),
@@ -234,6 +236,12 @@ export default function CitationsDirectoriesManager() {
         isUpgrade: offer.isUpgrade || false,
         updatedAt: new Date(),
       }, { merge: true })
+
+      // Keep offer.tier in sync so CitationsPackageBar can find directory count
+      // via packages.find(p => p.id === offer.tier)
+      if (offer.tier !== docId) {
+        await updateDoc(doc(db, 'offers', selectedPackage), { tier: docId })
+      }
 
       toast(`Saved ${selectedSites.size} sites to "${offer.name}"`, 'success')
 
