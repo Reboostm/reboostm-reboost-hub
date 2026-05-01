@@ -28,11 +28,11 @@ export default function CitationsDirectoriesManager() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load all citation offers (not upgrades)
+        // Load all active citation offers (admin can assign any active offer)
         const offersQuery = query(
           collection(db, 'offers'),
           where('unlocksFeature', '==', 'citations'),
-          where('isUpgrade', '==', false)
+          where('active', '==', true)
         )
         const offersSnap = await getDocs(offersQuery)
 
@@ -42,12 +42,16 @@ export default function CitationsDirectoriesManager() {
         }))
         setOffers(citationOffers)
 
-        // Load packages
-        const pkgsSnap = await getDocs(collection(db, 'citation_packages'))
-        const pkgs = pkgsSnap.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data(),
-        }))
+        // Load packages and filter to only those linked to active offers
+        const allPkgsSnap = await getDocs(collection(db, 'citation_packages'))
+        const activeOfferTiers = new Set(citationOffers.map(o => o.tier).filter(Boolean))
+
+        const pkgs = allPkgsSnap.docs
+          .filter(doc => activeOfferTiers.has(doc.id) || !doc.data().offerId)
+          .map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+          }))
         setPackages(pkgs)
 
         // Auto-select first offer if none selected
@@ -63,6 +67,9 @@ export default function CitationsDirectoriesManager() {
     }
 
     loadData()
+    // Reload every 2 seconds to catch new offers
+    const interval = setInterval(loadData, 2000)
+    return () => clearInterval(interval)
   }, [toast])
 
   // Load selected sites for current package + auto-switch if offer was deleted

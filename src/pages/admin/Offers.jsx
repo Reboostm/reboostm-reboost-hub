@@ -37,19 +37,31 @@ function OfferForm({ offer, activeTab, onSave, onCancel }) {
     const loadTiers = async () => {
       setLoadingTiers(true)
       try {
-        // Load all active citation offers
+        // Load ALL citation offers (active and inactive) to check which packages are in use
         const offersQuery = query(
           collection(db, 'offers'),
-          where('unlocksFeature', '==', 'citations'),
-          where('active', '==', true)
+          where('unlocksFeature', '==', 'citations')
         )
         const offersSnap = await getDocs(offersQuery)
-        const activeOfferIds = new Set(offersSnap.docs.map(d => d.data().tier))
+        const offersByTier = new Map()
+        offersSnap.docs.forEach(doc => {
+          const tier = doc.data().tier
+          if (tier) {
+            offersByTier.set(tier, doc.data())
+          }
+        })
 
-        // Load all citation packages and filter to only those linked to active offers
+        // Load all citation packages
         const snap = await getDocs(collection(db, 'citation_packages'))
         const tiers = snap.docs
-          .filter(doc => activeOfferIds.has(doc.id))
+          .filter(doc => {
+            // Show package if:
+            // 1. It has NO offer linked (orphaned, can reuse), OR
+            // 2. It's linked to an ACTIVE offer
+            if (!offersByTier.has(doc.id)) return true // Orphaned package, show it
+            const linkedOffer = offersByTier.get(doc.id)
+            return linkedOffer.active === true // Show if active
+          })
           .map(doc => ({
             value: doc.id,
             label: doc.data().name + ` (${doc.data().count} sites)`,

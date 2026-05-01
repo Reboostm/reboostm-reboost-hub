@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import {
-  CheckCircle, List, Activity, Mail, ChevronRight, Package, Loader2, AlertCircle,
+  CheckCircle, List, Activity, ChevronRight, Package, Loader2, AlertCircle,
 } from 'lucide-react'
 import Card, { CardHeader, CardTitle } from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -222,34 +222,6 @@ export default function CitationsHome() {
           </div>
         )}
       </Card>
-
-      {/* Email routing breakdown */}
-      {latestBatch && (
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Mail className="w-4 h-4" />
-              Email Routing
-            </CardTitle>
-          </CardHeader>
-          <div className="space-y-3">
-            <div className="flex items-center justify-between p-3 bg-hub-input rounded-lg">
-              <div>
-                <p className="text-sm font-semibold text-hub-text">Your Email</p>
-                <p className="text-xs text-hub-text-muted">Top-tier sites requiring verification</p>
-              </div>
-              <p className="text-xl font-bold text-hub-orange">{latestBatch.topTierCount || 0}</p>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-hub-input rounded-lg">
-              <div>
-                <p className="text-sm font-semibold text-hub-text">System Email</p>
-                <p className="text-xs text-hub-text-muted">Managed by ReBoost HUB</p>
-              </div>
-              <p className="text-xl font-bold text-hub-blue">{latestBatch.systemEmailCount || 0}</p>
-            </div>
-          </div>
-        </Card>
-      )}
 
       {/* Exclusion modal */}
       <CitationExclusionModal
