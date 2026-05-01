@@ -7,7 +7,7 @@ import Modal from '../../components/ui/Modal'
 import { createOffer, updateOffer, deleteOffer, getOffers } from '../../services/firestore'
 import { useToast } from '../../hooks/useToast'
 import { db } from '../../services/firebase'
-import { collection, getDocs } from 'firebase/firestore'
+import { collection, getDocs, query, where } from 'firebase/firestore'
 
 const FEATURE_TABS = [
   { key: 'citations',       label: 'Citations',          icon: BookOpen,   tiers: [] }, // Will be loaded dynamically
@@ -37,11 +37,23 @@ function OfferForm({ offer, activeTab, onSave, onCancel }) {
     const loadTiers = async () => {
       setLoadingTiers(true)
       try {
+        // Load all active citation offers
+        const offersQuery = query(
+          collection(db, 'offers'),
+          where('unlocksFeature', '==', 'citations'),
+          where('active', '==', true)
+        )
+        const offersSnap = await getDocs(offersQuery)
+        const activeOfferIds = new Set(offersSnap.docs.map(d => d.data().tier))
+
+        // Load all citation packages and filter to only those linked to active offers
         const snap = await getDocs(collection(db, 'citation_packages'))
-        const tiers = snap.docs.map(doc => ({
-          value: doc.id,
-          label: doc.data().name + ` (${doc.data().count} sites)`,
-        }))
+        const tiers = snap.docs
+          .filter(doc => activeOfferIds.has(doc.id))
+          .map(doc => ({
+            value: doc.id,
+            label: doc.data().name + ` (${doc.data().count} sites)`,
+          }))
         setCitationTiers(tiers)
       } catch (err) {
         console.error('Error loading citation packages:', err)

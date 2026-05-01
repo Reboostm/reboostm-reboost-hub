@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   CheckCircle, List, Activity, Mail, ChevronRight, Package, Loader2, AlertCircle,
 } from 'lucide-react'
@@ -15,14 +15,13 @@ import CitationExclusionModal from '../../components/citations/CitationExclusion
 import { subscribeToCitationsBatches } from '../../services/firestore'
 import { startCitationsJob } from '../../services/functions'
 import { cn } from '../../utils/cn'
+import { db } from '../../services/firebase'
+import { collection, getDocs, query, where } from 'firebase/firestore'
 
-const PACKAGE_TIERS = {
-  citations_starter: { label: 'Starter', count: 100, variant: 'info',   rank: 1 },
-  citations_pro:     { label: 'Pro',     count: 200, variant: 'paid',   rank: 2 },
-  citations_premium: { label: 'Premium', count: 300, variant: 'orange', rank: 3 },
-  starter:           { label: 'Starter', count: 100, variant: 'info',   rank: 1 },
-  pro:               { label: 'Pro',     count: 200, variant: 'paid',   rank: 2 },
-  premium:           { label: 'Premium', count: 300, variant: 'orange', rank: 3 },
+function formatDate(ts) {
+  if (!ts) return ''
+  const d = ts.toDate ? ts.toDate() : new Date(ts)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 const STATUS_BADGE = {
@@ -33,12 +32,6 @@ const STATUS_BADGE = {
   failed:    { label: 'Failed',    variant: 'error' },
 }
 
-function formatDate(ts) {
-  if (!ts) return ''
-  const d = ts.toDate ? ts.toDate() : new Date(ts)
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-}
-
 export default function CitationsHome() {
   const { hasCitations } = useBilling()
   const { userProfile, user } = useAuth()
@@ -47,6 +40,8 @@ export default function CitationsHome() {
   const [showExclusionModal, setShowExclusionModal] = useState(false)
   const [showUpgradeConfirm, setShowUpgradeConfirm] = useState(false)
   const [lastPackageId, setLastPackageId] = useState(null)
+  const [offers, setOffers] = useState([])
+  const [packages, setPackages] = useState([])
 
   useEffect(() => {
     if (!userProfile?.id) return
@@ -56,6 +51,37 @@ export default function CitationsHome() {
     })
     return unsub
   }, [userProfile?.id])
+
+  // Load offers and packages
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const offersQuery = query(
+          collection(db, 'offers'),
+          where('unlocksFeature', '==', 'citations'),
+          where('active', '==', true)
+        )
+        const offersSnap = await getDocs(offersQuery)
+        const citationOffers = offersSnap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+
+        const packagesSnap = await getDocs(collection(db, 'citation_packages'))
+        const citationPackages = packagesSnap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+
+        setOffers(citationOffers)
+        setPackages(citationPackages)
+      } catch (err) {
+        console.error('Error loading offers/packages:', err)
+      }
+    }
+
+    loadData()
+  }, [])
 
   // Show exclusion modal on first citation purchase
   useEffect(() => {
@@ -74,7 +100,23 @@ export default function CitationsHome() {
   }, [userProfile?.purchases?.citationsPackageId, hasCitations])
 
   const packageId = userProfile?.purchases?.citationsPackageId
-  const tier = PACKAGE_TIERS[packageId] || { label: 'Starter', count: 100, variant: 'info', rank: 1 }
+
+  // Look up the offer and package for the user's current plan
+  const tier = useMemo(() => {
+    if (!packageId) return { label: 'Starter', count: 100, variant: 'info', rank: 1 }
+
+    const pkg = packages.find(p => p.id === packageId)
+    if (!pkg) return { label: 'Starter', count: 100, variant: 'info', rank: 1 }
+
+    const offer = offers.find(o => o.tier === packageId)
+
+    return {
+      label: offer?.name || 'Starter',
+      count: pkg.count || 100,
+      variant: 'info',
+      rank: 1,
+    }
+  }, [packageId, offers, packages])
 
   if (!hasCitations) return <ToolGate tool="citations" />
 
@@ -284,9 +326,6 @@ function UpgradeConfirmationModal({ isOpen, onClose, currentTier, tier, newDirs 
               loading={submitting}
             >
               <span>🚀</span> Let's Go! Auto-Submit Now
-            </Button>
-            <Button variant="secondary" className="w-full" onClick={onClose}>
-              Maybe Later
             </Button>
           </div>
         </div>
