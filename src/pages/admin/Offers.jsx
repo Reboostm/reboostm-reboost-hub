@@ -98,8 +98,8 @@ function OfferForm({ offer, activeTab, onSave, onCancel }) {
 
   return (
     <div className="space-y-4">
-      {/* Upgrade toggle — shown for features that have tiers */}
-      {tabDef.tiers.length > 0 && (
+      {/* Upgrade toggle — shown for citations or features with tiers */}
+      {(activeTab === 'citations' || tabDef.tiers.length > 0) && (
         <div className={`flex items-center gap-3 p-3 rounded-xl border ${form.isUpgrade ? 'bg-hub-blue/10 border-hub-blue/40' : 'bg-hub-input border-hub-border'}`}>
           <input
             type="checkbox"

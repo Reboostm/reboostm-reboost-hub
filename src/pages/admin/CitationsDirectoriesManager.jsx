@@ -17,42 +17,62 @@ export default function CitationsDirectoriesManager() {
   const [filterCategory, setFilterCategory] = useState('all')
   const [filterTier, setFilterTier] = useState('all')
   const [packages, setPackages] = useState([])
+  const [offers, setOffers] = useState([])
   const [packagesLoading, setPackagesLoading] = useState(true)
-  const [selectedPackage, setSelectedPackage] = useState('starter')
+  const [selectedPackage, setSelectedPackage] = useState(null)
   const [selectedSites, setSelectedSites] = useState(new Set())
   const [saving, setSaving] = useState(false)
 
-  // Load packages from Firestore (initialize if needed)
+  // Load offers from citations, then load packages
   useEffect(() => {
-    const loadPackages = async () => {
+    const loadData = async () => {
       try {
-        // Initialize default packages if they don't exist
-        await initializeCitationPackages({})
+        // Load all citation offers (not upgrades)
+        const offersSnap = await db.collection('offers')
+          .where('unlocksFeature', '==', 'citations')
+          .where('isUpgrade', '==', false)
+          .get()
 
-        const snap = await db.collection('citation_packages').get()
-        const pkgs = snap.docs.map(doc => ({
+        const citationOffers = offersSnap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+        setOffers(citationOffers)
+
+        // Load packages
+        const pkgsSnap = await db.collection('citation_packages').get()
+        const pkgs = pkgsSnap.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
         }))
         setPackages(pkgs)
 
-        // Load selected sites for current package
-        const pkg = pkgs.find(p => p.id === selectedPackage)
-        if (pkg?.directoryNames) {
-          setSelectedSites(new Set(pkg.directoryNames))
-        } else {
-          setSelectedSites(new Set())
+        // Auto-select first offer if none selected
+        if (citationOffers.length > 0 && !selectedPackage) {
+          setSelectedPackage(citationOffers[0].id)
         }
       } catch (err) {
-        console.error('Error loading packages:', err)
-        toast('Error loading packages: ' + err.message, 'error')
+        console.error('Error loading offers/packages:', err)
+        toast('Error loading offers: ' + err.message, 'error')
       } finally {
         setPackagesLoading(false)
       }
     }
 
-    loadPackages()
-  }, [selectedPackage, toast])
+    loadData()
+  }, [toast])
+
+  // Load selected sites for current package
+  useEffect(() => {
+    if (!selectedPackage || !packages.length) return
+
+    const pkg = packages.find(p => p.offerId === selectedPackage)
+    if (pkg?.directoryNames) {
+      setSelectedSites(new Set(pkg.directoryNames))
+    } else {
+      setSelectedSites(new Set())
+    }
+  }, [selectedPackage, packages])
 
   // Aggregator mapping
   const aggregatorMap = {
@@ -142,17 +162,34 @@ export default function CitationsDirectoriesManager() {
       return
     }
 
+    const offer = offers.find(o => o.id === selectedPackage)
+    if (!offer) {
+      toast('Offer not found', 'error')
+      return
+    }
+
     setSaving(true)
     try {
-      await db.collection('citation_packages').doc(selectedPackage).set({
-        id: selectedPackage,
-        name: packages.find(p => p.id === selectedPackage)?.name || selectedPackage,
+      // Find existing package doc or create new one
+      const existingPkg = packages.find(p => p.offerId === selectedPackage)
+      const docId = existingPkg?.id || db.collection('citation_packages').doc().id
+
+      await db.collection('citation_packages').doc(docId).set({
+        offerId: selectedPackage,
+        name: offer.name,
+        price: offer.price,
         directoryNames: Array.from(selectedSites),
         count: selectedSites.size,
+        isUpgrade: offer.isUpgrade || false,
         updatedAt: new Date(),
       }, { merge: true })
 
-      toast(`Saved ${selectedSites.size} sites to ${selectedPackage}`, 'success')
+      toast(`Saved ${selectedSites.size} sites to "${offer.name}"`, 'success')
+
+      // Refresh packages
+      const refreshSnap = await db.collection('citation_packages').get()
+      const refreshPkgs = refreshSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }))
+      setPackages(refreshPkgs)
     } catch (err) {
       toast('Error saving package: ' + err.message, 'error')
     } finally {
@@ -160,7 +197,7 @@ export default function CitationsDirectoriesManager() {
     }
   }
 
-  const currentPkg = packages.find(p => p.id === selectedPackage)
+  const currentPkg = packages.find(p => p.offerId === selectedPackage)
 
   return (
     <div className="p-6 max-w-7xl">
@@ -184,33 +221,44 @@ export default function CitationsDirectoriesManager() {
         </CardHeader>
 
         <div className="p-4 border-t border-hub-input">
-          <p className="text-sm text-hub-text-muted mb-3">Select package to edit:</p>
-          <div className="flex gap-2">
-            {['starter', 'pro', 'premium'].map((pkgId) => (
-              <button
-                key={pkgId}
-                onClick={() => setSelectedPackage(pkgId)}
-                className={cn(
-                  'px-4 py-2 rounded-lg font-semibold text-sm transition-colors',
-                  selectedPackage === pkgId
-                    ? 'bg-hub-blue text-white'
-                    : 'bg-hub-input text-hub-text hover:bg-hub-input/80'
-                )}
-              >
-                {pkgId === 'starter' ? 'Starter' : pkgId === 'pro' ? 'Pro' : 'Premium'}
-                {currentPkg?.count && selectedPackage === pkgId && (
-                  <span className="ml-2 text-xs opacity-90">({currentPkg.count} sites)</span>
-                )}
-              </button>
-            ))}
-          </div>
+          {packagesLoading ? (
+            <p className="text-sm text-hub-text-muted">Loading offers...</p>
+          ) : offers.length === 0 ? (
+            <p className="text-sm text-hub-text-muted">No citation offers created yet. Create your first offer in the Offers admin.</p>
+          ) : (
+            <>
+              <p className="text-sm text-hub-text-muted mb-3">Select offer to customize:</p>
+              <div className="flex flex-wrap gap-2">
+                {offers.map((offer) => (
+                  <button
+                    key={offer.id}
+                    onClick={() => setSelectedPackage(offer.id)}
+                    className={cn(
+                      'px-4 py-2 rounded-lg font-semibold text-sm transition-colors',
+                      selectedPackage === offer.id
+                        ? 'bg-hub-blue text-white'
+                        : 'bg-hub-input text-hub-text hover:bg-hub-input/80'
+                    )}
+                  >
+                    {offer.name}
+                    {selectedPackage === offer.id && currentPkg && (
+                      <span className="ml-2 text-xs opacity-90">({currentPkg.count} sites)</span>
+                    )}
+                  </button>
+                ))}
+              </div>
 
-          {!packagesLoading && currentPkg && (
-            <div className="mt-4 p-3 bg-hub-input rounded-lg">
-              <p className="text-sm text-hub-text">
-                <strong>{selectedPackage}:</strong> {currentPkg.count} sites selected
-              </p>
-            </div>
+              {!packagesLoading && currentPkg && (
+                <div className="mt-4 p-3 bg-hub-input rounded-lg">
+                  <p className="text-sm text-hub-text">
+                    <strong>{currentPkg.name || 'Package'}:</strong> {currentPkg.count} sites selected
+                  </p>
+                  {currentPkg.isUpgrade && (
+                    <p className="text-xs text-hub-text-muted mt-1">✓ Upgrade offer</p>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
       </Card>
