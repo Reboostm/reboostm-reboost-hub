@@ -24,6 +24,7 @@ export default function CitationsDirectoriesManager() {
   const [selectedSites, setSelectedSites] = useState(new Set())
   const [saving, setSaving] = useState(false)
   const loadedForPackageRef = useRef(null)
+  const hasAutoSelectedRef = useRef(false)
 
   // Load offers from citations, then load packages
   useEffect(() => {
@@ -59,8 +60,10 @@ export default function CitationsDirectoriesManager() {
           }))
         setPackages(pkgs)
 
-        // Auto-select first base offer if none selected
-        if (baseOffers.length > 0 && !selectedPackage) {
+        // Auto-select first offer exactly once. The interval's closure always
+        // sees selectedPackage=null (stale), so we use a ref to gate this.
+        if (baseOffers.length > 0 && !hasAutoSelectedRef.current) {
+          hasAutoSelectedRef.current = true
           setSelectedPackage(baseOffers[0].id)
         }
       } catch (err) {

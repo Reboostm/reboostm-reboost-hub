@@ -46,7 +46,8 @@ export default function ToolGate({ tool }) {
         )
         const snap = await getDocs(q)
         const offers = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-        setPlans(offers)
+        // Upgrade offers are only relevant to existing customers — never show them here
+        setPlans(offers.filter(o => !o.isUpgrade))
       } catch (err) {
         console.error('Failed to load offers:', err)
       } finally {
