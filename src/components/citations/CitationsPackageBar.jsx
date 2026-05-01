@@ -6,6 +6,8 @@ import { useAuth } from '../../hooks/useAuth'
 import { useToast } from '../../hooks/useToast'
 import { getActiveOffers, redirectToCheckout } from '../../services/stripe'
 import { cn } from '../../utils/cn'
+import { db } from '../../services/firebase'
+import { collection, getDocs } from 'firebase/firestore'
 
 // Fixed tier definitions — rank maps to the user's citationsPackageId
 const TIERS = [
@@ -40,12 +42,31 @@ export default function CitationsPackageBar() {
   const { userProfile } = useAuth()
   const { toast } = useToast()
   const [allOffers, setAllOffers] = useState([])
+  const [packages, setPackages] = useState([])
   const [purchasing, setPurchasing] = useState(null)
 
   useEffect(() => {
-    getActiveOffers()
-      .then(offers => setAllOffers(offers.filter(o => o.unlocksFeature === 'citations')))
-      .catch(() => {})
+    const loadData = async () => {
+      try {
+        const [offersResult, packagesSnap] = await Promise.all([
+          getActiveOffers(),
+          getDocs(collection(db, 'citation_packages'))
+        ])
+
+        const citationOffers = offersResult.filter(o => o.unlocksFeature === 'citations')
+        const citationPackages = packagesSnap.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+
+        setAllOffers(citationOffers)
+        setPackages(citationPackages)
+      } catch (err) {
+        console.error('Error loading offers/packages:', err)
+      }
+    }
+
+    loadData()
   }, [])
 
   const packageId = userProfile?.purchases?.citationsPackageId
@@ -69,13 +90,19 @@ export default function CitationsPackageBar() {
         const isLower = tier.rank < currentRank
         const isUpgrade = tier.rank > currentRank
 
-        // Find an upgrade offer for this exact tier slot
+        // Find an offer linked to a package in this tier's range
         const offer = allOffers.find(o => {
-          const offerRank = getTierRank(o.tier)
-          return offerRank === tier.rank
+          const linkedPackage = packages.find(p => p.id === o.tier)
+          if (!linkedPackage) return false
+          // Match by directory count to tier
+          const tierCount = [100, 200, 300][tier.rank - 1]
+          return linkedPackage.count === tierCount
         })
 
+        const linkedPackage = offer ? packages.find(p => p.id === offer.tier) : null
         const displayName = offer?.name || tier.defaultLabel
+        const directoryCount = linkedPackage?.count || tier.count
+        const description = offer?.description || ''
 
         return (
           <div
@@ -105,13 +132,23 @@ export default function CitationsPackageBar() {
               )}
             </div>
 
+            {/* Description */}
+            {description && (
+              <p className={cn(
+                'text-xs mb-2 leading-snug',
+                isCurrent ? 'text-hub-text-secondary' : isLower ? 'text-hub-text-muted/60' : 'text-hub-text-secondary'
+              )}>
+                {description}
+              </p>
+            )}
+
             {/* Citation count */}
             <div className="mb-3">
               <p className={cn(
                 'text-3xl font-black',
                 isCurrent ? 'text-hub-green' : isLower ? 'text-hub-text-muted' : 'text-hub-text'
               )}>
-                {tier.count}
+                {directoryCount}
               </p>
               <p className="text-xs text-hub-text-muted -mt-0.5">directories</p>
             </div>
