@@ -111,6 +111,13 @@ service cloud.firestore {
       allow write: if isStaff();
     }
 
+    // ─── Citation Packages ────────────────────────────────────────────────────
+    // Users can read packages (for Offers admin). Staff/Admin can write.
+    match /citation_packages/{id} {
+      allow read: if isAuth();
+      allow write: if isStaff();
+    }
+
     // ─── Citations ────────────────────────────────────────────────────────────
     match /citations/{batchId} {
       allow create: if isAuth();
