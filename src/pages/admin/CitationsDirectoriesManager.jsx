@@ -65,17 +65,25 @@ export default function CitationsDirectoriesManager() {
     loadData()
   }, [toast])
 
-  // Load selected sites for current package
+  // Load selected sites for current package + auto-switch if offer was deleted
   useEffect(() => {
     if (!selectedPackage || !packages.length) return
 
     const pkg = packages.find(p => p.offerId === selectedPackage)
+
+    // If selected offer no longer exists, auto-switch to first available
+    const offerExists = offers.some(o => o.id === selectedPackage)
+    if (!offerExists && offers.length > 0) {
+      setSelectedPackage(offers[0].id)
+      return
+    }
+
     if (pkg?.directoryNames) {
       setSelectedSites(new Set(pkg.directoryNames))
     } else {
       setSelectedSites(new Set())
     }
-  }, [selectedPackage, packages])
+  }, [selectedPackage, packages, offers])
 
   // Aggregator mapping
   const aggregatorMap = {
