@@ -811,6 +811,12 @@ exports.startCitationsJob = onCall(
       licenseState:     user.licenseState      || '',
       certifications:   user.certifications    || '',
       paymentMethods:   user.paymentMethods    || [],
+
+      // Account credentials used for all directory registrations
+      // Email: reboostai+{sanitizedBusinessName}@gmail.com
+      // Password: stored here so admin can log into any listing
+      listingEmail:     `reboostai+${(user.businessName || 'business').toLowerCase().replace(/[^a-z0-9]/g, '')}@gmail.com`,
+      listingPassword:  user.listingPassword   || 'ReBoost2024!',
     }
 
     // Use filtered directories (already-submitted + excluded removed)
