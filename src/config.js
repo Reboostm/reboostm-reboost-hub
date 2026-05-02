@@ -56,25 +56,45 @@ export const STATE_CITIES = {
 }
 
 export const NICHES = [
-  // Home Services
+  // Home Services — Exterior
   { value: 'plumber', label: 'Plumber' },
   { value: 'hvac', label: 'HVAC' },
   { value: 'electrician', label: 'Electrician' },
   { value: 'roofer', label: 'Roofer' },
-  { value: 'landscaping', label: 'Landscaping' },
-  { value: 'cleaning', label: 'Cleaning Service' },
-  { value: 'pest_control', label: 'Pest Control' },
   { value: 'general_contractor', label: 'General Contractor' },
-  { value: 'painter', label: 'Painter' },
+  { value: 'landscaping', label: 'Landscaping' },
+  { value: 'lawn_care', label: 'Lawn Care' },
+  { value: 'tree_service', label: 'Tree Service' },
+  { value: 'pressure_washing', label: 'Pressure Washing' },
+  { value: 'window_cleaning', label: 'Window Cleaning' },
+  { value: 'gutter_cleaning', label: 'Gutter Cleaning' },
+  { value: 'fence_contractor', label: 'Fence Contractor' },
+  { value: 'concrete', label: 'Concrete / Driveway' },
+  { value: 'pool_service', label: 'Pool Service' },
+  { value: 'irrigation', label: 'Irrigation / Sprinklers' },
+  { value: 'solar', label: 'Solar Installation' },
+
+  // Home Services — Interior
+  { value: 'cleaning', label: 'House Cleaning' },
   { value: 'carpet_cleaning', label: 'Carpet Cleaning' },
+  { value: 'painter', label: 'Painter' },
   { value: 'flooring', label: 'Flooring' },
   { value: 'windows_doors', label: 'Windows & Doors' },
+  { value: 'handyman', label: 'Handyman' },
+  { value: 'appliance_repair', label: 'Appliance Repair' },
+  { value: 'locksmith', label: 'Locksmith' },
+  { value: 'junk_removal', label: 'Junk Removal' },
+  { value: 'moving', label: 'Moving Company' },
+  { value: 'storage', label: 'Storage' },
+  { value: 'home_security', label: 'Home Security' },
+  { value: 'pest_control', label: 'Pest Control' },
 
   // Automotive
   { value: 'auto_repair', label: 'Auto Repair' },
-  { value: 'car_wash', label: 'Car Wash' },
+  { value: 'car_wash', label: 'Car Wash / Detailing' },
   { value: 'tire_shop', label: 'Tire Shop' },
   { value: 'auto_body', label: 'Auto Body' },
+  { value: 'towing', label: 'Towing Service' },
 
   // Health & Wellness
   { value: 'dentist', label: 'Dentist' },
@@ -82,31 +102,53 @@ export const NICHES = [
   { value: 'physical_therapy', label: 'Physical Therapy' },
   { value: 'massage', label: 'Massage Therapy' },
   { value: 'gym', label: 'Gym / Fitness' },
-  { value: 'yoga', label: 'Yoga' },
+  { value: 'yoga', label: 'Yoga / Pilates' },
+  { value: 'med_spa', label: 'Med Spa' },
+  { value: 'optometrist', label: 'Optometrist' },
+  { value: 'veterinarian', label: 'Veterinarian' },
 
   // Professional Services
   { value: 'accountant', label: 'Accountant / CPA' },
   { value: 'lawyer', label: 'Lawyer / Attorney' },
-  { value: 'real_estate', label: 'Real Estate' },
-  { value: 'insurance', label: 'Insurance' },
+  { value: 'real_estate', label: 'Real Estate Agent' },
+  { value: 'insurance', label: 'Insurance Agent' },
+  { value: 'financial_advisor', label: 'Financial Advisor' },
+  { value: 'marketing_agency', label: 'Marketing Agency' },
+  { value: 'it_services', label: 'IT Services' },
 
   // Food & Beverage
   { value: 'restaurant', label: 'Restaurant' },
   { value: 'coffee_shop', label: 'Coffee Shop' },
   { value: 'bar_pub', label: 'Bar / Pub' },
   { value: 'catering', label: 'Catering' },
+  { value: 'food_truck', label: 'Food Truck' },
 
-  // Retail & Shopping
-  { value: 'retail', label: 'Retail' },
+  // Beauty & Personal Care
   { value: 'salon', label: 'Hair Salon' },
   { value: 'barbershop', label: 'Barber Shop' },
-  { value: 'spa', label: 'Spa' },
+  { value: 'spa', label: 'Day Spa' },
+  { value: 'nail_salon', label: 'Nail Salon' },
+  { value: 'tattoo', label: 'Tattoo Shop' },
 
-  // Misc
-  { value: 'photography', label: 'Photography' },
-  { value: 'event_planning', label: 'Event Planning' },
-  { value: 'tutoring', label: 'Tutoring' },
+  // Pets
   { value: 'dog_grooming', label: 'Dog Grooming' },
+  { value: 'dog_training', label: 'Dog Training' },
+  { value: 'pet_sitting', label: 'Pet Sitting / Boarding' },
+
+  // Events & Entertainment
+  { value: 'photography', label: 'Photography / Videography' },
+  { value: 'event_planning', label: 'Event Planning' },
+  { value: 'dj', label: 'DJ / Entertainment' },
+
+  // Education
+  { value: 'tutoring', label: 'Tutoring' },
+  { value: 'daycare', label: 'Daycare / Childcare' },
+
+  // Retail
+  { value: 'retail', label: 'Retail Store' },
+
+  // Other
+  { value: 'other', label: 'Other Local Business' },
 ]
 
 export const US_STATES = [
