@@ -125,6 +125,14 @@ service cloud.firestore {
         resource.data.userId == request.auth.uid || isStaff()
       );
       allow delete: if isAdmin();
+
+      // Directories subcollection — readable by the batch owner or staff
+      match /directories/{dirId} {
+        allow read: if isAuth() && (
+          get(/databases/$(database)/documents/citations/$(batchId)).data.userId == request.auth.uid || isStaff()
+        );
+        allow write: if isStaff(); // Cloud Run uses Admin SDK (bypasses rules), staff can update manually
+      }
     }
 
     // ─── Review Requests ─────────────────────────────────────────────────────

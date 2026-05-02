@@ -153,8 +153,7 @@ export default function CitationsDirs() {
                       : 'bg-hub-input border-hub-border text-hub-text-secondary hover:border-hub-blue/30'
                   )}
                 >
-                  {b.packageTier ? `${b.packageTier.charAt(0).toUpperCase() + b.packageTier.slice(1)} —` : ''}{' '}
-                  {b.live || 0}/{b.total || 0} live
+                  {b.total || 0} dirs · {formatDate(b.createdAt) || 'Recent'} — {b.live || 0}/{b.total || 0} live
                 </button>
               ))}
             </div>
