@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  CheckCircle, List, Activity, ChevronRight, Package, Loader2, AlertCircle, ClipboardList, Rocket,
+  CheckCircle, List, Activity, ChevronRight, Package, Loader2, AlertCircle, ClipboardList,
+  Rocket, BarChart2, ExternalLink, Globe, Clock,
 } from 'lucide-react'
 import Card, { CardHeader, CardTitle } from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -13,7 +14,7 @@ import { useToast } from '../../hooks/useToast'
 import ToolGate from '../../components/ui/ToolGate'
 import CitationsPackageBar from '../../components/citations/CitationsPackageBar'
 import CitationExclusionModal from '../../components/citations/CitationExclusionModal'
-import { subscribeToCitationsBatches } from '../../services/firestore'
+import { subscribeToCitationsBatches, subscribeToCitationsDirectories } from '../../services/firestore'
 import { startCitationsJob } from '../../services/functions'
 import { cn } from '../../utils/cn'
 import { db } from '../../services/firebase'
@@ -121,6 +122,7 @@ export default function CitationsHome() {
   }, [packageId, offers, packages])
 
   const [starting, setStarting] = useState(false)
+  const [latestDirs, setLatestDirs] = useState([])
 
   const handleStartJob = async () => {
     setStarting(true)
@@ -137,6 +139,7 @@ export default function CitationsHome() {
 
   const activeBatch = batches.find(b => b.status === 'running' || b.status === 'queued')
   const latestBatch = batches[0]
+  const hasCompletedBatch = latestBatch?.status === 'completed'
 
   const totalLive = batches.reduce((s, b) => s + (b.live || 0), 0)
   const totalSubmitted = batches.reduce((s, b) => s + (b.submitted || 0), 0)
@@ -160,7 +163,7 @@ export default function CitationsHome() {
       {/* Package tier bar */}
       <CitationsPackageBar />
 
-      {/* Business info prompt or start submission CTA */}
+      {/* Business info prompt or start submission CTA or post-submission analytics */}
       {!userProfile?.citationsSetupCompleted ? (
         <div className="mb-6 flex items-center justify-between gap-4 p-4 rounded-xl border border-hub-yellow/40 bg-hub-yellow/5">
           <div className="flex items-center gap-3">
@@ -174,7 +177,33 @@ export default function CitationsHome() {
             Fill Out Now
           </Button>
         </div>
-      ) : !activeBatch ? (
+      ) : activeBatch ? null : hasCompletedBatch ? (
+        /* Post-submission quick analytics */
+        <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="flex items-center gap-3 p-4 rounded-xl border border-hub-green/30 bg-hub-green/5">
+            <CheckCircle className="w-8 h-8 text-hub-green flex-shrink-0" />
+            <div>
+              <p className="text-xl font-bold text-hub-green">{totalLive}</p>
+              <p className="text-xs text-hub-text-secondary">Live listings</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3 p-4 rounded-xl border border-hub-blue/30 bg-hub-blue/5">
+            <Clock className="w-8 h-8 text-hub-blue flex-shrink-0" />
+            <div>
+              <p className="text-xl font-bold text-hub-blue">{totalSubmitted}</p>
+              <p className="text-xs text-hub-text-secondary">Awaiting verification</p>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 p-4 rounded-xl border border-hub-border bg-hub-surface">
+            <Button size="sm" onClick={() => navigate('/citations/directories')} className="w-full">
+              <Globe className="w-4 h-4" /> View All Directories
+            </Button>
+            <Button size="sm" variant="secondary" onClick={() => navigate('/citations/analytics')} className="w-full">
+              <BarChart2 className="w-4 h-4" /> Full Analytics
+            </Button>
+          </div>
+        </div>
+      ) : (
         <div className="mb-6 flex items-center justify-between gap-4 p-4 rounded-xl border border-hub-blue/40 bg-hub-blue/5">
           <div className="flex items-center gap-3">
             <Rocket className="w-5 h-5 text-hub-blue flex-shrink-0" />
@@ -192,7 +221,7 @@ export default function CitationsHome() {
             </Button>
           </div>
         </div>
-      ) : null}
+      )}
 
       {/* Overall stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
