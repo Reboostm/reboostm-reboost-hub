@@ -37,6 +37,7 @@ const STATUS_BADGE = {
 export default function CitationsHome() {
   const { hasCitations } = useBilling()
   const { userProfile, user } = useAuth()
+  const { toast } = useToast()
   const navigate = useNavigate()
   const [batches, setBatches] = useState([])
   const [batchesLoading, setBatchesLoading] = useState(true)
@@ -128,6 +129,7 @@ export default function CitationsHome() {
     setStarting(true)
     try {
       await startCitationsJob({})
+      toast('Submission started! Processing your directories now.', 'success')
     } catch (err) {
       toast(err.message || 'Failed to start submission', 'error')
     } finally {
@@ -177,7 +179,23 @@ export default function CitationsHome() {
             Fill Out Now
           </Button>
         </div>
-      ) : activeBatch ? null : hasCompletedBatch ? (
+      ) : activeBatch ? (
+        /* Active job banner — shown while queued or running */
+        <div className="mb-6 flex items-center gap-4 p-4 rounded-xl border border-hub-blue/40 bg-hub-blue/5">
+          <Loader2 className="w-5 h-5 text-hub-blue flex-shrink-0 animate-spin" />
+          <div className="flex-1">
+            <p className="text-sm font-semibold text-hub-text">
+              {activeBatch.status === 'queued' ? 'Submission queued — starting shortly…' : 'Submitting your listings…'}
+            </p>
+            <p className="text-xs text-hub-text-secondary mt-0.5">
+              This runs in the background. Check the progress card below — it updates automatically.
+            </p>
+          </div>
+          <Badge variant={STATUS_BADGE[activeBatch.status]?.variant || 'gray'} size="sm">
+            {STATUS_BADGE[activeBatch.status]?.label}
+          </Badge>
+        </div>
+      ) : hasCompletedBatch ? (
         /* Post-submission quick analytics */
         <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="flex items-center gap-3 p-4 rounded-xl border border-hub-green/30 bg-hub-green/5">
