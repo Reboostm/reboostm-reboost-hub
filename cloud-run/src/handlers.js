@@ -12,8 +12,7 @@ class YelpHandler extends DirectoryHandler {
     aggregatorReach: 0,
   }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    // Yelp requires phone verification — manual only
-    return { status: 'pending', errorMessage: 'Yelp requires phone verification' }
+    return { status: 'pending', errorMessage: 'Requires phone verification. Visit: https://biz.yelp.com/claim to manually claim.' }
   }
 }
 
@@ -21,7 +20,7 @@ class YellowPagesHandler extends DirectoryHandler {
   static directoryName = 'Yellow Pages'
   static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: true, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    return { status: 'pending', errorMessage: 'Yellow Pages requires phone verification' }
+    return { status: 'pending', errorMessage: 'Requires phone verification. Visit: https://www.yellowpages.com/add-listing to manually add.' }
   }
 }
 
@@ -32,10 +31,58 @@ class MantaHandler extends DirectoryHandler {
     const browser = await this.getBrowser()
     const page = await browser.newPage()
     try {
-      await page.goto('https://www.manta.com', { timeout: 10000 })
-      return { status: 'pending', liveUrl: page.url(), emailUsed: businessData.email }
+      await page.goto('https://app.manta.com/companies/new', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Fill business name
+      await page.waitForSelector('input[name="name"], input[placeholder*="business name" i], input[id*="name" i]', { timeout: 15000 })
+      await page.fill('input[name="name"], input[placeholder*="business name" i], input[id*="name" i]', businessData.businessName)
+
+      // Phone
+      const phoneField = await page.$('input[name="phone"], input[placeholder*="phone" i], input[type="tel"]')
+      if (phoneField) await page.fill('input[name="phone"], input[placeholder*="phone" i], input[type="tel"]', businessData.phone)
+
+      // Address
+      const addressField = await page.$('input[name="address"], input[placeholder*="address" i], input[id*="address" i]')
+      if (addressField) await page.fill('input[name="address"], input[placeholder*="address" i], input[id*="address" i]', businessData.address)
+
+      // City
+      const cityField = await page.$('input[name="city"], input[placeholder*="city" i]')
+      if (cityField) await page.fill('input[name="city"], input[placeholder*="city" i]', businessData.city)
+
+      // State
+      const stateField = await page.$('select[name="state"], input[name="state"]')
+      if (stateField) {
+        const tag = await stateField.evaluate(el => el.tagName.toLowerCase())
+        if (tag === 'select') {
+          await page.selectOption('select[name="state"]', businessData.state)
+        } else {
+          await page.fill('input[name="state"]', businessData.state)
+        }
+      }
+
+      // Zip
+      const zipField = await page.$('input[name="zip"], input[name="postal_code"], input[placeholder*="zip" i]')
+      if (zipField) await page.fill('input[name="zip"], input[name="postal_code"], input[placeholder*="zip" i]', businessData.zip)
+
+      // Website
+      const websiteField = await page.$('input[name="website"], input[placeholder*="website" i], input[type="url"]')
+      if (websiteField) await page.fill('input[name="website"], input[placeholder*="website" i], input[type="url"]', businessData.website || '')
+
+      // Email
+      const emailField = await page.$('input[name="email"], input[type="email"]')
+      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+
+      // Category
+      const catField = await page.$('input[name="category"], input[placeholder*="category" i], input[placeholder*="industry" i]')
+      if (catField) await page.fill('input[name="category"], input[placeholder*="category" i], input[placeholder*="industry" i]', businessData.category || '')
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add Business"), button:has-text("Create")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
     } catch (err) {
-      return { status: 'failed', errorMessage: err.message }
+      return { status: 'pending', errorMessage: err.message }
     } finally {
       await page.close()
     }
@@ -46,7 +93,62 @@ class HotfrogHandler extends DirectoryHandler {
   static directoryName = 'Hotfrog'
   static metadata = { priority: 1, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    return { status: 'pending', emailUsed: businessData.email }
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://www.hotfrog.com/addbusiness', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Business name
+      await page.waitForSelector('input[name="businessName"], input[placeholder*="business name" i], input[id*="businessName" i]', { timeout: 15000 })
+      await page.fill('input[name="businessName"], input[placeholder*="business name" i], input[id*="businessName" i]', businessData.businessName)
+
+      // Email
+      const emailField = await page.$('input[name="email"], input[type="email"]')
+      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+
+      // Phone
+      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+
+      // Address
+      const addressField = await page.$('input[name="address"], input[placeholder*="address" i]')
+      if (addressField) await page.fill('input[name="address"], input[placeholder*="address" i]', businessData.address)
+
+      // City
+      const cityField = await page.$('input[name="city"], input[placeholder*="city" i]')
+      if (cityField) await page.fill('input[name="city"], input[placeholder*="city" i]', businessData.city)
+
+      // State
+      const stateSelectField = await page.$('select[name="state"]')
+      if (stateSelectField) {
+        await page.selectOption('select[name="state"]', businessData.state)
+      } else {
+        const stateInputField = await page.$('input[name="state"]')
+        if (stateInputField) await page.fill('input[name="state"]', businessData.state)
+      }
+
+      // Zip
+      const zipField = await page.$('input[name="zip"], input[name="postCode"], input[placeholder*="zip" i]')
+      if (zipField) await page.fill('input[name="zip"], input[name="postCode"], input[placeholder*="zip" i]', businessData.zip)
+
+      // Website
+      const websiteField = await page.$('input[name="website"], input[type="url"], input[placeholder*="website" i]')
+      if (websiteField) await page.fill('input[name="website"], input[type="url"], input[placeholder*="website" i]', businessData.website || '')
+
+      // Description
+      const descField = await page.$('textarea[name="description"], textarea[placeholder*="description" i]')
+      if (descField) await page.fill('textarea[name="description"], textarea[placeholder*="description" i]', businessData.description || businessData.shortDesc || '')
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add"), button:has-text("Register")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
   }
 }
 
@@ -62,7 +164,7 @@ class BingPlacesHandler extends DirectoryHandler {
   static directoryName = 'Bing Places'
   static metadata = { priority: 1, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    return { status: 'pending' }
+    return { status: 'pending', errorMessage: 'Requires Microsoft account. Visit: https://www.bingplaces.com to manually add.' }
   }
 }
 
@@ -86,7 +188,70 @@ class EZlocalHandler extends DirectoryHandler {
   static directoryName = 'EZlocal'
   static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    return { status: 'pending' }
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://ezlocal.com/register', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Business name
+      await page.waitForSelector('input[name="business_name"], input[placeholder*="business name" i], input[id*="business_name" i]', { timeout: 15000 })
+      await page.fill('input[name="business_name"], input[placeholder*="business name" i], input[id*="business_name" i]', businessData.businessName)
+
+      // Email
+      const emailField = await page.$('input[name="email"], input[type="email"]')
+      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+
+      // Phone
+      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+
+      // Address
+      const addressField = await page.$('input[name="address"], input[placeholder*="address" i]')
+      if (addressField) await page.fill('input[name="address"], input[placeholder*="address" i]', businessData.address)
+
+      // City
+      const cityField = await page.$('input[name="city"], input[placeholder*="city" i]')
+      if (cityField) await page.fill('input[name="city"], input[placeholder*="city" i]', businessData.city)
+
+      // State
+      const stateSelectField = await page.$('select[name="state"]')
+      if (stateSelectField) {
+        await page.selectOption('select[name="state"]', businessData.state)
+      } else {
+        const stateInputField = await page.$('input[name="state"]')
+        if (stateInputField) await page.fill('input[name="state"]', businessData.state)
+      }
+
+      // Zip
+      const zipField = await page.$('input[name="zip"], input[name="zipcode"], input[placeholder*="zip" i]')
+      if (zipField) await page.fill('input[name="zip"], input[name="zipcode"], input[placeholder*="zip" i]', businessData.zip)
+
+      // Website
+      const websiteField = await page.$('input[name="website"], input[type="url"], input[placeholder*="website" i]')
+      if (websiteField) await page.fill('input[name="website"], input[type="url"], input[placeholder*="website" i]', businessData.website || '')
+
+      // Category
+      const catField = await page.$('input[name="category"], select[name="category"]')
+      if (catField) {
+        const tag = await catField.evaluate(el => el.tagName.toLowerCase())
+        if (tag === 'select') {
+          // try selecting by visible text
+          await page.selectOption('select[name="category"]', { label: businessData.category }).catch(() => {})
+        } else {
+          await page.fill('input[name="category"]', businessData.category || '')
+        }
+      }
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Register")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
   }
 }
 
@@ -119,7 +284,7 @@ class HomeAdvisorHandler extends DirectoryHandler {
   static directoryName = 'HomeAdvisor'
   static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    return { status: 'pending', emailUsed: businessData.email }
+    return { status: 'pending', errorMessage: 'Requires pro account and phone verification. Visit: https://pro.angi.com to sign up.' }
   }
 }
 
@@ -127,7 +292,7 @@ class AngiHandler extends DirectoryHandler {
   static directoryName = 'Angi'
   static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    return { status: 'pending' }
+    return { status: 'pending', errorMessage: 'Requires pro account and phone verification. Visit: https://pro.angi.com to sign up.' }
   }
 }
 
@@ -135,7 +300,7 @@ class ThumbTackHandler extends DirectoryHandler {
   static directoryName = 'Thumbtack'
   static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    return { status: 'pending' }
+    return { status: 'pending', errorMessage: 'Requires pro account. Visit: https://www.thumbtack.com/pro to sign up.' }
   }
 }
 
@@ -224,7 +389,7 @@ class LinkedInCompanyHandler extends DirectoryHandler {
   static directoryName = 'LinkedIn Company'
   static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    return { status: 'pending' }
+    return { status: 'pending', errorMessage: 'Requires LinkedIn account. Visit: https://www.linkedin.com/company/setup/new/ to manually create.' }
   }
 }
 
@@ -238,7 +403,7 @@ class InstagramHandler extends DirectoryHandler {
   static directoryName = 'Instagram'
   static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    return { status: 'pending' }
+    return { status: 'pending', errorMessage: 'Requires manual Instagram business account creation. Visit: https://www.instagram.com to set up.' }
   }
 }
 
@@ -246,8 +411,7 @@ class FacebookBusinessHandler extends DirectoryHandler {
   static directoryName = 'Facebook Business'
   static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: true, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    // Manual - requires admin review
-    return { status: 'pending', errorMessage: 'Facebook requires manual verification' }
+    return { status: 'pending', errorMessage: 'Requires Facebook account. Visit: https://business.facebook.com to manually create page.' }
   }
 }
 
@@ -269,8 +433,7 @@ class GoogleBusinessProfileHandler extends DirectoryHandler {
   static directoryName = 'Google Business Profile'
   static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: true, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    // Manual - phone/postcard verification
-    return { status: 'pending', errorMessage: 'Requires phone/postcard verification' }
+    return { status: 'pending', errorMessage: 'Requires postcard/phone verification. Visit: https://business.google.com to manually verify.' }
   }
 }
 
@@ -278,8 +441,7 @@ class AppleMapsConnectHandler extends DirectoryHandler {
   static directoryName = 'Apple Maps Connect'
   static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: true, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    // Manual - requires approval
-    return { status: 'pending', errorMessage: 'Apple Maps requires manual verification' }
+    return { status: 'pending', errorMessage: 'Requires Apple ID. Visit: https://mapsconnect.apple.com to manually add.' }
   }
 }
 
@@ -287,8 +449,7 @@ class BetterBusinessBureauHandler extends DirectoryHandler {
   static directoryName = 'Better Business Bureau'
   static metadata = { priority: 1, requiresRealEmail: true, requiresManualVerification: true, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    // Manual - phone verification
-    return { status: 'pending', errorMessage: 'BBB requires phone verification' }
+    return { status: 'pending', errorMessage: 'Requires manual application. Visit: https://www.bbb.org/accreditation to apply.' }
   }
 }
 
@@ -520,7 +681,7 @@ class NextdoorHandler extends DirectoryHandler {
   static directoryName = 'Nextdoor'
   static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    return { status: 'pending' }
+    return { status: 'pending', errorMessage: 'Requires address verification. Visit: https://business.nextdoor.com to manually create.' }
   }
 }
 
@@ -528,13 +689,699 @@ class AlignableHandler extends DirectoryHandler {
   static directoryName = 'Alignable'
   static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    return { status: 'pending', emailUsed: businessData.email }
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://www.alignable.com/users/sign_up', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // First name — split businessName as a proxy
+      const nameParts = (businessData.businessName || '').split(' ')
+      const firstName = nameParts[0] || 'Business'
+      const lastName = nameParts.slice(1).join(' ') || 'Owner'
+
+      const firstNameField = await page.$('input[name="user[first_name]"], input[placeholder*="first name" i], input[id*="first_name" i]')
+      if (firstNameField) await page.fill('input[name="user[first_name]"], input[placeholder*="first name" i], input[id*="first_name" i]', firstName)
+
+      const lastNameField = await page.$('input[name="user[last_name]"], input[placeholder*="last name" i], input[id*="last_name" i]')
+      if (lastNameField) await page.fill('input[name="user[last_name]"], input[placeholder*="last name" i], input[id*="last_name" i]', lastName)
+
+      // Email
+      const emailField = await page.$('input[name="user[email]"], input[type="email"]')
+      if (emailField) await page.fill('input[name="user[email]"], input[type="email"]', businessData.listingEmail)
+
+      // Password
+      const passwordField = await page.$('input[name="user[password]"], input[type="password"]')
+      if (passwordField) await page.fill('input[name="user[password]"], input[type="password"]', businessData.listingPassword)
+
+      // Business name
+      const bizField = await page.$('input[name="business[name]"], input[placeholder*="business name" i]')
+      if (bizField) await page.fill('input[name="business[name]"], input[placeholder*="business name" i]', businessData.businessName)
+
+      // Zip
+      const zipField = await page.$('input[name="business[zip]"], input[name="zip"], input[placeholder*="zip" i]')
+      if (zipField) await page.fill('input[name="business[zip]"], input[name="zip"], input[placeholder*="zip" i]', businessData.zip)
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Sign Up"), button:has-text("Join")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
   }
 }
 
 const localBusinessDirs = [
   'Citysquares', 'LocalStack', 'LocalPin', 'Local Business Link', 'NearSay'
 ]
+
+// ─── STANDALONE HANDLERS for the 15 automatable directories not yet in explicit classes above ──
+
+class MerchantCircleHandler extends DirectoryHandler {
+  static directoryName = 'MerchantCircle'
+  static metadata = { priority: 1, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData, gmailHandler, captchaHandler }) {
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://www.merchantcircle.com/signup', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Business name
+      await page.waitForSelector('input[name="business_name"], input[placeholder*="business name" i], input[id*="business_name" i]', { timeout: 15000 })
+      await page.fill('input[name="business_name"], input[placeholder*="business name" i], input[id*="business_name" i]', businessData.businessName)
+
+      // Zip
+      const zipField = await page.$('input[name="zip"], input[name="postal_code"], input[placeholder*="zip" i]')
+      if (zipField) await page.fill('input[name="zip"], input[name="postal_code"], input[placeholder*="zip" i]', businessData.zip)
+
+      // Phone
+      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+
+      // Email
+      const emailField = await page.$('input[name="email"], input[type="email"]')
+      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+
+      // Password
+      const passwordField = await page.$('input[name="password"], input[type="password"]')
+      if (passwordField) await page.fill('input[name="password"], input[type="password"]', businessData.listingPassword)
+
+      // Category (may be a select or text input)
+      const catSelect = await page.$('select[name="category"]')
+      if (catSelect) {
+        await page.selectOption('select[name="category"]', { label: businessData.category }).catch(() => {})
+      } else {
+        const catInput = await page.$('input[name="category"], input[placeholder*="category" i]')
+        if (catInput) await page.fill('input[name="category"], input[placeholder*="category" i]', businessData.category || '')
+      }
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Sign Up"), button:has-text("Create"), button:has-text("Register")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
+
+class ShowMeLocalHandler extends DirectoryHandler {
+  static directoryName = 'ShowMeLocal'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData, gmailHandler, captchaHandler }) {
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://www.showmelocal.com/addlisting', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Business name
+      await page.waitForSelector('input[name="businessName"], input[placeholder*="business name" i], input[id*="businessName" i]', { timeout: 15000 })
+      await page.fill('input[name="businessName"], input[placeholder*="business name" i], input[id*="businessName" i]', businessData.businessName)
+
+      // Phone
+      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+
+      // Address
+      const addressField = await page.$('input[name="address"], input[placeholder*="address" i], input[id*="address" i]')
+      if (addressField) await page.fill('input[name="address"], input[placeholder*="address" i], input[id*="address" i]', businessData.address)
+
+      // City
+      const cityField = await page.$('input[name="city"], input[placeholder*="city" i]')
+      if (cityField) await page.fill('input[name="city"], input[placeholder*="city" i]', businessData.city)
+
+      // State
+      const stateSelectField = await page.$('select[name="state"]')
+      if (stateSelectField) {
+        await page.selectOption('select[name="state"]', businessData.state)
+      } else {
+        const stateInputField = await page.$('input[name="state"]')
+        if (stateInputField) await page.fill('input[name="state"]', businessData.state)
+      }
+
+      // Zip
+      const zipField = await page.$('input[name="zip"], input[placeholder*="zip" i]')
+      if (zipField) await page.fill('input[name="zip"], input[placeholder*="zip" i]', businessData.zip)
+
+      // Website
+      const websiteField = await page.$('input[name="website"], input[type="url"], input[placeholder*="website" i]')
+      if (websiteField) await page.fill('input[name="website"], input[type="url"], input[placeholder*="website" i]', businessData.website || '')
+
+      // Category
+      const catSelect = await page.$('select[name="category"]')
+      if (catSelect) {
+        await page.selectOption('select[name="category"]', { label: businessData.category }).catch(() => {})
+      } else {
+        const catInput = await page.$('input[name="category"], input[placeholder*="category" i]')
+        if (catInput) await page.fill('input[name="category"], input[placeholder*="category" i]', businessData.category || '')
+      }
+
+      // Email
+      const emailField = await page.$('input[name="email"], input[type="email"]')
+      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add Listing"), button:has-text("Register")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
+
+class BrownbookHandler extends DirectoryHandler {
+  static directoryName = 'Brownbook'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData, gmailHandler, captchaHandler }) {
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://www.brownbook.net/add-business', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Business name
+      await page.waitForSelector('input[name="business_name"], input[placeholder*="business name" i], input[id*="business_name" i], input[id*="businessName" i]', { timeout: 15000 })
+      await page.fill('input[name="business_name"], input[placeholder*="business name" i], input[id*="business_name" i], input[id*="businessName" i]', businessData.businessName)
+
+      // Address
+      const addressField = await page.$('input[name="address"], input[placeholder*="address" i], input[id*="address" i]')
+      if (addressField) await page.fill('input[name="address"], input[placeholder*="address" i], input[id*="address" i]', `${businessData.address}, ${businessData.city}, ${businessData.state} ${businessData.zip}`)
+
+      // Phone
+      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+
+      // Website
+      const websiteField = await page.$('input[name="website"], input[type="url"], input[placeholder*="website" i], input[placeholder*="url" i]')
+      if (websiteField) await page.fill('input[name="website"], input[type="url"], input[placeholder*="website" i], input[placeholder*="url" i]', businessData.website || '')
+
+      // Email
+      const emailField = await page.$('input[name="email"], input[type="email"]')
+      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add Business"), button:has-text("Save")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
+
+class CylexHandler extends DirectoryHandler {
+  static directoryName = 'Cylex'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData, gmailHandler, captchaHandler }) {
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://us.cylex.com/free-entry.html', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Business name
+      await page.waitForSelector('input[name="company"], input[name="business_name"], input[placeholder*="company" i], input[placeholder*="business name" i]', { timeout: 15000 })
+      await page.fill('input[name="company"], input[name="business_name"], input[placeholder*="company" i], input[placeholder*="business name" i]', businessData.businessName)
+
+      // Address
+      const addressField = await page.$('input[name="street"], input[name="address"], input[placeholder*="street" i], input[placeholder*="address" i]')
+      if (addressField) await page.fill('input[name="street"], input[name="address"], input[placeholder*="street" i], input[placeholder*="address" i]', businessData.address)
+
+      // City
+      const cityField = await page.$('input[name="city"], input[placeholder*="city" i]')
+      if (cityField) await page.fill('input[name="city"], input[placeholder*="city" i]', businessData.city)
+
+      // State
+      const stateSelectField = await page.$('select[name="state"]')
+      if (stateSelectField) {
+        await page.selectOption('select[name="state"]', businessData.state)
+      } else {
+        const stateInputField = await page.$('input[name="state"]')
+        if (stateInputField) await page.fill('input[name="state"]', businessData.state)
+      }
+
+      // Zip
+      const zipField = await page.$('input[name="zip"], input[name="zipcode"], input[placeholder*="zip" i]')
+      if (zipField) await page.fill('input[name="zip"], input[name="zipcode"], input[placeholder*="zip" i]', businessData.zip)
+
+      // Phone
+      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+
+      // Website
+      const websiteField = await page.$('input[name="website"], input[name="www"], input[type="url"], input[placeholder*="website" i]')
+      if (websiteField) await page.fill('input[name="website"], input[name="www"], input[type="url"], input[placeholder*="website" i]', businessData.website || '')
+
+      // Category
+      const catSelect = await page.$('select[name="category"]')
+      if (catSelect) {
+        await page.selectOption('select[name="category"]', { label: businessData.category }).catch(() => {})
+      } else {
+        const catInput = await page.$('input[name="category"], input[placeholder*="category" i]')
+        if (catInput) await page.fill('input[name="category"], input[placeholder*="category" i]', businessData.category || '')
+      }
+
+      // Email
+      const emailField = await page.$('input[name="email"], input[type="email"]')
+      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add"), button:has-text("Register")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
+
+class N49Handler extends DirectoryHandler {
+  static directoryName = 'n49'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData, gmailHandler, captchaHandler }) {
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://n49.com/biz/add', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Business name
+      await page.waitForSelector('input[name="name"], input[placeholder*="business name" i], input[id*="name" i]', { timeout: 15000 })
+      await page.fill('input[name="name"], input[placeholder*="business name" i], input[id*="name" i]', businessData.businessName)
+
+      // Phone
+      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+
+      // Address
+      const addressField = await page.$('input[name="address"], input[placeholder*="address" i]')
+      if (addressField) await page.fill('input[name="address"], input[placeholder*="address" i]', businessData.address)
+
+      // City
+      const cityField = await page.$('input[name="city"], input[placeholder*="city" i]')
+      if (cityField) await page.fill('input[name="city"], input[placeholder*="city" i]', businessData.city)
+
+      // State
+      const stateSelectField = await page.$('select[name="state"], select[name="province"]')
+      if (stateSelectField) {
+        await page.selectOption('select[name="state"], select[name="province"]', businessData.state)
+      } else {
+        const stateInputField = await page.$('input[name="state"]')
+        if (stateInputField) await page.fill('input[name="state"]', businessData.state)
+      }
+
+      // Category
+      const catSelect = await page.$('select[name="category"]')
+      if (catSelect) {
+        await page.selectOption('select[name="category"]', { label: businessData.category }).catch(() => {})
+      } else {
+        const catInput = await page.$('input[name="category"], input[placeholder*="category" i]')
+        if (catInput) await page.fill('input[name="category"], input[placeholder*="category" i]', businessData.category || '')
+      }
+
+      // Website
+      const websiteField = await page.$('input[name="website"], input[type="url"], input[placeholder*="website" i]')
+      if (websiteField) await page.fill('input[name="website"], input[type="url"], input[placeholder*="website" i]', businessData.website || '')
+
+      // Email
+      const emailField = await page.$('input[name="email"], input[type="email"]')
+      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add"), button:has-text("Save")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
+
+class FypleHandler extends DirectoryHandler {
+  static directoryName = 'Fyple'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData, gmailHandler, captchaHandler }) {
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://www.fyple.com/add-business/', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Business name
+      await page.waitForSelector('input[name="name"], input[placeholder*="business name" i], input[id*="name" i]', { timeout: 15000 })
+      await page.fill('input[name="name"], input[placeholder*="business name" i], input[id*="name" i]', businessData.businessName)
+
+      // Address
+      const addressField = await page.$('input[name="address"], input[placeholder*="address" i]')
+      if (addressField) await page.fill('input[name="address"], input[placeholder*="address" i]', businessData.address)
+
+      // City
+      const cityField = await page.$('input[name="city"], input[placeholder*="city" i]')
+      if (cityField) await page.fill('input[name="city"], input[placeholder*="city" i]', businessData.city)
+
+      // State
+      const stateSelectField = await page.$('select[name="state"]')
+      if (stateSelectField) {
+        await page.selectOption('select[name="state"]', businessData.state)
+      } else {
+        const stateInputField = await page.$('input[name="state"]')
+        if (stateInputField) await page.fill('input[name="state"]', businessData.state)
+      }
+
+      // Zip
+      const zipField = await page.$('input[name="zip"], input[name="postal_code"], input[placeholder*="zip" i]')
+      if (zipField) await page.fill('input[name="zip"], input[name="postal_code"], input[placeholder*="zip" i]', businessData.zip)
+
+      // Phone
+      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+
+      // Website
+      const websiteField = await page.$('input[name="website"], input[type="url"], input[placeholder*="website" i]')
+      if (websiteField) await page.fill('input[name="website"], input[type="url"], input[placeholder*="website" i]', businessData.website || '')
+
+      // Email
+      const emailField = await page.$('input[name="email"], input[type="email"]')
+      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+
+      // Description
+      const descField = await page.$('textarea[name="description"], textarea[placeholder*="description" i]')
+      if (descField) await page.fill('textarea[name="description"], textarea[placeholder*="description" i]', businessData.description || businessData.shortDesc || '')
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add Business"), button:has-text("Register")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
+
+class GetFaveHandler extends DirectoryHandler {
+  static directoryName = 'GetFave'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData, gmailHandler, captchaHandler }) {
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://www.getfave.com/addlisting', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Business name
+      await page.waitForSelector('input[name="name"], input[placeholder*="business name" i], input[id*="name" i]', { timeout: 15000 })
+      await page.fill('input[name="name"], input[placeholder*="business name" i], input[id*="name" i]', businessData.businessName)
+
+      // City
+      const cityField = await page.$('input[name="city"], input[placeholder*="city" i]')
+      if (cityField) await page.fill('input[name="city"], input[placeholder*="city" i]', businessData.city)
+
+      // State
+      const stateSelectField = await page.$('select[name="state"]')
+      if (stateSelectField) {
+        await page.selectOption('select[name="state"]', businessData.state)
+      } else {
+        const stateInputField = await page.$('input[name="state"]')
+        if (stateInputField) await page.fill('input[name="state"]', businessData.state)
+      }
+
+      // Zip
+      const zipField = await page.$('input[name="zip"], input[placeholder*="zip" i]')
+      if (zipField) await page.fill('input[name="zip"], input[placeholder*="zip" i]', businessData.zip)
+
+      // Phone
+      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+
+      // Website
+      const websiteField = await page.$('input[name="website"], input[type="url"], input[placeholder*="website" i]')
+      if (websiteField) await page.fill('input[name="website"], input[type="url"], input[placeholder*="website" i]', businessData.website || '')
+
+      // Category
+      const catSelect = await page.$('select[name="category"]')
+      if (catSelect) {
+        await page.selectOption('select[name="category"]', { label: businessData.category }).catch(() => {})
+      } else {
+        const catInput = await page.$('input[name="category"], input[placeholder*="category" i]')
+        if (catInput) await page.fill('input[name="category"], input[placeholder*="category" i]', businessData.category || '')
+      }
+
+      // Email
+      const emailField = await page.$('input[name="email"], input[type="email"]')
+      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add"), button:has-text("Create")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
+
+class CityfosHandler extends DirectoryHandler {
+  static directoryName = 'Cityfos'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData, gmailHandler, captchaHandler }) {
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://www.cityfos.com/add-your-business', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Business name
+      await page.waitForSelector('input[name="business_name"], input[placeholder*="business name" i], input[id*="business_name" i]', { timeout: 15000 })
+      await page.fill('input[name="business_name"], input[placeholder*="business name" i], input[id*="business_name" i]', businessData.businessName)
+
+      // Address
+      const addressField = await page.$('input[name="address"], input[placeholder*="address" i]')
+      if (addressField) await page.fill('input[name="address"], input[placeholder*="address" i]', businessData.address)
+
+      // City
+      const cityField = await page.$('input[name="city"], input[placeholder*="city" i]')
+      if (cityField) await page.fill('input[name="city"], input[placeholder*="city" i]', businessData.city)
+
+      // State
+      const stateSelectField = await page.$('select[name="state"]')
+      if (stateSelectField) {
+        await page.selectOption('select[name="state"]', businessData.state)
+      } else {
+        const stateInputField = await page.$('input[name="state"]')
+        if (stateInputField) await page.fill('input[name="state"]', businessData.state)
+      }
+
+      // Zip
+      const zipField = await page.$('input[name="zip"], input[name="zipcode"], input[placeholder*="zip" i]')
+      if (zipField) await page.fill('input[name="zip"], input[name="zipcode"], input[placeholder*="zip" i]', businessData.zip)
+
+      // Phone
+      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+
+      // Website
+      const websiteField = await page.$('input[name="website"], input[type="url"], input[placeholder*="website" i]')
+      if (websiteField) await page.fill('input[name="website"], input[type="url"], input[placeholder*="website" i]', businessData.website || '')
+
+      // Description
+      const descField = await page.$('textarea[name="description"], textarea[placeholder*="description" i]')
+      if (descField) await page.fill('textarea[name="description"], textarea[placeholder*="description" i]', businessData.description || businessData.shortDesc || '')
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add"), button:has-text("Register")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
+
+class TuugoHandler extends DirectoryHandler {
+  static directoryName = 'Tuugo'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData, gmailHandler, captchaHandler }) {
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://www.tuugo.us/addCompany', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Business name
+      await page.waitForSelector('input[name="name"], input[placeholder*="company name" i], input[placeholder*="business name" i], input[id*="name" i]', { timeout: 15000 })
+      await page.fill('input[name="name"], input[placeholder*="company name" i], input[placeholder*="business name" i], input[id*="name" i]', businessData.businessName)
+
+      // City
+      const cityField = await page.$('input[name="city"], input[placeholder*="city" i]')
+      if (cityField) await page.fill('input[name="city"], input[placeholder*="city" i]', businessData.city)
+
+      // State
+      const stateSelectField = await page.$('select[name="state"]')
+      if (stateSelectField) {
+        await page.selectOption('select[name="state"]', businessData.state)
+      } else {
+        const stateInputField = await page.$('input[name="state"]')
+        if (stateInputField) await page.fill('input[name="state"]', businessData.state)
+      }
+
+      // Phone
+      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+
+      // Website
+      const websiteField = await page.$('input[name="website"], input[type="url"], input[placeholder*="website" i]')
+      if (websiteField) await page.fill('input[name="website"], input[type="url"], input[placeholder*="website" i]', businessData.website || '')
+
+      // Description
+      const descField = await page.$('textarea[name="description"], textarea[placeholder*="description" i], textarea[name="about"]')
+      if (descField) await page.fill('textarea[name="description"], textarea[placeholder*="description" i], textarea[name="about"]', businessData.description || businessData.shortDesc || '')
+
+      // Email
+      const emailField = await page.$('input[name="email"], input[type="email"]')
+      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add Company"), button:has-text("Register")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
+
+class ZipleafHandler extends DirectoryHandler {
+  static directoryName = 'Zipleaf'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData, gmailHandler, captchaHandler }) {
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://www.zipleaf.us/AddListing.aspx', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Business name
+      await page.waitForSelector('input[name*="BusinessName" i], input[id*="BusinessName" i], input[placeholder*="business name" i]', { timeout: 15000 })
+      await page.fill('input[name*="BusinessName" i], input[id*="BusinessName" i], input[placeholder*="business name" i]', businessData.businessName)
+
+      // Address
+      const addressField = await page.$('input[name*="Address" i]:not([name*="Email" i]), input[id*="Address" i]:not([id*="Email" i]), input[placeholder*="address" i]')
+      if (addressField) {
+        const sel = 'input[name*="Address" i]:not([name*="Email" i])'
+        await page.fill(sel, businessData.address).catch(() => {})
+      }
+
+      // Phone
+      const phoneField = await page.$('input[name*="Phone" i], input[id*="Phone" i], input[type="tel"]')
+      if (phoneField) await page.fill('input[name*="Phone" i], input[id*="Phone" i], input[type="tel"]', businessData.phone)
+
+      // Website
+      const websiteField = await page.$('input[name*="Website" i], input[id*="Website" i], input[type="url"]')
+      if (websiteField) await page.fill('input[name*="Website" i], input[id*="Website" i], input[type="url"]', businessData.website || '')
+
+      // Email
+      const emailField = await page.$('input[name*="Email" i], input[id*="Email" i], input[type="email"]')
+      if (emailField) await page.fill('input[name*="Email" i], input[id*="Email" i], input[type="email"]', businessData.listingEmail)
+
+      // Submit
+      await page.click('input[type="submit"], button[type="submit"], button:has-text("Submit"), button:has-text("Add"), button:has-text("Register")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
+
+class BizHWYHandler extends DirectoryHandler {
+  static directoryName = 'BizHWY'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData, gmailHandler, captchaHandler }) {
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://www.bizhwy.com/submit-business.php', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Business name
+      await page.waitForSelector('input[name="company"], input[name="business_name"], input[placeholder*="business name" i], input[placeholder*="company name" i]', { timeout: 15000 })
+      await page.fill('input[name="company"], input[name="business_name"], input[placeholder*="business name" i], input[placeholder*="company name" i]', businessData.businessName)
+
+      // Address
+      const addressField = await page.$('input[name="address"], input[placeholder*="address" i]')
+      if (addressField) await page.fill('input[name="address"], input[placeholder*="address" i]', businessData.address)
+
+      // City
+      const cityField = await page.$('input[name="city"], input[placeholder*="city" i]')
+      if (cityField) await page.fill('input[name="city"], input[placeholder*="city" i]', businessData.city)
+
+      // State
+      const stateSelectField = await page.$('select[name="state"]')
+      if (stateSelectField) {
+        await page.selectOption('select[name="state"]', businessData.state)
+      } else {
+        const stateInputField = await page.$('input[name="state"]')
+        if (stateInputField) await page.fill('input[name="state"]', businessData.state)
+      }
+
+      // Zip
+      const zipField = await page.$('input[name="zip"], input[name="zipcode"], input[placeholder*="zip" i]')
+      if (zipField) await page.fill('input[name="zip"], input[name="zipcode"], input[placeholder*="zip" i]', businessData.zip)
+
+      // Phone
+      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+
+      // Website
+      const websiteField = await page.$('input[name="website"], input[type="url"], input[placeholder*="website" i]')
+      if (websiteField) await page.fill('input[name="website"], input[type="url"], input[placeholder*="website" i]', businessData.website || '')
+
+      // Category
+      const catSelect = await page.$('select[name="category"]')
+      if (catSelect) {
+        await page.selectOption('select[name="category"]', { label: businessData.category }).catch(() => {})
+      } else {
+        const catInput = await page.$('input[name="category"], input[placeholder*="category" i]')
+        if (catInput) await page.fill('input[name="category"], input[placeholder*="category" i]', businessData.category || '')
+      }
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add Business")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
 
 // ─── GENERATE REMAINING HANDLERS FROM TEMPLATES ───────────────────────────
 
@@ -598,6 +1445,18 @@ const HANDLERS = {
   'InsiderPages': InsiderPagesHandler,
   'EZlocal': EZlocalHandler,
   'Local.com': LocalDotComHandler,
+  'MerchantCircle': MerchantCircleHandler,
+  'ShowMeLocal': ShowMeLocalHandler,
+  'Brownbook': BrownbookHandler,
+  'Cylex': CylexHandler,
+  'n49': N49Handler,
+  'Fyple': FypleHandler,
+  'GetFave': GetFaveHandler,
+  'Cityfos': CityfosHandler,
+  'Alignable': AlignableHandler,
+  'Tuugo': TuugoHandler,
+  'Zipleaf': ZipleafHandler,
+  'BizHWY': BizHWYHandler,
   'HomeAdvisor': HomeAdvisorHandler,
   'Angi': AngiHandler,
   'Thumbtack': ThumbTackHandler,
@@ -637,7 +1496,6 @@ const HANDLERS = {
   'Shopify Store Locator': ShopifyHandler,
   'Meetup': MeetupHandler,
   'Nextdoor': NextdoorHandler,
-  'Alignable': AlignableHandler,
 
   // Template-generated handlers
   ...generateHandlers([

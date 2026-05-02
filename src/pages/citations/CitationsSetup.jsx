@@ -149,6 +149,14 @@ export default function CitationsSetup() {
     }
   }
 
+  const onInvalid = (fieldErrors) => {
+    const firstError = Object.values(fieldErrors)[0]
+    const msg = firstError?.message || 'Please fill in all required fields'
+    toast(`Fix required field: ${msg}`, 'error')
+    // Auto-expand step 1 since most required fields are there
+    setExpandedStep(1)
+  }
+
   const StepSection = ({ step, title, description, required, children }) => {
     const isExpanded = expandedStep === step
     const variantMap = { 1: 'success', 2: 'info', 3: 'orange' }
@@ -193,7 +201,7 @@ export default function CitationsSetup() {
         </p>
       </div>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-6">
         {/* Logo Upload */}
         <Card>
           <h2 className="text-sm font-semibold text-hub-text mb-4 block">Business Logo <span className="text-hub-text-muted font-normal">(used in Step 2 submissions)</span></h2>
