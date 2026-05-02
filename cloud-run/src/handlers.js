@@ -264,12 +264,14 @@ class LocalDotComHandler extends DirectoryHandler {
 }
 
 // Template generators for remaining general directories
+// NOTE: Do NOT list names here that already have explicit handler classes above —
+// the spread runs last and would silently overwrite the real handlers.
 const generalDirs = [
-  'Kudzu', 'YellowMoxie', 'GetFave', 'Brownbook', 'Fyple', 'eLocal', 'USCity.net',
+  'Kudzu', 'YellowMoxie', 'eLocal', 'USCity.net',
   'Switchboard', 'YellowPageCity', 'HERE Maps', 'TomTom', 'Google Maps (listing)',
-  'Bing Maps', 'Cylex', 'n49', 'Tuugo', 'Topix', 'Opendi', 'iGlobal', 'Salespider',
-  'Americantowns', 'Oodle', 'Zipleaf', 'BizHWY', 'Storeboard', 'Tupalo', 'DirJournal',
-  'Lacartes', 'iBegin', 'Communitywalk', 'City-data', 'Cityfos', 'Geebo', 'BizQuid',
+  'Bing Maps', 'iGlobal', 'Salespider',
+  'Americantowns', 'Storeboard', 'Tupalo', 'DirJournal',
+  'Lacartes', 'iBegin', 'Communitywalk', 'City-data', 'Geebo', 'BizQuid',
   'Spoke', 'Pinterest Business', 'YouTube Channel', 'Twitter / X', 'TikTok Business',
   'Indeed Company', 'Glassdoor', 'Craigslist', "Angie's List", 'HomeStars', 'Hometalk',
   'Quora', 'Reddit', 'Factual', 'Navmii', 'B2B Yellow Pages', 'US Business Directory',
@@ -908,7 +910,7 @@ class CylexHandler extends DirectoryHandler {
     const browser = await this.getBrowser()
     const page = await browser.newPage()
     try {
-      await page.goto('https://us.cylex.com/free-entry.html', { waitUntil: 'domcontentloaded', timeout: 30000 })
+      await page.goto('https://www.cylex.us.com/signin?view=register', { waitUntil: 'domcontentloaded', timeout: 30000 })
 
       // Business name
       await page.waitForSelector('input[name="company"], input[name="business_name"], input[placeholder*="company" i], input[placeholder*="business name" i]', { timeout: 15000 })
@@ -1383,6 +1385,154 @@ class BizHWYHandler extends DirectoryHandler {
   }
 }
 
+class OodleHandler extends DirectoryHandler {
+  static directoryName = 'Oodle'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData, gmailHandler, captchaHandler }) {
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://www.oodle.com/listings/manage/', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Business name
+      await page.waitForSelector('input[name="title"], input[placeholder*="title" i], input[placeholder*="business name" i]', { timeout: 15000 })
+      await page.fill('input[name="title"], input[placeholder*="title" i], input[placeholder*="business name" i]', businessData.businessName)
+
+      // Location / City
+      const cityField = await page.$('input[name="city"], input[name="location"], input[placeholder*="city" i], input[placeholder*="location" i]')
+      if (cityField) await page.fill('input[name="city"], input[name="location"], input[placeholder*="city" i], input[placeholder*="location" i]', `${businessData.city}, ${businessData.state}`)
+
+      // Phone
+      const phoneField = await page.$('input[name="phone"], input[type="tel"]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"]', businessData.phone)
+
+      // Email
+      const emailField = await page.$('input[name="email"], input[type="email"]')
+      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+
+      // Description
+      const descField = await page.$('textarea[name="description"], textarea[name="body"], textarea[placeholder*="description" i]')
+      if (descField) await page.fill('textarea[name="description"], textarea[name="body"], textarea[placeholder*="description" i]', businessData.description || businessData.shortDesc || '')
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Post"), button:has-text("Add")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
+
+class OpendiHandler extends DirectoryHandler {
+  static directoryName = 'Opendi'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData, gmailHandler, captchaHandler }) {
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://www.opendi.us/add.html', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Business name
+      await page.waitForSelector('input[name="name"], input[name="business_name"], input[placeholder*="business name" i]', { timeout: 15000 })
+      await page.fill('input[name="name"], input[name="business_name"], input[placeholder*="business name" i]', businessData.businessName)
+
+      // Address
+      const addressField = await page.$('input[name="address"], input[name="street"], input[placeholder*="address" i]')
+      if (addressField) await page.fill('input[name="address"], input[name="street"], input[placeholder*="address" i]', businessData.address)
+
+      // City
+      const cityField = await page.$('input[name="city"], input[placeholder*="city" i]')
+      if (cityField) await page.fill('input[name="city"], input[placeholder*="city" i]', businessData.city)
+
+      // State
+      const stateSelectField = await page.$('select[name="state"]')
+      if (stateSelectField) {
+        await page.selectOption('select[name="state"]', businessData.state)
+      } else {
+        const stateInputField = await page.$('input[name="state"]')
+        if (stateInputField) await page.fill('input[name="state"]', businessData.state)
+      }
+
+      // Zip
+      const zipField = await page.$('input[name="zip"], input[name="zipcode"], input[placeholder*="zip" i]')
+      if (zipField) await page.fill('input[name="zip"], input[name="zipcode"], input[placeholder*="zip" i]', businessData.zip)
+
+      // Phone
+      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+
+      // Website
+      const websiteField = await page.$('input[name="website"], input[type="url"], input[placeholder*="website" i]')
+      if (websiteField) await page.fill('input[name="website"], input[type="url"], input[placeholder*="website" i]', businessData.website || '')
+
+      // Email
+      const emailField = await page.$('input[name="email"], input[type="email"]')
+      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add Business"), button:has-text("Register")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
+
+class TopixHandler extends DirectoryHandler {
+  static directoryName = 'Topix'
+  static metadata = { priority: 3, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData, gmailHandler, captchaHandler }) {
+    // Topix is a community news aggregator — business listings are submitted via
+    // city/state pages. Navigate to the city forum and post business info.
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      const citySlug = (businessData.city || '').toLowerCase().replace(/\s+/g, '-')
+      const stateSlug = (businessData.state || '').toLowerCase()
+      await page.goto(`https://www.topix.com/city/${citySlug}-${stateSlug}`, { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Look for a "Post" or forum submission link
+      const postLink = await page.$('a:has-text("Post"), a:has-text("Add"), a:has-text("Submit"), a[href*="post"], a[href*="forum"]')
+      if (postLink) {
+        await postLink.click()
+        await page.waitForTimeout(2000)
+      }
+
+      // Fill title/subject
+      const titleField = await page.$('input[name="subject"], input[name="title"], input[placeholder*="subject" i]')
+      if (titleField) await page.fill('input[name="subject"], input[name="title"], input[placeholder*="subject" i]', businessData.businessName)
+
+      // Fill body
+      const bodyField = await page.$('textarea[name="body"], textarea[name="message"], textarea[placeholder*="message" i]')
+      if (bodyField) {
+        const body = `${businessData.businessName} — ${businessData.category || 'Local Business'}\n` +
+          `${businessData.address}, ${businessData.city}, ${businessData.state} ${businessData.zip}\n` +
+          `Phone: ${businessData.phone}\n` +
+          (businessData.website ? `Website: ${businessData.website}\n` : '') +
+          (businessData.description || businessData.shortDesc || '')
+        await page.fill('textarea[name="body"], textarea[name="message"], textarea[placeholder*="message" i]', body)
+      }
+
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Post"), button:has-text("Submit")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
+
 // ─── GENERATE REMAINING HANDLERS FROM TEMPLATES ───────────────────────────
 
 const getMetadataForDirectory = (name) => {
@@ -1496,6 +1646,9 @@ const HANDLERS = {
   'Shopify Store Locator': ShopifyHandler,
   'Meetup': MeetupHandler,
   'Nextdoor': NextdoorHandler,
+  'Oodle': OodleHandler,
+  'Opendi': OpendiHandler,
+  'Topix': TopixHandler,
 
   // Template-generated handlers
   ...generateHandlers([
