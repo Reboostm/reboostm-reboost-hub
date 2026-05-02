@@ -774,15 +774,18 @@ exports.startCitationsJob = onCall(
 
     // Fallback to MASTER_DIRECTORIES slicing if no admin-configured package found
     if (!packageDir) {
-      const targetCount = TIER_COUNTS[tierKey] || 100
-      const allDirs = MASTER_DIRECTORIES.slice(0, targetCount)
+      const fallbackCount = TIER_COUNTS[tierKey] || 100
+      const allDirs = MASTER_DIRECTORIES.slice(0, fallbackCount)
       packageDir = {
         id: tierKey,
         directoryNames: allDirs.map(d => d.name),
-        count: targetCount,
+        count: fallbackCount,
       }
-      console.log(`[CITATIONS] Using MASTER_DIRECTORIES fallback: ${targetCount} dirs`)
+      console.log(`[CITATIONS] Using MASTER_DIRECTORIES fallback: ${fallbackCount} dirs`)
     }
+
+    // targetCount is the number of directories in the resolved package
+    const targetCount = packageDir.count || packageDir.directoryNames?.length || 0
 
     // Block duplicate active jobs
     const activeSnap = await db.collection('citations')
