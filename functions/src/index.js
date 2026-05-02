@@ -942,8 +942,8 @@ exports.adminCreateUser = onCall({ timeoutSeconds: 30 }, async (request) => {
 
   const auth = getAuth()
 
-  // Generate a random temporary password — user will reset via invite link
-  const tempPassword = Math.random().toString(36).slice(-12) + Math.random().toString(36).slice(-4).toUpperCase()
+  // Fixed default password — admin tells client to use this on first login, then change it
+  const tempPassword = '123456'
   const user = await auth.createUser({ email, password: tempPassword, displayName })
 
   await db.collection('users').doc(user.uid).set({
@@ -991,11 +991,17 @@ exports.adminCreateUser = onCall({ timeoutSeconds: 30 }, async (request) => {
             subject: `You've been invited to ReBoost Marketing HUB`,
             html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a;">
   <h2>Welcome${displayName ? `, ${displayName}` : ''}!</h2>
-  <p>Your ReBoost Marketing HUB account has been created. Click the button below to set your password and access your dashboard.</p>
+  <p>Your ReBoost Marketing HUB account has been created and is ready to go.</p>
+  <p><strong>Login here:</strong> <a href="${process.env.APP_URL || 'https://reboost-hub.vercel.app'}/login">${process.env.APP_URL || 'https://reboost-hub.vercel.app'}/login</a></p>
+  <div style="background:#f5f5f5;border-radius:8px;padding:16px 24px;margin:20px 0;">
+    <p style="margin:0 0 8px 0;font-size:14px;color:#666;">Your login credentials:</p>
+    <p style="margin:0 0 4px 0;"><strong>Email:</strong> ${email}</p>
+    <p style="margin:0;"><strong>Temporary Password:</strong> <code style="background:#e0e0e0;padding:2px 8px;border-radius:4px;font-size:15px;">123456</code></p>
+  </div>
   <p style="margin:28px 0;text-align:center;">
-    <a href="${inviteLink}" style="display:inline-block;background:#2563eb;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;">Set Your Password & Log In</a>
+    <a href="${process.env.APP_URL || 'https://reboost-hub.vercel.app'}/login" style="display:inline-block;background:#2563eb;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;">Log In to Your Dashboard</a>
   </p>
-  <p style="color:#666;font-size:13px;">This link expires in 1 hour. If you didn't expect this email, you can ignore it.</p>
+  <p style="color:#666;font-size:13px;">Please update your password after your first login under Settings → Profile.</p>
 </div>`,
           }),
         })
@@ -1011,11 +1017,17 @@ exports.adminCreateUser = onCall({ timeoutSeconds: 30 }, async (request) => {
               type: 'text/html',
               value: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a;">
   <h2>Welcome${displayName ? `, ${displayName}` : ''}!</h2>
-  <p>Your ReBoost Marketing HUB account has been created. Click the button below to set your password and access your dashboard.</p>
+  <p>Your ReBoost Marketing HUB account has been created and is ready to go.</p>
+  <p><strong>Login here:</strong> <a href="${process.env.APP_URL || 'https://reboost-hub.vercel.app'}/login">${process.env.APP_URL || 'https://reboost-hub.vercel.app'}/login</a></p>
+  <div style="background:#f5f5f5;border-radius:8px;padding:16px 24px;margin:20px 0;">
+    <p style="margin:0 0 8px 0;font-size:14px;color:#666;">Your login credentials:</p>
+    <p style="margin:0 0 4px 0;"><strong>Email:</strong> ${email}</p>
+    <p style="margin:0;"><strong>Temporary Password:</strong> <code style="background:#e0e0e0;padding:2px 8px;border-radius:4px;font-size:15px;">123456</code></p>
+  </div>
   <p style="margin:28px 0;text-align:center;">
-    <a href="${inviteLink}" style="display:inline-block;background:#2563eb;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;">Set Your Password & Log In</a>
+    <a href="${process.env.APP_URL || 'https://reboost-hub.vercel.app'}/login" style="display:inline-block;background:#2563eb;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;">Log In to Your Dashboard</a>
   </p>
-  <p style="color:#666;font-size:13px;">This link expires in 1 hour. If you didn't expect this email, you can ignore it.</p>
+  <p style="color:#666;font-size:13px;">Please update your password after your first login under Settings → Profile.</p>
 </div>`,
             }],
           }),

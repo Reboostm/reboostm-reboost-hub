@@ -278,7 +278,7 @@ function CreateUserModal({ isOpen, onClose, onCreated }) {
     setSaving(true)
     try {
       const result = await adminCreateUser({ email: email.trim(), displayName: displayName.trim(), role, sendInvite: true })
-      toast(`Invite sent to ${email}. They'll receive an email to set their password.`, 'success')
+      toast(`Account created for ${email}. Temp password: 123456`, 'success')
       onCreated({ id: result.uid, email: email.trim(), displayName: displayName.trim(), role, createdAt: new Date() })
       setEmail(''); setDisplayName(''); setRole('client')
       onClose()
@@ -297,7 +297,7 @@ function CreateUserModal({ isOpen, onClose, onCreated }) {
         <Select label="Role" value={role} onChange={e => setRole(e.target.value)} options={roleOptions} />
         {role !== 'client' && <p className="text-xs text-hub-yellow bg-hub-yellow/10 border border-hub-yellow/20 rounded-lg px-3 py-2">{role === 'admin' ? 'Admin accounts have full access and can see all data.' : 'Staff accounts bypass all ToolGates and can manage clients.'}</p>}
         <p className="text-xs text-hub-text-muted bg-hub-input border border-hub-border rounded-lg px-3 py-2">
-          An invite email will be sent automatically. The client clicks the link to set their own password.
+          Account is created instantly with temporary password <strong className="text-hub-text">123456</strong>. An invite email is also sent with login instructions.
         </p>
       </form>
     </Modal>
