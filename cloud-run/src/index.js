@@ -10,10 +10,16 @@ const app = express()
 const PORT = process.env.PORT || 8080
 
 // Initialize Firebase Admin SDK
-// Cloud Run automatically uses Application Default Credentials from the service account
-initializeApp({
-  projectId: process.env.FIREBASE_PROJECT_ID || 'reboost-hub'
-})
+// Uses FIREBASE_SERVICE_ACCOUNT_JSON env var (base64-encoded service account key)
+// which allows cross-project access from reboost-citations GCP → reboost-hub Firebase
+if (process.env.FIREBASE_SERVICE_ACCOUNT_JSON) {
+  const serviceAccount = JSON.parse(
+    Buffer.from(process.env.FIREBASE_SERVICE_ACCOUNT_JSON, 'base64').toString('utf8')
+  )
+  initializeApp({ credential: cert(serviceAccount) })
+} else {
+  initializeApp({ projectId: process.env.FIREBASE_PROJECT_ID || 'reboost-hub' })
+}
 
 const db = getFirestore()
 
