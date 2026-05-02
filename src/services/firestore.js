@@ -120,13 +120,20 @@ export function subscribeToCitationsBatch(batchId, callback) {
 }
 
 export function subscribeToCitationsDirectories(batchId, callback) {
+  // Single orderBy to avoid requiring a composite Firestore index on the subcollection.
+  // Secondary sort (name) is done client-side.
   const q = query(
     collection(db, 'citations', batchId, 'directories'),
-    orderBy('priority'),
-    orderBy('name')
+    orderBy('priority')
   )
   return onSnapshot(q, snap => {
-    callback(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+    // Client-side secondary sort by name within each priority group
+    docs.sort((a, b) => {
+      if ((a.priority || 99) !== (b.priority || 99)) return (a.priority || 99) - (b.priority || 99)
+      return (a.name || '').localeCompare(b.name || '')
+    })
+    callback(docs)
   })
 }
 

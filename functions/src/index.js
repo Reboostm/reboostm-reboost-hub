@@ -326,7 +326,7 @@ async function sendCitationsPreSubmissionEmail({ userId, email, businessName, to
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'ReBoost Marketing HUB <noreply@reboosthub.com>',
+        from: process.env.RESEND_FROM_EMAIL || 'ReBoost Hub <onboarding@resend.dev>',
         to: email,
         subject: `Citations Submission Starting — ${businessName}`,
         html,
@@ -986,7 +986,7 @@ exports.adminCreateUser = onCall({ timeoutSeconds: 30 }, async (request) => {
           method: 'POST',
           headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            from: 'ReBoost Marketing HUB <noreply@reboosthub.com>',
+            from: process.env.RESEND_FROM_EMAIL || 'ReBoost Hub <onboarding@resend.dev>',
             to: email,
             subject: `You've been invited to ReBoost Marketing HUB`,
             html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a;">

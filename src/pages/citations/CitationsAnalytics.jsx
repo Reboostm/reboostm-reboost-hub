@@ -1,10 +1,12 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   BarChart2, CheckCircle, TrendingUp, Clock, Loader2,
-  BookOpen, AlertCircle,
+  BookOpen, AlertCircle, ArrowLeft,
 } from 'lucide-react'
 import Card, { CardHeader, CardTitle } from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
+import Button from '../../components/ui/Button'
 import { useAuth } from '../../hooks/useAuth'
 import { useBilling } from '../../hooks/useBilling'
 import ToolGate from '../../components/ui/ToolGate'
@@ -82,6 +84,7 @@ function CategoryBar({ name, live, total, color }) {
 export default function CitationsAnalytics() {
   const { hasCitations } = useBilling()
   const { userProfile } = useAuth()
+  const navigate = useNavigate()
   const [batches, setBatches] = useState([])
   const [batchesLoading, setBatchesLoading] = useState(true)
   const [latestDirs, setLatestDirs] = useState([])
@@ -155,6 +158,12 @@ export default function CitationsAnalytics() {
     <div className="p-6 max-w-4xl">
       {/* Header */}
       <div className="mb-6">
+        <button
+          onClick={() => navigate('/citations')}
+          className="flex items-center gap-1.5 text-sm text-hub-text-secondary hover:text-hub-text mb-4 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" /> Back to Citations
+        </button>
         <div className="flex items-center gap-3 mb-1">
           <div className="w-10 h-10 rounded-xl bg-hub-orange/10 flex items-center justify-center">
             <BarChart2 className="w-5 h-5 text-hub-orange" />
