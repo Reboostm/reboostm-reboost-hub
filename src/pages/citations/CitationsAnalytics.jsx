@@ -158,12 +158,14 @@ export default function CitationsAnalytics() {
     <div className="p-6 max-w-4xl">
       {/* Header */}
       <div className="mb-6">
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={() => navigate('/citations')}
-          className="flex items-center gap-1.5 text-sm text-hub-text-secondary hover:text-hub-text mb-4 transition-colors"
+          className="mb-5"
         >
           <ArrowLeft className="w-4 h-4" /> Back to Citations
-        </button>
+        </Button>
         <div className="flex items-center gap-3 mb-1">
           <div className="w-10 h-10 rounded-xl bg-hub-orange/10 flex items-center justify-center">
             <BarChart2 className="w-5 h-5 text-hub-orange" />

@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   Search, ExternalLink, CheckCircle, Clock, AlertCircle,
-  XCircle, Minus, Loader2, List, Play, ChevronRight,
+  XCircle, Minus, Loader2, List, Play, ChevronRight, ArrowLeft,
 } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -43,6 +43,7 @@ function formatDate(ts) {
 export default function CitationsDirs() {
   const { hasCitations } = useBilling()
   const { userProfile } = useAuth()
+  const navigate = useNavigate()
   const [batches, setBatches] = useState([])
   const [batchesLoading, setBatchesLoading] = useState(true)
   const [dirs, setDirs] = useState([])
@@ -100,6 +101,11 @@ export default function CitationsDirs() {
 
   return (
     <div className="p-6 max-w-5xl">
+      {/* Back button */}
+      <Button variant="secondary" size="sm" onClick={() => navigate('/citations')} className="mb-5">
+        <ArrowLeft className="w-4 h-4" /> Back to Citations
+      </Button>
+
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
