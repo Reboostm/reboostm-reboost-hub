@@ -736,18 +736,43 @@ exports.startCitationsJob = onCall(
     // Resolve tier — citationsPackageId could be 'starter', 'pro', 'premium', or a custom package ID
     const tierKey = packageId.replace('citations_', '') // 'citations_starter' → 'starter'
 
-    // Look up custom package if it exists, otherwise use default tier
+    // Look up the package the admin configured in CitationsDirectoriesManager.
+    // The admin panel saves packages keyed by the OFFER ID (e.g. 'citations_starter'),
+    // while tierKey is derived from citationsPackageId (e.g. 'starter').
+    // We try several lookups to find the right one.
     let packageDir = null
     try {
-      const pkgSnap = await db.collection('citation_packages').doc(tierKey).get()
-      if (pkgSnap.exists) {
-        packageDir = pkgSnap.data()
+      // 1. Try exact packageId match (e.g. 'citations_starter')
+      const snap1 = await db.collection('citation_packages').doc(packageId).get()
+      if (snap1.exists && snap1.data().directoryNames?.length > 0) {
+        packageDir = snap1.data()
+        console.log(`[CITATIONS] Found package by packageId: ${packageId} (${packageDir.directoryNames.length} dirs)`)
+      }
+
+      // 2. Try tierKey match (e.g. 'starter')
+      if (!packageDir) {
+        const snap2 = await db.collection('citation_packages').doc(tierKey).get()
+        if (snap2.exists && snap2.data().directoryNames?.length > 0) {
+          packageDir = snap2.data()
+          console.log(`[CITATIONS] Found package by tierKey: ${tierKey} (${packageDir.directoryNames.length} dirs)`)
+        }
+      }
+
+      // 3. Query by tier field
+      if (!packageDir) {
+        const query = await db.collection('citation_packages')
+          .where('tier', '==', tierKey)
+          .limit(1).get()
+        if (!query.empty && query.docs[0].data().directoryNames?.length > 0) {
+          packageDir = query.docs[0].data()
+          console.log(`[CITATIONS] Found package by tier field: ${tierKey} (${packageDir.directoryNames.length} dirs)`)
+        }
       }
     } catch (err) {
-      console.warn(`Could not find citation package: ${tierKey}`)
+      console.warn(`[CITATIONS] Error looking up package: ${err.message}`)
     }
 
-    // Fallback to MASTER_DIRECTORIES slicing if package doesn't exist
+    // Fallback to MASTER_DIRECTORIES slicing if no admin-configured package found
     if (!packageDir) {
       const targetCount = TIER_COUNTS[tierKey] || 100
       const allDirs = MASTER_DIRECTORIES.slice(0, targetCount)
@@ -756,6 +781,7 @@ exports.startCitationsJob = onCall(
         directoryNames: allDirs.map(d => d.name),
         count: targetCount,
       }
+      console.log(`[CITATIONS] Using MASTER_DIRECTORIES fallback: ${targetCount} dirs`)
     }
 
     // Block duplicate active jobs
