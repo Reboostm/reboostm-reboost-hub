@@ -10,6 +10,30 @@ initializeApp()
 const db = getFirestore()
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '')
 
+// ─── Admin-dashboard env vars ─────────────────────────────────────────────────
+// API keys saved via the Admin → API Keys page are stored in settings/functionEnvVars.
+// Functions read from there first, then fall back to process.env (.env file).
+// Cache refreshes every 5 min so you never need to redeploy after changing a key.
+
+let _envCache = null
+let _envCachedAt = 0
+const ENV_TTL = 5 * 60 * 1000
+
+async function getEnvVar(key) {
+  const now = Date.now()
+  if (!_envCache || now - _envCachedAt > ENV_TTL) {
+    try {
+      const snap = await db.collection('settings').doc('functionEnvVars').get()
+      _envCache = snap.exists ? snap.data() : {}
+      _envCachedAt = now
+    } catch (err) {
+      console.warn('[ENV] Could not read functionEnvVars:', err.message)
+      _envCache = {}
+    }
+  }
+  return _envCache[key] || process.env[key] || null
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function scoreToGrade(score) {
@@ -259,9 +283,9 @@ exports.runSeoAudit = onCall(
 
 async function sendCitationsPreSubmissionEmail({ userId, email, businessName, totalDirectories, topTierSites, systemEmailSites }) {
   try {
-    const resendKey = process.env.RESEND_API_KEY
+    const resendKey = await getEnvVar('RESEND_API_KEY')
     if (!resendKey) {
-      console.warn('RESEND_API_KEY not set — skipping pre-submission email')
+      console.warn('RESEND_API_KEY not set in Admin → API Keys — skipping pre-submission email')
       return
     }
 
@@ -326,7 +350,7 @@ async function sendCitationsPreSubmissionEmail({ userId, email, businessName, to
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: process.env.RESEND_FROM_EMAIL || 'ReBoost Hub <onboarding@resend.dev>',
+        from: await getEnvVar('RESEND_FROM_EMAIL') || 'ReBoost Hub <onboarding@resend.dev>',
         to: email,
         subject: `Citations Submission Starting — ${businessName}`,
         html,
