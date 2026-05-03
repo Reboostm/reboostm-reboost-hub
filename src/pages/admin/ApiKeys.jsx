@@ -51,9 +51,17 @@ const ENV_VAR_SPECS = [
   },
   {
     key: 'RESEND_API_KEY',
-    purpose: 'Review Manager — alternative email service to SendGrid (Resend API). Set this OR SENDGRID_API_KEY.',
+    purpose: 'Citations + Review Manager — sends pre-submission emails and review request emails via Resend. Set this OR SENDGRID_API_KEY.',
     required: false,
-    where: 'sendReviewRequest function',
+    where: 'sendCitationsPreSubmissionEmail · sendReviewRequest functions',
+  },
+  {
+    key: 'RESEND_FROM_EMAIL',
+    label: 'Resend "From" Address',
+    purpose: 'The "From" address for all outgoing emails sent via Resend (e.g. ReBoost Hub <noreply@yourdomain.com>). Defaults to noreply@reboosthub.com if not set.',
+    required: false,
+    where: 'sendCitationsPreSubmissionEmail · sendReviewRequest functions',
+    isText: true,
   },
   {
     key: 'SERPAPI_KEY',
@@ -446,12 +454,12 @@ export default function AdminApiKeys() {
                 {isEditing ? (
                   <form onSubmit={handleSaveEnvVar} className="space-y-3">
                     <div>
-                      <label className="block text-xs font-medium text-hub-text mb-1">{spec.key}</label>
+                      <label className="block text-xs font-medium text-hub-text mb-1">{spec.label || spec.key}</label>
                       <input
-                        type="password"
+                        type={spec.isText ? 'text' : 'password'}
                         value={editingEnvValue}
                         onChange={e => setEditingEnvValue(e.target.value)}
-                        placeholder="Paste API key here"
+                        placeholder={spec.isText ? 'e.g. ReBoost Hub <noreply@yourdomain.com>' : 'Paste API key here'}
                         className="w-full bg-hub-input border border-hub-border rounded-lg px-3 py-2.5 text-sm text-hub-text placeholder:text-hub-text-muted focus:outline-none focus:border-hub-blue"
                       />
                     </div>
