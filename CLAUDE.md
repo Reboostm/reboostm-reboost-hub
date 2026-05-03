@@ -594,6 +594,17 @@ These directories automatically distribute listings to 50-300+ additional sites.
 
 ---
 
+## Launch Checklist (When Switching to Real Domain)
+
+When the real domain (e.g. `app.reboosthub.com`) is ready, only TWO things need to change:
+
+1. **Firebase Auth → Authorized Domains** — Firebase Console → Authentication → Settings → Authorized Domains → Add your real domain. Keep the old Vercel URL in the list too (doesn't hurt, lets old links still work).
+2. **Vercel** — add the custom domain in Vercel dashboard, set it as the production domain.
+
+**Nothing else changes:** GitHub secrets, Cloud Run URL, Firestore rules, Cloud Functions, Stripe webhook URLs, `functions/.env` — all domain-independent.
+
+---
+
 ## Starter Message for Next Session
 
 Copy this into the next Claude chat:
