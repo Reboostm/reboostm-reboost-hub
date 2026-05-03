@@ -267,7 +267,7 @@ class LocalDotComHandler extends DirectoryHandler {
 // NOTE: Do NOT list names here that already have explicit handler classes above —
 // the spread runs last and would silently overwrite the real handlers.
 const generalDirs = [
-  'Kudzu', 'YellowMoxie', 'eLocal', 'USCity.net',
+  'YellowMoxie',
   'Switchboard', 'YellowPageCity', 'HERE Maps', 'TomTom', 'Google Maps (listing)',
   'Bing Maps', 'iGlobal', 'Salespider',
   'Americantowns', 'Storeboard', 'Tupalo', 'DirJournal',
@@ -1044,9 +1044,10 @@ class FypleHandler extends DirectoryHandler {
     try {
       await page.goto('https://www.fyple.com/add-business/', { waitUntil: 'domcontentloaded', timeout: 30000 })
 
-      // Business name
-      await page.waitForSelector('input[name="name"], input[placeholder*="business name" i], input[id*="name" i]', { timeout: 15000 })
-      await page.fill('input[name="name"], input[placeholder*="business name" i], input[id*="name" i]', businessData.businessName)
+      // Business name — use broad selectors since Fyple's form fields vary
+      const nameSelector = 'input[name="name"], input[name="business_name"], input[name="company"], input[name="title"], input[placeholder*="business name" i], input[placeholder*="company name" i], input[id*="business" i][type="text"]'
+      await page.waitForSelector(nameSelector, { timeout: 15000 })
+      await page.fill(nameSelector, businessData.businessName)
 
       // Address
       const addressField = await page.$('input[name="address"], input[placeholder*="address" i]')
@@ -1087,6 +1088,146 @@ class FypleHandler extends DirectoryHandler {
 
       // Submit
       await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add Business"), button:has-text("Register")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
+
+class eLocalHandler extends DirectoryHandler {
+  static directoryName = 'eLocal'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData }) {
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://www.elocal.com/business-registration', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      // Business name — try multiple selectors
+      const nameSelector = 'input[name="business_name"], input[name="name"], input[name="company"], input[id*="business"][type="text"], input[placeholder*="business name" i]'
+      const nameField = await page.$(nameSelector)
+      if (!nameField) {
+        // Try alternate registration URL
+        await page.goto('https://www.elocal.com/register-business', { waitUntil: 'domcontentloaded', timeout: 20000 })
+      }
+      await page.waitForSelector(nameSelector, { timeout: 10000 })
+      await page.fill(nameSelector, businessData.businessName)
+
+      // Phone
+      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+
+      // Email
+      const emailField = await page.$('input[name="email"], input[type="email"]')
+      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+
+      // Zip
+      const zipField = await page.$('input[name="zip"], input[name="postal_code"], input[name="zipcode"], input[placeholder*="zip" i]')
+      if (zipField) await page.fill('input[name="zip"], input[name="postal_code"], input[name="zipcode"], input[placeholder*="zip" i]', businessData.zip)
+
+      // Submit
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Register"), button:has-text("Get Listed")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
+
+class KudzuHandler extends DirectoryHandler {
+  static directoryName = 'Kudzu'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData }) {
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://www.kudzu.com/add-business', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      const nameSelector = 'input[name="business_name"], input[name="name"], input[name="company"], input[placeholder*="business name" i], input[placeholder*="company name" i]'
+      const nameField = await page.$(nameSelector)
+      if (!nameField) {
+        await page.goto('https://www.kudzu.com/signup', { waitUntil: 'domcontentloaded', timeout: 20000 })
+      }
+      await page.waitForSelector(nameSelector, { timeout: 10000 })
+      await page.fill(nameSelector, businessData.businessName)
+
+      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+
+      const emailField = await page.$('input[name="email"], input[type="email"]')
+      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+
+      const cityField = await page.$('input[name="city"], input[placeholder*="city" i]')
+      if (cityField) await page.fill('input[name="city"], input[placeholder*="city" i]', businessData.city)
+
+      const stateField = await page.$('select[name="state"], input[name="state"]')
+      if (stateField) {
+        const tag = await stateField.evaluate(el => el.tagName.toLowerCase())
+        if (tag === 'select') await page.selectOption('select[name="state"]', businessData.state)
+        else await page.fill('input[name="state"]', businessData.state)
+      }
+
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add Business"), button:has-text("Register")')
+      await page.waitForTimeout(3000)
+
+      return { status: 'pending', emailUsed: businessData.listingEmail }
+    } catch (err) {
+      return { status: 'pending', errorMessage: err.message }
+    } finally {
+      await page.close()
+    }
+  }
+}
+
+class USCityNetHandler extends DirectoryHandler {
+  static directoryName = 'USCity.net'
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  async submit({ directory, businessData }) {
+    const browser = await this.getBrowser()
+    const page = await browser.newPage()
+    try {
+      await page.goto('https://www.uscity.net/addlisting.html', { waitUntil: 'domcontentloaded', timeout: 30000 })
+
+      const nameSelector = 'input[name="business_name"], input[name="name"], input[name="company"], input[placeholder*="business" i]'
+      const nameField = await page.$(nameSelector)
+      if (!nameField) {
+        await page.goto('https://www.uscity.net/add-listing', { waitUntil: 'domcontentloaded', timeout: 20000 })
+      }
+      await page.waitForSelector(nameSelector, { timeout: 10000 })
+      await page.fill(nameSelector, businessData.businessName)
+
+      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
+      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+
+      const emailField = await page.$('input[name="email"], input[type="email"]')
+      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+
+      const cityField = await page.$('input[name="city"], input[placeholder*="city" i]')
+      if (cityField) await page.fill('input[name="city"], input[placeholder*="city" i]', businessData.city)
+
+      const stateField = await page.$('select[name="state"], input[name="state"]')
+      if (stateField) {
+        const tag = await stateField.evaluate(el => el.tagName.toLowerCase())
+        if (tag === 'select') await page.selectOption('select[name="state"]', businessData.state)
+        else await page.fill('input[name="state"]', businessData.state)
+      }
+
+      const zipField = await page.$('input[name="zip"], input[name="zipcode"], input[placeholder*="zip" i]')
+      if (zipField) await page.fill('input[name="zip"], input[name="zipcode"], input[placeholder*="zip" i]', businessData.zip)
+
+      const websiteField = await page.$('input[name="website"], input[type="url"], input[placeholder*="website" i]')
+      if (websiteField) await page.fill('input[name="website"], input[type="url"], input[placeholder*="website" i]', businessData.website || '')
+
+      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add"), button:has-text("List My Business")')
       await page.waitForTimeout(3000)
 
       return { status: 'pending', emailUsed: businessData.listingEmail }
@@ -1649,6 +1790,9 @@ const HANDLERS = {
   'Oodle': OodleHandler,
   'Opendi': OpendiHandler,
   'Topix': TopixHandler,
+  'eLocal': eLocalHandler,
+  'Kudzu': KudzuHandler,
+  'USCity.net': USCityNetHandler,
 
   // Template-generated handlers
   ...generateHandlers([
