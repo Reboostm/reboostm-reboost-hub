@@ -51,16 +51,26 @@ function clamp(val, min = 0, max = 100) {
 // Trigger Cloud Run submission engine when a batch is queued
 async function triggerCitationsSubmission() {
   try {
-    const cloudRunUrl = process.env.CLOUD_RUN_URL
+    const cloudRunUrl = await getEnvVar('CLOUD_RUN_URL') || process.env.CLOUD_RUN_URL
     if (!cloudRunUrl) {
-      console.warn('CLOUD_RUN_URL env var not set — Cloud Run trigger disabled')
+      console.warn('[CITATIONS] CLOUD_RUN_URL not set — Cloud Run trigger disabled')
       return
     }
 
-    await axios.post(`${cloudRunUrl}/trigger`, {}, { timeout: 5000 })
-    console.log('Cloud Run submission engine triggered')
+    // Cloud Run requires an identity token — fetch one from the GCP metadata server
+    const metaRes = await fetch(
+      `http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=${cloudRunUrl}`,
+      { headers: { 'Metadata-Flavor': 'Google' } }
+    )
+    const token = await metaRes.text()
+
+    await axios.post(`${cloudRunUrl}/trigger`, {}, {
+      headers: { Authorization: `Bearer ${token}` },
+      timeout: 5000,
+    })
+    console.log('[CITATIONS] Cloud Run trigger sent')
   } catch (err) {
-    console.warn('Could not trigger Cloud Run:', err.message)
+    console.warn('[CITATIONS] Could not trigger Cloud Run:', err.message)
   }
 }
 
