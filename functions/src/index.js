@@ -24,7 +24,7 @@ async function getEnvVar(key) {
   if (!_envCache || now - _envCachedAt > ENV_TTL) {
     try {
       const snap = await db.collection('settings').doc('functionEnvVars').get()
-      _envCache = snap.exists ? snap.data() : {}
+      _envCache = snap.exists ? (snap.data().vars || {}) : {}
       _envCachedAt = now
     } catch (err) {
       console.warn('[ENV] Could not read functionEnvVars:', err.message)
