@@ -51,4 +51,5 @@ jobs:
             --image us-central1-docker.pkg.dev/reboost-hub/citations/citations-engine:${{ github.sha }} \
             --region us-central1 \
             --project reboost-hub \
+            --allow-unauthenticated \
             --quiet

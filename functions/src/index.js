@@ -57,17 +57,7 @@ async function triggerCitationsSubmission() {
       return
     }
 
-    // Cloud Run requires an identity token — fetch one from the GCP metadata server
-    const metaRes = await fetch(
-      `http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/identity?audience=${cloudRunUrl}`,
-      { headers: { 'Metadata-Flavor': 'Google' } }
-    )
-    const token = await metaRes.text()
-
-    await axios.post(`${cloudRunUrl}/trigger`, {}, {
-      headers: { Authorization: `Bearer ${token}` },
-      timeout: 5000,
-    })
+    await axios.post(`${cloudRunUrl}/trigger`, {}, { timeout: 5000 })
     console.log('[CITATIONS] Cloud Run trigger sent')
   } catch (err) {
     console.warn('[CITATIONS] Could not trigger Cloud Run:', err.message)
