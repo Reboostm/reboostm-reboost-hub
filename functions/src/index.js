@@ -358,13 +358,13 @@ async function sendCitationsPreSubmissionEmail({ userId, email, businessName, to
     })
 
     if (!response.ok) {
-      throw new Error(`Resend API error: ${response.statusText}`)
+      const body = await response.text().catch(() => '(unreadable)')
+      throw new Error(`Resend API ${response.status}: ${body}`)
     }
 
     console.log(`[CITATIONS] Pre-submission email sent to ${email}`)
   } catch (err) {
-    console.warn('[CITATIONS] Pre-submission email failed (non-blocking):', err.message)
-    // Non-blocking — don't throw
+    console.warn('[CITATIONS] Pre-submission email failed:', err.message)
   }
 }
 
@@ -925,8 +925,8 @@ exports.startCitationsJob = onCall(
       await batch.commit()
     }
 
-    // Send pre-submission email (non-blocking)
-    sendCitationsPreSubmissionEmail({
+    // Send pre-submission email (awaited so function stays alive until email sends)
+    await sendCitationsPreSubmissionEmail({
       userId,
       email: user.email,
       businessName: user.businessName,
