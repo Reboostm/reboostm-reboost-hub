@@ -968,7 +968,15 @@ exports.adminCreateUser = onCall({ timeoutSeconds: 30 }, async (request) => {
 
   // Fixed default password — admin tells client to use this on first login, then change it
   const tempPassword = '123456'
-  const user = await auth.createUser({ email, password: tempPassword, displayName })
+  let user
+  try {
+    user = await auth.createUser({ email, password: tempPassword, displayName })
+  } catch (authErr) {
+    if (authErr.code === 'auth/email-already-exists') {
+      throw new HttpsError('already-exists', `An account with ${email} already exists in Firebase Auth. Delete it from the Firebase Console → Authentication → Users first.`)
+    }
+    throw new HttpsError('internal', authErr.message)
+  }
 
   await db.collection('users').doc(user.uid).set({
     email,
@@ -1082,8 +1090,10 @@ exports.adminDeleteUser = onCall({ timeoutSeconds: 30 }, async (request) => {
   if (targetUid === callerUid) throw new HttpsError('invalid-argument', 'Cannot delete your own account.')
 
   const auth = getAuth()
-  await auth.revokeRefreshTokens(targetUid)
-  await auth.deleteUser(targetUid)
+  try { await auth.revokeRefreshTokens(targetUid) } catch (_) {}
+  try { await auth.deleteUser(targetUid) } catch (e) {
+    if (e.code !== 'auth/user-not-found') throw new HttpsError('internal', e.message)
+  }
   await db.collection('users').doc(targetUid).delete()
 
   return { deleted: true }
