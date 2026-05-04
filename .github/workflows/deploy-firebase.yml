@@ -17,13 +17,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
 
       - name: Deploy Firebase Rules & Indexes
-        run: firebase deploy --only firestore,storage --project reboost-hub
+        run: firebase deploy --only firestore,storage --project reboost-hub --token ${{ secrets.FIREBASE_TOKEN }}
