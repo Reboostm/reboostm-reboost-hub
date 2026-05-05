@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   Users, Loader2, RotateCcw, ChevronDown, ChevronUp, CheckCircle,
   Search, UserPlus, BookOpen, Star, TrendingUp,
-  Calendar, Sparkles, Image, Settings2, Trash2, Eye,
+  Calendar, Sparkles, Image, Settings2, Trash2, Eye, XCircle, FileText,
 } from 'lucide-react'
 import Card from '../../components/ui/Card'
 import Badge from '../../components/ui/Badge'
@@ -12,7 +12,7 @@ import Select from '../../components/ui/Select'
 import Modal from '../../components/ui/Modal'
 import { getAllUsers } from '../../services/firestore'
 import { db } from '../../services/firebase'
-import { collection, getDocs, query, where } from 'firebase/firestore'
+import { collection, getDocs, query, where, orderBy, updateDoc, deleteDoc, doc } from 'firebase/firestore'
 import { setUserRole, resetUserPassword, adminCreateUser, adminUpdateAccess, adminDeleteUser } from '../../services/functions'
 import { formatDate, getInitials } from '../../utils/helpers'
 import { useToast } from '../../hooks/useToast'
@@ -304,6 +304,98 @@ function CreateUserModal({ isOpen, onClose, onCreated }) {
   )
 }
 
+const STATUS_COLORS = {
+  running: 'text-hub-blue',
+  queued:  'text-yellow-400',
+  completed: 'text-green-400',
+  failed: 'text-hub-red',
+}
+
+function CitationJobsPanel({ userId }) {
+  const [jobs, setJobs] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [working, setWorking] = useState({})
+  const { toast } = useToast()
+
+  useEffect(() => {
+    getDocs(query(
+      collection(db, 'citations'),
+      where('userId', '==', userId),
+      orderBy('createdAt', 'desc')
+    )).then(snap => {
+      setJobs(snap.docs.map(d => ({ id: d.id, ...d.data() })))
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [userId])
+
+  async function cancelJob(jobId) {
+    setWorking(w => ({ ...w, [jobId]: 'cancelling' }))
+    try {
+      await updateDoc(doc(db, 'citations', jobId), { status: 'failed', errorMessage: 'Cancelled by admin' })
+      setJobs(js => js.map(j => j.id === jobId ? { ...j, status: 'failed', errorMessage: 'Cancelled by admin' } : j))
+      toast('Job cancelled.', 'success')
+    } catch { toast('Failed to cancel job.', 'error') }
+    setWorking(w => ({ ...w, [jobId]: null }))
+  }
+
+  async function deleteJob(jobId) {
+    setWorking(w => ({ ...w, [jobId]: 'deleting' }))
+    try {
+      await deleteDoc(doc(db, 'citations', jobId))
+      setJobs(js => js.filter(j => j.id !== jobId))
+      toast('Job deleted.', 'success')
+    } catch { toast('Failed to delete job.', 'error') }
+    setWorking(w => ({ ...w, [jobId]: null }))
+  }
+
+  if (loading) return <div className="flex items-center gap-2 py-2 text-xs text-hub-text-muted"><Loader2 className="w-3 h-3 animate-spin" /> Loading citation jobs…</div>
+  if (!jobs.length) return <p className="text-xs text-hub-text-muted py-2">No citation jobs found.</p>
+
+  return (
+    <div className="mt-3">
+      <p className="text-xs font-semibold text-hub-text-muted uppercase tracking-wide mb-2">Citation Jobs</p>
+      <div className="space-y-1.5">
+        {jobs.map(job => {
+          const busy = working[job.id]
+          const canCancel = job.status === 'running' || job.status === 'queued'
+          const dateStr = job.createdAt?.toDate ? job.createdAt.toDate().toLocaleDateString() : '—'
+          const liveCount = job.liveCount ?? 0
+          const totalCount = job.totalCount ?? 0
+          return (
+            <div key={job.id} className="flex items-center gap-3 bg-hub-input/40 rounded-lg px-3 py-2 text-xs">
+              <FileText className="w-3.5 h-3.5 text-hub-text-muted flex-shrink-0" />
+              <span className="text-hub-text-muted flex-shrink-0">{dateStr}</span>
+              <span className={`font-semibold capitalize flex-shrink-0 ${STATUS_COLORS[job.status] || 'text-hub-text-muted'}`}>{job.status}</span>
+              <span className="text-hub-text-muted truncate flex-1">{liveCount}/{totalCount} live · {job.tier || job.packageId || '—'}</span>
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                {canCancel && (
+                  <button
+                    onClick={() => cancelJob(job.id)}
+                    disabled={!!busy}
+                    title="Cancel job"
+                    className="flex items-center gap-1 px-2 py-1 rounded bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 disabled:opacity-40 transition-colors"
+                  >
+                    {busy === 'cancelling' ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />}
+                    Cancel
+                  </button>
+                )}
+                <button
+                  onClick={() => deleteJob(job.id)}
+                  disabled={!!busy}
+                  title="Delete job record"
+                  className="flex items-center gap-1 px-2 py-1 rounded bg-hub-red/10 text-hub-red hover:bg-hub-red/20 disabled:opacity-40 transition-colors"
+                >
+                  {busy === 'deleting' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                  Delete
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 function UserRow({ u, onUpdated, onRoleChanged, onDeleted }) {
   const [open, setOpen] = useState(false)
   const [showAccess, setShowAccess] = useState(false)
@@ -398,6 +490,7 @@ function UserRow({ u, onUpdated, onRoleChanged, onDeleted }) {
               {userData.purchases?.citationsPackageId && <span><strong className="text-hub-text">Citations:</strong> {userData.purchases.citationsPackageId.replace('citations_', '')}</span>}
               {(userData.purchases?.leadCredits || 0) > 0 && <span><strong className="text-hub-text">Lead credits:</strong> {userData.purchases.leadCredits}</span>}
             </div>
+            <CitationJobsPanel userId={userData.id} />
           </div>
         </div>
       )}
