@@ -338,9 +338,12 @@ function CitationJobsPanel({ userId }) {
     setWorking(w => ({ ...w, [jobId]: null }))
   }
 
-  async function deleteJob(jobId) {
+  async function deleteJob(jobId, status) {
     setWorking(w => ({ ...w, [jobId]: 'deleting' }))
     try {
+      if (status === 'running' || status === 'queued') {
+        await updateDoc(doc(db, 'citations', jobId), { status: 'failed', errorMessage: 'Cancelled by admin' })
+      }
       await deleteDoc(doc(db, 'citations', jobId))
       setJobs(js => js.filter(j => j.id !== jobId))
       toast('Job deleted.', 'success')
@@ -389,25 +392,14 @@ function CitationJobsPanel({ userId }) {
                   <span className={`font-semibold capitalize flex-shrink-0 ${STATUS_COLORS[job.status] || 'text-hub-text-muted'}`}>{job.status}</span>
                   <span className="text-hub-text-muted truncate flex-1">{liveCount}/{totalCount} live · {job.tier || job.packageId || '—'}</span>
                   <div className="flex items-center gap-1.5 flex-shrink-0">
-                    {canCancel && (
-                      <button
-                        onClick={() => cancelJob(job.id)}
-                        disabled={!!busy}
-                        title="Cancel job"
-                        className="flex items-center gap-1 px-2 py-1 rounded bg-yellow-500/10 text-yellow-400 hover:bg-yellow-500/20 disabled:opacity-40 transition-colors"
-                      >
-                        {busy === 'cancelling' ? <Loader2 className="w-3 h-3 animate-spin" /> : <XCircle className="w-3 h-3" />}
-                        Cancel
-                      </button>
-                    )}
                     <button
-                      onClick={() => deleteJob(job.id)}
+                      onClick={() => deleteJob(job.id, job.status)}
                       disabled={!!busy}
-                      title="Delete job record"
+                      title={canCancel ? 'Cancel and delete job' : 'Delete job record'}
                       className="flex items-center gap-1 px-2 py-1 rounded bg-hub-red/10 text-hub-red hover:bg-hub-red/20 disabled:opacity-40 transition-colors"
                     >
                       {busy === 'deleting' ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                      Delete
+                      {canCancel ? 'Cancel & Delete' : 'Delete'}
                     </button>
                   </div>
                 </div>
