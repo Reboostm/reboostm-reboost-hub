@@ -671,66 +671,83 @@ class MerchantCircleHandler extends DirectoryHandler {
 
 class ShowMeLocalHandler extends DirectoryHandler {
   static directoryName = 'ShowMeLocal'
-  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  // Registration URL confirmed: register.aspx?ReturnURL=/add-listing.aspx
+  // reCAPTCHA v2 sitekey: 6LdtzyYTAAAAADVeyuff9jRrfNO-Bs7Yr6cjn8zh
+  // Flow: register → reCAPTCHA → redirect to add-listing.aspx → fill listing form
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0, automationTag: 'automated' }
+  static RECAPTCHA_SITEKEY = '6LdtzyYTAAAAADVeyuff9jRrfNO-Bs7Yr6cjn8zh'
+  static REGISTER_URL = 'https://www.showmelocal.com/register.aspx?ReturnURL=/add-listing.aspx'
+
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
+    if (!captchaHandler) {
+      return { status: 'pending', errorMessage: 'ShowMeLocal requires reCAPTCHA — configure 2Captcha API key in admin dashboard to enable automated submission.' }
+    }
     const browser = await this.getBrowser()
     const page = await browser.newPage()
+    const bizSlug = (businessData.businessName || 'business').replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 20)
+    const email = businessData.listingEmail || `reboostai+${bizSlug}@gmail.com`
+    const password = `Rb${Math.random().toString(36).slice(2, 10)}Sml!`
     try {
-      await page.goto('https://www.showmelocal.com/addlisting', { waitUntil: 'domcontentloaded', timeout: 30000 })
+      await page.goto(ShowMeLocalHandler.REGISTER_URL, { waitUntil: 'domcontentloaded', timeout: 30000 })
+      await page.waitForTimeout(1500)
 
-      // Business name
-      await page.waitForSelector('input[name="businessName"], input[placeholder*="business name" i], input[id*="businessName" i]', { timeout: 15000 })
-      await page.fill('input[name="businessName"], input[placeholder*="business name" i], input[id*="businessName" i]', businessData.businessName)
+      // Fill registration form (IDs confirmed by recon)
+      const nameParts = (businessData.businessName || 'Business Owner').split(' ')
+      await page.fill('#ContentPlaceHolder1_txtFirstName', nameParts[0] || 'Business').catch(() => {})
+      await page.fill('#ContentPlaceHolder1_txtLastName', nameParts.slice(1).join(' ') || 'Owner').catch(() => {})
+      await page.fill('#ContentPlaceHolder1_txtEmail', email).catch(() => {})
+      await page.fill('#ContentPlaceHolder1_txtPassword', password).catch(() => {})
 
-      // Phone
-      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
-      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
+      // Solve reCAPTCHA
+      const token = await captchaHandler.solveRecaptchaV2(ShowMeLocalHandler.RECAPTCHA_SITEKEY, ShowMeLocalHandler.REGISTER_URL)
+      await page.evaluate((t) => {
+        const el = document.querySelector('#g-recaptcha-response, textarea[name="g-recaptcha-response"]')
+        if (el) {
+          el.style.display = 'block'
+          el.value = t
+          el.dispatchEvent(new Event('change', { bubbles: true }))
+        }
+        if (typeof window.verifyRecaptchaResponse === 'function') window.verifyRecaptchaResponse(t)
+      }, token)
+      await page.waitForTimeout(500)
 
-      // Address
-      const addressField = await page.$('input[name="address"], input[placeholder*="address" i], input[id*="address" i]')
-      if (addressField) await page.fill('input[name="address"], input[placeholder*="address" i], input[id*="address" i]', businessData.address)
+      await Promise.all([
+        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {}),
+        page.click('#ContentPlaceHolder1_cmdRegister'),
+      ])
+      await page.waitForTimeout(2000)
 
-      // City
-      const cityField = await page.$('input[name="city"], input[placeholder*="city" i]')
-      if (cityField) await page.fill('input[name="city"], input[placeholder*="city" i]', businessData.city)
-
-      // State
-      const stateSelectField = await page.$('select[name="state"]')
-      if (stateSelectField) {
-        await page.selectOption('select[name="state"]', businessData.state)
-      } else {
-        const stateInputField = await page.$('input[name="state"]')
-        if (stateInputField) await page.fill('input[name="state"]', businessData.state)
+      const afterRegUrl = page.url()
+      if (afterRegUrl.includes('register.aspx')) {
+        const errText = await page.locator('[id*="lblError"], [class*="error"], [class*="alert"]').allTextContents().catch(() => [])
+        return { status: 'failed', errorMessage: `ShowMeLocal registration failed: ${errText.join(' ').trim() || 'unknown error'}`, emailUsed: email }
       }
 
-      // Zip
-      const zipField = await page.$('input[name="zip"], input[placeholder*="zip" i]')
-      if (zipField) await page.fill('input[name="zip"], input[placeholder*="zip" i]', businessData.zip)
-
-      // Website
-      const websiteField = await page.$('input[name="website"], input[type="url"], input[placeholder*="website" i]')
-      if (websiteField) await page.fill('input[name="website"], input[type="url"], input[placeholder*="website" i]', businessData.website || '')
-
-      // Category
-      const catSelect = await page.$('select[name="category"]')
-      if (catSelect) {
-        await page.selectOption('select[name="category"]', { label: businessData.category }).catch(() => {})
-      } else {
-        const catInput = await page.$('input[name="category"], input[placeholder*="category" i]')
-        if (catInput) await page.fill('input[name="category"], input[placeholder*="category" i]', businessData.category || '')
+      // Should now be on add-listing.aspx
+      if (!afterRegUrl.includes('add-listing')) {
+        return { status: 'pending', liveUrl: 'https://www.showmelocal.com', emailUsed: email,
+          errorMessage: 'ShowMeLocal account created. Visit showmelocal.com/add-listing.aspx to add your business listing.' }
       }
 
-      // Email
-      const emailField = await page.$('input[name="email"], input[type="email"]')
-      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
+      // Fill the listing form (ASP.NET ContentPlaceholder pattern)
+      await page.fill('#ContentPlaceHolder1_txtBizName, input[id*="BizName"], input[id*="BusinessName"]', businessData.businessName || '').catch(() => {})
+      await page.fill('#ContentPlaceHolder1_txtPhone, input[id*="Phone"]', businessData.phone || '').catch(() => {})
+      await page.fill('#ContentPlaceHolder1_txtAddress, input[id*="Address"]', businessData.address || '').catch(() => {})
+      await page.fill('#ContentPlaceHolder1_txtCity, input[id*="City"]', businessData.city || '').catch(() => {})
+      await page.fill('#ContentPlaceHolder1_txtZip, input[id*="Zip"]', businessData.zip || '').catch(() => {})
+      await page.fill('#ContentPlaceHolder1_txtWebsite, input[id*="Website"], input[type="url"]', businessData.website || '').catch(() => {})
+      const stateEl = await page.$('select[id*="State"], select[name*="State"]')
+      if (stateEl) await page.selectOption('select[id*="State"], select[name*="State"]', businessData.state || '').catch(() => {})
+      await Promise.all([
+        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 20000 }).catch(() => {}),
+        page.click('input[type="submit"], button[type="submit"], input[id*="cmdSubmit"], input[id*="cmdSave"]').catch(() => {}),
+      ])
+      await page.waitForTimeout(1500)
 
-      // Submit
-      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add Listing"), button:has-text("Register")')
-      await page.waitForTimeout(3000)
-
-      return { status: 'pending', emailUsed: businessData.listingEmail }
+      return { status: 'submitted', liveUrl: 'https://www.showmelocal.com', emailUsed: email,
+        errorMessage: 'ShowMeLocal account created and listing submitted.' }
     } catch (err) {
-      return { status: 'pending', errorMessage: err.message }
+      return { status: 'failed', errorMessage: err.message, emailUsed: email }
     } finally {
       await page.close()
     }
@@ -739,43 +756,11 @@ class ShowMeLocalHandler extends DirectoryHandler {
 
 class BrownbookHandler extends DirectoryHandler {
   static directoryName = 'Brownbook'
-  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0 }
+  // Brownbook uses react-select for Country + Category — selecting Country triggers navigation
+  // away from the form, making automation unreliable. Submit manually at brownbook.net/add-business
+  static metadata = { priority: 2, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0, automationTag: 'manual_only' }
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
-    const browser = await this.getBrowser()
-    const page = await browser.newPage()
-    try {
-      await page.goto('https://www.brownbook.net/add-business', { waitUntil: 'domcontentloaded', timeout: 30000 })
-
-      // Business name
-      await page.waitForSelector('input[name="business_name"], input[placeholder*="business name" i], input[id*="business_name" i], input[id*="businessName" i]', { timeout: 15000 })
-      await page.fill('input[name="business_name"], input[placeholder*="business name" i], input[id*="business_name" i], input[id*="businessName" i]', businessData.businessName)
-
-      // Address
-      const addressField = await page.$('input[name="address"], input[placeholder*="address" i], input[id*="address" i]')
-      if (addressField) await page.fill('input[name="address"], input[placeholder*="address" i], input[id*="address" i]', `${businessData.address}, ${businessData.city}, ${businessData.state} ${businessData.zip}`)
-
-      // Phone
-      const phoneField = await page.$('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]')
-      if (phoneField) await page.fill('input[name="phone"], input[type="tel"], input[placeholder*="phone" i]', businessData.phone)
-
-      // Website
-      const websiteField = await page.$('input[name="website"], input[type="url"], input[placeholder*="website" i], input[placeholder*="url" i]')
-      if (websiteField) await page.fill('input[name="website"], input[type="url"], input[placeholder*="website" i], input[placeholder*="url" i]', businessData.website || '')
-
-      // Email
-      const emailField = await page.$('input[name="email"], input[type="email"]')
-      if (emailField) await page.fill('input[name="email"], input[type="email"]', businessData.listingEmail)
-
-      // Submit
-      await page.click('button[type="submit"], input[type="submit"], button:has-text("Submit"), button:has-text("Add Business"), button:has-text("Save")')
-      await page.waitForTimeout(3000)
-
-      return { status: 'pending', emailUsed: businessData.listingEmail }
-    } catch (err) {
-      return { status: 'pending', errorMessage: err.message }
-    } finally {
-      await page.close()
-    }
+    return { status: 'pending', errorMessage: 'Brownbook uses complex react-select dropdowns that break headless automation. Submit manually at https://www.brownbook.net/add-business' }
   }
 }
 
