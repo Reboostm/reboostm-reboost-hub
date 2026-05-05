@@ -57,7 +57,10 @@ async function triggerCitationsSubmission() {
       return
     }
 
-    await axios.post(`${cloudRunUrl}/trigger`, {}, { timeout: 5000 })
+    const { GoogleAuth } = require('google-auth-library')
+    const auth = new GoogleAuth()
+    const client = await auth.getIdTokenClient(cloudRunUrl)
+    await client.request({ url: `${cloudRunUrl}/trigger`, method: 'POST', timeout: 5000 })
     console.log('[CITATIONS] Cloud Run trigger sent')
   } catch (err) {
     console.warn('[CITATIONS] Could not trigger Cloud Run:', err.message)
