@@ -130,6 +130,26 @@ class DirectoryHandler {
   }
 
   /**
+   * Log all form elements on the page — used to diagnose wrong selectors
+   */
+  async logPageElements(page, label) {
+    try {
+      const inputs = await page.evaluate(() =>
+        Array.from(document.querySelectorAll('input, select, textarea, button[type="submit"], button:has-text')).slice(0, 30).map(el => ({
+          tag: el.tagName,
+          id: el.id || null,
+          name: el.name || null,
+          type: el.type || null,
+          placeholder: el.placeholder || null,
+        }))
+      )
+      console.log(`[${label}] Form elements on page: ${JSON.stringify(inputs)}`)
+    } catch (err) {
+      console.log(`[${label}] Could not read page elements: ${err.message}`)
+    }
+  }
+
+  /**
    * Helper: safely fill form field
    */
   async fillField(page, selector, value) {

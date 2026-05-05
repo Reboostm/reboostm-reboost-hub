@@ -554,19 +554,27 @@ class MerchantCircleHandler extends DirectoryHandler {
       if (await this.detectBotChallenge(page)) {
         return { status: 'pending', errorMessage: 'MerchantCircle blocked by Cloudflare bot challenge — datacenter IP flagged. Retry or submit manually at merchantcircle.com/signup', emailUsed: email }
       }
+      await this.logPageElements(page, 'MerchantCircle')
 
-      // Step 1: fill account form
+      // Step 1: fill account form (try multiple selector variants)
       const nameParts = (businessData.businessName || 'Business Owner').split(' ')
       const firstName = nameParts[0] || 'Business'
       const lastName = nameParts.slice(1).join(' ') || 'Owner'
-      await page.fill('#user_firstname', firstName).catch(() => {})
-      await page.fill('#user_lastname', lastName).catch(() => {})
-      await page.fill('#user_email', email).catch(() => {})
-      await page.fill('#user_password', password).catch(() => {})
-      await page.fill('#user_password_confirmation', password).catch(() => {})
-      await page.fill('#__zip1', businessData.zip || '').catch(() => {})
-      await page.fill('#business_name', businessData.businessName || '').catch(() => {})
-      await page.fill('#business_phone', businessData.phone || '').catch(() => {})
+      // Try ID, name attr, and placeholder variants
+      const fill = async (selectors, value) => {
+        for (const s of selectors) {
+          try { await page.fill(s, value, { timeout: 5000 }); return true } catch {}
+        }
+        return false
+      }
+      await fill(['#user_firstname', 'input[name="user[first_name]"]', 'input[placeholder*="first" i]'], firstName)
+      await fill(['#user_lastname', 'input[name="user[last_name]"]', 'input[placeholder*="last" i]'], lastName)
+      await fill(['#user_email', 'input[name="user[email]"]', 'input[type="email"]'], email)
+      await fill(['#user_password', 'input[name="user[password]"]', 'input[type="password"]'], password)
+      await fill(['#user_password_confirmation', 'input[name="user[password_confirmation]"]'], password)
+      await fill(['#__zip1', 'input[name="zip"]', 'input[placeholder*="zip" i]'], businessData.zip || '')
+      await fill(['#business_name', 'input[name="business[name]"]', 'input[placeholder*="business name" i]'], businessData.businessName || '')
+      await fill(['#business_phone', 'input[name="business[phone]"]', 'input[placeholder*="phone" i]'], businessData.phone || '')
 
       // Solve reCAPTCHA
       const token = await captchaHandler.solveRecaptchaV2(
@@ -658,13 +666,20 @@ class ShowMeLocalHandler extends DirectoryHandler {
       if (await this.detectBotChallenge(page)) {
         return { status: 'pending', errorMessage: 'ShowMeLocal blocked by bot challenge — datacenter IP flagged. Retry or submit manually at showmelocal.com/register.aspx', emailUsed: email }
       }
+      await this.logPageElements(page, 'ShowMeLocal')
 
-      // Fill registration form (IDs confirmed by recon)
+      // Fill registration form — try multiple selector variants
       const nameParts = (businessData.businessName || 'Business Owner').split(' ')
-      await page.fill('#ContentPlaceHolder1_txtFirstName', nameParts[0] || 'Business').catch(() => {})
-      await page.fill('#ContentPlaceHolder1_txtLastName', nameParts.slice(1).join(' ') || 'Owner').catch(() => {})
-      await page.fill('#ContentPlaceHolder1_txtEmail', email).catch(() => {})
-      await page.fill('#ContentPlaceHolder1_txtPassword', password).catch(() => {})
+      const fill = async (selectors, value) => {
+        for (const s of selectors) {
+          try { await page.fill(s, value, { timeout: 5000 }); return true } catch {}
+        }
+        return false
+      }
+      await fill(['#ContentPlaceHolder1_txtFirstName', 'input[id*="FirstName"]', 'input[name*="FirstName"]', 'input[placeholder*="first" i]'], nameParts[0] || 'Business')
+      await fill(['#ContentPlaceHolder1_txtLastName', 'input[id*="LastName"]', 'input[name*="LastName"]', 'input[placeholder*="last" i]'], nameParts.slice(1).join(' ') || 'Owner')
+      await fill(['#ContentPlaceHolder1_txtEmail', 'input[id*="Email"]', 'input[type="email"]'], email)
+      await fill(['#ContentPlaceHolder1_txtPassword', 'input[id*="Password"]', 'input[type="password"]'], password)
 
       // Solve reCAPTCHA
       const token = await captchaHandler.solveRecaptchaV2(ShowMeLocalHandler.RECAPTCHA_SITEKEY, ShowMeLocalHandler.REGISTER_URL)
@@ -738,9 +753,16 @@ class CylexHandler extends DirectoryHandler {
       if (await this.detectBotChallenge(page)) {
         return { status: 'pending', errorMessage: 'Cylex blocked by bot challenge — datacenter IP flagged. Submit manually at cylex.us.com/signin?view=register' }
       }
+      await this.logPageElements(page, 'Cylex')
 
-      // Business name
-      await page.waitForSelector('input[name="company"], input[name="business_name"], input[placeholder*="company" i], input[placeholder*="business name" i]', { timeout: 15000 })
+      // Business name — try multiple selector variants with short timeout
+      const firstInput = await page.waitForSelector(
+        'input[name="company"], input[name="business_name"], input[name="name"], input[placeholder*="company" i], input[placeholder*="business" i]',
+        { timeout: 15000 }
+      ).catch(() => null)
+      if (!firstInput) {
+        return { status: 'pending', errorMessage: 'Cylex: form inputs not found after page load — check logs for page elements' }
+      }
       await page.fill('input[name="company"], input[name="business_name"], input[placeholder*="company" i], input[placeholder*="business name" i]', businessData.businessName)
 
       // Address
