@@ -974,7 +974,59 @@ const generateHandlers = (names) => {
 
 class CitysquaresHandler extends DirectoryHandler {
   static directoryName = 'Citysquares'
-  static metadata = { priority: 3, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0, automationTag: 'assisted' }
+  static metadata = { priority: 3, requiresRealEmail: false, requiresManualVerification: false, isAggregator: false, aggregatorReach: 0, automationTag: 'automated' }
+
+  static NICHE_CATEGORY = {
+    'plumber': 'Contractors - Plumbers & Plumbing',
+    'hvac': 'Heating, Ventilation & Air Conditioning',
+    'electrician': 'Contractors - Electrical',
+    'landscaping': 'Landscaping Services & Supplies',
+    'lawn': 'Lawn Maintenance',
+    'cleaning': 'Cleaning Services & Supplies',
+    'roofing': 'Contractors - Roofing',
+    'painter': 'Contractors - Painting',
+    'contractor': 'Contractors - Building',
+    'remodeling': 'Home Improvement & Remodeling Services',
+    'realtor': 'Real Estate - Brokers & Agents',
+    'dentist': 'Dentists',
+    'doctor': 'Physicians - General',
+    'lawyer': 'Legal Services',
+    'restaurant': 'Restaurants',
+    'automotive': 'Automobile - Repairs & Services',
+    'pest': 'Pest & Animal Control',
+    'flooring': 'Carpet & Flooring',
+    'carpet': 'Carpet & Flooring',
+    'mover': 'Moving Services',
+    'vet': 'Veterinarians',
+    'concrete': 'Contractors - Concrete',
+    'sewer': 'Contractors - Sewer',
+    'masonry': 'Contractors - Masonry',
+    'drywall': 'Contractors - Drywall',
+    'insulation': 'Contractors - Insulation',
+    'paving': 'Contractors - Paving',
+    'tile': 'Contractors - Tile, Marble & Granite',
+    'fence': 'Fences',
+    'garage': 'Garage Doors',
+    'locksmith': 'Locksmiths, Safes & Vaults',
+    'security': 'Security Systems & Services',
+    'pool': 'Swimming Pool Construction',
+  }
+
+  static STATE_MAP = {
+    'AL': 'Alabama', 'AK': 'Alaska', 'AZ': 'Arizona', 'AR': 'Arkansas',
+    'CA': 'California', 'CO': 'Colorado', 'CT': 'Connecticut', 'DE': 'Delaware',
+    'FL': 'Florida', 'GA': 'Georgia', 'HI': 'Hawaii', 'ID': 'Idaho',
+    'IL': 'Illinois', 'IN': 'Indiana', 'IA': 'Iowa', 'KS': 'Kansas',
+    'KY': 'Kentucky', 'LA': 'Louisiana', 'ME': 'Maine', 'MD': 'Maryland',
+    'MA': 'Massachusetts', 'MI': 'Michigan', 'MN': 'Minnesota', 'MS': 'Mississippi',
+    'MO': 'Missouri', 'MT': 'Montana', 'NE': 'Nebraska', 'NV': 'Nevada',
+    'NH': 'New Hampshire', 'NJ': 'New Jersey', 'NM': 'New Mexico', 'NY': 'New York',
+    'NC': 'North Carolina', 'ND': 'North Dakota', 'OH': 'Ohio', 'OK': 'Oklahoma',
+    'OR': 'Oregon', 'PA': 'Pennsylvania', 'RI': 'Rhode Island', 'SC': 'South Carolina',
+    'SD': 'South Dakota', 'TN': 'Tennessee', 'TX': 'Texas', 'UT': 'Utah',
+    'VT': 'Vermont', 'VA': 'Virginia', 'WA': 'Washington', 'WV': 'West Virginia',
+    'WI': 'Wisconsin', 'WY': 'Wyoming',
+  }
 
   async submit({ directory, businessData, gmailHandler, captchaHandler }) {
     const browser = await this.getBrowser()
@@ -983,6 +1035,7 @@ class CitysquaresHandler extends DirectoryHandler {
     const email = `reboostai+${bizSlug}@gmail.com`
     const password = `Rb${Math.random().toString(36).slice(2, 10)}Cs!`
     try {
+      // Step 1: Create account
       await page.goto('https://citysquares.com/users/sign_up', { waitUntil: 'domcontentloaded', timeout: 25000 })
       await page.waitForTimeout(1500)
       const nameParts = (businessData.businessName || 'Business Owner').split(' ')
@@ -991,7 +1044,6 @@ class CitysquaresHandler extends DirectoryHandler {
       await page.fill('[name="user[last_name]"]', nameParts.slice(1).join(' ') || 'Owner')
       await page.fill('[name="user[password]"]', password)
       await page.fill('[name="user[password_confirmation]"]', password)
-      // Rails hidden input with same name precedes checkbox — must use ID selector
       const termsBox = await page.$('#user_terms')
       if (termsBox) await page.check('#user_terms')
       await Promise.all([
@@ -999,24 +1051,79 @@ class CitysquaresHandler extends DirectoryHandler {
         page.click('[name="commit"]'),
       ])
       await page.waitForTimeout(1500)
-      const resultUrl = page.url()
-      if (resultUrl.includes('sign_up')) {
+      if (page.url().includes('sign_up')) {
         const errText = await page.locator('[class*="error"], [class*="alert"]').allTextContents().catch(() => [])
-        return { status: 'failed', errorMessage: `Citysquares signup failed: ${errText.join(' ').trim() || 'unknown error'}`, emailUsed: email }
+        return { status: 'failed', errorMessage: `Citysquares signup failed: ${errText.join(' ').trim() || 'unknown error'}`, emailUsed: email, accountPassword: password }
       }
+
+      // Step 2: Auto-click verification email if gmailHandler available
       if (gmailHandler) {
-        const links = await this.waitForEmailVerification(gmailHandler, email, 120)
+        const links = await this.waitForEmailVerification(gmailHandler, email, 90)
         if (links.length > 0) {
           await page.goto(links[0], { waitUntil: 'domcontentloaded', timeout: 20000 })
-          await page.goto('https://citysquares.com/add_business', { waitUntil: 'domcontentloaded', timeout: 20000 })
-          return { status: 'pending', liveUrl: 'https://citysquares.com', emailUsed: email, accountPassword: password,
-            errorMessage: 'Account verified. Business add form opened — manual completion required.' }
+          await page.waitForTimeout(1000)
         }
       }
-      return { status: 'pending', liveUrl: resultUrl, emailUsed: email, accountPassword: password,
-        errorMessage: 'Citysquares account created. Check reboostai inbox for verification email, then add business at citysquares.com/add_business' }
+
+      // Step 3: Navigate to listings/new and fill the full business form
+      await page.goto('https://citysquares.com/listings/new', { waitUntil: 'domcontentloaded', timeout: 20000 })
+      await page.waitForTimeout(2000)
+
+      await page.fill('#listing_name', businessData.businessName || '').catch(() => {})
+      await page.fill('#listing_address', businessData.address || '').catch(() => {})
+      await page.fill('#listing_postal_code', businessData.zip || '').catch(() => {})
+      await page.fill('#listing_phone_numbers_attributes_0_formatted', businessData.phone || '').catch(() => {})
+      await page.fill('#listing_description', businessData.description || businessData.shortDesc || '').catch(() => {})
+      await page.fill('#email_0', email).catch(() => {})
+      await page.fill('#url_0', businessData.website || '').catch(() => {})
+      await page.fill('#listing_services', businessData.niche || '').catch(() => {})
+
+      // State → wait for city AJAX → city
+      const stateLabel = CitysquaresHandler.STATE_MAP[businessData.state?.toUpperCase()] || businessData.state || ''
+      if (stateLabel) {
+        await page.selectOption('#states_select', { label: stateLabel }).catch(() => {})
+        await page.waitForFunction(
+          () => (document.querySelector('#cities_select')?.options?.length || 0) > 1,
+          { timeout: 8000 }
+        ).catch(() => {})
+        if (businessData.city) {
+          await page.selectOption('#cities_select', { label: businessData.city }).catch(() => {})
+        }
+      }
+
+      // Category: find best match for business niche
+      const nicheKey = Object.keys(CitysquaresHandler.NICHE_CATEGORY).find(k =>
+        businessData.niche?.toLowerCase().includes(k)
+      )
+      if (nicheKey) {
+        const categoryKeyword = CitysquaresHandler.NICHE_CATEGORY[nicheKey]
+        const options = await page.$$eval('#listing_category_id option',
+          opts => opts.map(o => ({ value: o.value, text: o.text }))
+        ).catch(() => [])
+        const match = options.find(o => o.text.includes(categoryKeyword))
+        if (match?.value) await page.selectOption('#listing_category_id', match.value).catch(() => {})
+      }
+
+      // Submit
+      await Promise.all([
+        page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {}),
+        page.click('button:has-text("Create Listing"), input[type="submit"]').catch(() => {}),
+      ])
+      await page.waitForTimeout(2000)
+
+      const finalUrl = page.url()
+      const success = !finalUrl.includes('/new') && !finalUrl.includes('/sign')
+      return {
+        status: success ? 'submitted' : 'pending',
+        liveUrl: success ? finalUrl : 'https://citysquares.com/listings/new',
+        emailUsed: email,
+        accountPassword: password,
+        errorMessage: success
+          ? 'Citysquares listing created successfully.'
+          : 'Citysquares account created. Complete listing at citysquares.com/listings/new',
+      }
     } catch (err) {
-      return { status: 'failed', errorMessage: err.message, emailUsed: email }
+      return { status: 'failed', errorMessage: err.message, emailUsed: email, accountPassword: password }
     } finally {
       await page.close()
     }
