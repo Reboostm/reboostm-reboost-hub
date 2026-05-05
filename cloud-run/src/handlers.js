@@ -541,7 +541,9 @@ class MerchantCircleHandler extends DirectoryHandler {
     const browser = await this.getBrowser()
     const page = await browser.newPage()
     const bizSlug = (businessData.businessName || 'business').replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 20)
-    const email = businessData.listingEmail || `reboostai+${bizSlug}@gmail.com`
+    // Include timestamp suffix so re-runs don't hit "email already registered"
+    const ts = Date.now().toString(36).slice(-4)
+    const email = `reboostai+${bizSlug}${ts}@gmail.com`
     const password = `Rb${Math.random().toString(36).slice(2, 10)}Mc!`
     try {
       await page.goto(MerchantCircleHandler.SIGNUP_URL, { waitUntil: 'domcontentloaded', timeout: 30000 })
@@ -581,9 +583,13 @@ class MerchantCircleHandler extends DirectoryHandler {
       await page.waitForTimeout(2000)
 
       const url1 = page.url()
+      console.log(`[MerchantCircle] Post-submit URL: ${url1}`)
       if (url1.includes('signup')) {
-        const errText = await page.locator('[class*="error"], [class*="alert"]').allTextContents().catch(() => [])
-        return { status: 'failed', errorMessage: `MerchantCircle signup failed: ${errText.join(' ').trim() || 'unknown error'}`, emailUsed: email }
+        const errText = await page.locator('[class*="error"], [class*="alert"], [class*="flash"], #flash, .flash').allTextContents().catch(() => [])
+        const pageText = await page.locator('body').innerText().catch(() => '').then(t => t.slice(0, 300))
+        console.log(`[MerchantCircle] Signup page errors: ${errText.join(' ')}`)
+        console.log(`[MerchantCircle] Page body excerpt: ${pageText}`)
+        return { status: 'failed', errorMessage: `MerchantCircle signup failed: ${errText.join(' ').trim() || 'form stayed on signup page'}`, emailUsed: email }
       }
 
       // Step 2: fill business details
@@ -640,10 +646,11 @@ class ShowMeLocalHandler extends DirectoryHandler {
     const browser = await this.getBrowser()
     const page = await browser.newPage()
     const bizSlug = (businessData.businessName || 'business').replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 20)
-    const email = businessData.listingEmail || `reboostai+${bizSlug}@gmail.com`
+    const ts = Date.now().toString(36).slice(-4)
+    const email = `reboostai+${bizSlug}${ts}@gmail.com`
     const password = `Rb${Math.random().toString(36).slice(2, 10)}Sml!`
     try {
-      await page.goto(ShowMeLocalHandler.REGISTER_URL, { waitUntil: 'domcontentloaded', timeout: 30000 })
+      await page.goto(ShowMeLocalHandler.REGISTER_URL, { waitUntil: 'domcontentloaded', timeout: 60000 })
       await page.waitForTimeout(1500)
 
       const pageTitle = await page.title().catch(() => '')
@@ -724,7 +731,7 @@ class CylexHandler extends DirectoryHandler {
     const browser = await this.getBrowser()
     const page = await browser.newPage()
     try {
-      await page.goto('https://www.cylex.us.com/signin?view=register', { waitUntil: 'domcontentloaded', timeout: 45000 })
+      await page.goto('https://www.cylex.us.com/signin?view=register', { waitUntil: 'domcontentloaded', timeout: 60000 })
 
       const pageTitle = await page.title().catch(() => '')
       console.log(`[Cylex] Page title: "${pageTitle}"`)
@@ -1034,7 +1041,8 @@ class CitysquaresHandler extends DirectoryHandler {
     const browser = await this.getBrowser()
     const page = await browser.newPage()
     const bizSlug = (businessData.businessName || 'business').replace(/[^a-z0-9]/gi, '').toLowerCase().slice(0, 20)
-    const email = `reboostai+${bizSlug}@gmail.com`
+    const ts = Date.now().toString(36).slice(-4)
+    const email = `reboostai+${bizSlug}${ts}@gmail.com`
     const password = `Rb${Math.random().toString(36).slice(2, 10)}Cs!`
     try {
       // Step 1: Create account

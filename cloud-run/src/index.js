@@ -147,6 +147,11 @@ class SubmissionEngine {
             captchaHandler: this.captchaHandler,
           })
 
+          // Always close the browser after each handler to free memory.
+          // Without this, each Chromium process stays alive and by the 4th
+          // directory the container OOMs and crashes the next browser launch.
+          await handler.closeBrowser().catch(() => {})
+
           // Update directory doc with result
           await dirDoc.ref.update({
             status: result.status, // 'live', 'pending', or 'failed'
