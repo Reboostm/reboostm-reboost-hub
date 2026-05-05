@@ -36,25 +36,43 @@ class SubmissionEngine {
   async initialize() {
     console.log('[ENGINE] Initializing submission engine...')
 
-    // Initialize Gmail handler if credentials are available
-    if (process.env.GMAIL_CLIENT_ID && process.env.GMAIL_CLIENT_SECRET && process.env.GMAIL_REFRESH_TOKEN) {
-      this.gmailHandler = new GmailHandler(
-        process.env.GMAIL_CLIENT_ID,
-        process.env.GMAIL_CLIENT_SECRET,
-        process.env.GMAIL_REFRESH_TOKEN
-      )
+    // Read admin-dashboard keys from Firestore (settings/functionEnvVars), fall back to env vars
+    let fsEnv = {}
+    try {
+      const snap = await db.collection('settings').doc('functionEnvVars').get()
+      if (snap.exists) fsEnv = snap.data() || {}
+      console.log('[ENGINE] Loaded runtime config from Firestore')
+    } catch (err) {
+      console.warn('[ENGINE] Could not read Firestore config:', err.message)
+    }
+
+    const getKey = (...names) => {
+      for (const n of names) {
+        if (fsEnv[n]) return fsEnv[n]
+        if (process.env[n]) return process.env[n]
+      }
+      return null
+    }
+
+    // Initialize Gmail handler
+    const gmailClientId     = getKey('GMAIL_CLIENT_ID')
+    const gmailClientSecret = getKey('GMAIL_CLIENT_SECRET')
+    const gmailRefreshToken = getKey('GMAIL_REFRESH_TOKEN')
+    if (gmailClientId && gmailClientSecret && gmailRefreshToken) {
+      this.gmailHandler = new GmailHandler(gmailClientId, gmailClientSecret, gmailRefreshToken)
       await this.gmailHandler.initialize()
       console.log('[ENGINE] Gmail handler initialized')
     } else {
       console.warn('[ENGINE] Gmail credentials not found — email verification disabled')
     }
 
-    // Initialize Captcha handler if 2Captcha key is available
-    if (process.env.TWO_CAPTCHA_API_KEY) {
-      this.captchaHandler = new CaptchaHandler(process.env.TWO_CAPTCHA_API_KEY)
+    // Initialize Captcha handler — dashboard saves as TWOCAPTCHA_API_KEY, also accept TWO_CAPTCHA_API_KEY
+    const captchaKey = getKey('TWOCAPTCHA_API_KEY', 'TWO_CAPTCHA_API_KEY')
+    if (captchaKey) {
+      this.captchaHandler = new CaptchaHandler(captchaKey)
       console.log('[ENGINE] Captcha handler initialized')
     } else {
-      console.warn('[ENGINE] 2Captcha API key not found — manual CAPTCHA resolution required')
+      console.warn('[ENGINE] 2Captcha API key not found — CAPTCHA sites will be skipped')
     }
 
     this.startPoller()
