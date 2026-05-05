@@ -73,6 +73,7 @@ export const MASTER_DIRECTORIES = [
   { name: 'Communitywalk',           url: 'https://www.communitywalk.com',          category: 'Local',          priority: 3 },
   { name: 'City-data',               url: 'https://www.city-data.com',              category: 'Local',          priority: 3 },
   { name: 'Cityfos',                 url: 'https://www.cityfos.com',                category: 'Local',          priority: 3 },
+  { name: 'Citysquares',             url: 'https://citysquares.com',                category: 'Local',          priority: 3 },
   { name: 'Geebo',                   url: 'https://www.geebo.com',                  category: 'General',        priority: 3 },
   { name: 'BizQuid',                 url: 'https://www.bizquid.com',                category: 'Business',       priority: 3 },
   { name: 'Spoke',                   url: 'https://www.spoke.com',                  category: 'Business',       priority: 3 },
