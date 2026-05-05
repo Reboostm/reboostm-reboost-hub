@@ -370,7 +370,7 @@ function CitationJobsPanel({ userId }) {
           onClick={resetSubmissions}
           disabled={resetting}
           title="Clear submitted directories so user can re-run"
-          className="flex items-center gap-1 px-2 py-1 rounded text-xs bg-hub-blue/10 text-hub-blue hover:bg-hub-blue/20 disabled:opacity-40 transition-colors"
+          className="flex items-center gap-1 px-2 py-1 rounded text-xs border border-hub-border text-hub-text-muted hover:text-hub-text hover:border-hub-text/40 disabled:opacity-40 transition-colors"
         >
           {resetting ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCcw className="w-3 h-3" />}
           Reset Submissions
