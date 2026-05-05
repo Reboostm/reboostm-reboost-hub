@@ -107,6 +107,11 @@ class SubmissionEngine {
     }
   }
 
+  // Check if a Firestore error means the batch document was deleted by admin
+  isDocDeleted(err) {
+    return err?.code === 5 || err?.message?.includes('NOT_FOUND') || err?.message?.includes('No document to update')
+  }
+
   async processBatch(batchDoc) {
     const batchId = batchDoc.id
     const batchData = batchDoc.data()
@@ -114,10 +119,13 @@ class SubmissionEngine {
     console.log(`[BATCH ${batchId}] Starting submission job...`)
 
     try {
-      // Mark as running
+      // Mark as running — if this fails the doc was already deleted, abort silently
       await batchDoc.ref.update({
         status: 'running',
         startedAt: FieldValue.serverTimestamp(),
+      }).catch(err => {
+        if (this.isDocDeleted(err)) throw Object.assign(new Error('BATCH_DELETED'), { batchDeleted: true })
+        throw err
       })
 
       // Get directories to submit
@@ -177,13 +185,24 @@ class SubmissionEngine {
           })
         }
 
-        // Update batch progress every 5 directories
+        // Update batch progress every 5 directories — stop if doc was deleted
         if ((submitted + live + failed) % 5 === 0) {
+          const stillExists = await batchDoc.ref.get().then(s => s.exists).catch(() => false)
+          if (!stillExists) {
+            console.warn(`[BATCH ${batchId}] Batch document deleted by admin — stopping`)
+            return
+          }
           await batchDoc.ref.update({
             submitted,
             live,
             failed,
             pending: directories.length - (submitted + live + failed),
+          }).catch(err => {
+            if (this.isDocDeleted(err)) {
+              console.warn(`[BATCH ${batchId}] Batch document gone during progress update — stopping`)
+              throw Object.assign(new Error('BATCH_DELETED'), { batchDeleted: true })
+            }
+            throw err
           })
         }
       }
@@ -208,6 +227,10 @@ class SubmissionEngine {
 
       console.log(`[BATCH ${batchId}] ✓ Completed: ${live} live, ${submitted} pending, ${failed} failed`)
     } catch (err) {
+      if (err.batchDeleted) {
+        console.warn(`[BATCH ${batchId}] Batch was deleted by admin — aborting cleanly`)
+        return
+      }
       console.error(`[BATCH ${batchId}] Fatal error:`, err)
       await batchDoc.ref.update({
         status: 'failed',
