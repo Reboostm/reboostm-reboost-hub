@@ -21,13 +21,14 @@ class CaptchaHandler {
       // Upload image
       const uploadRes = await this.client.post('/in.php', {
         method: 'base64',
-        apikey: this.apiKey,
+        key: this.apiKey,
         captchafile: imageBase64,
+        json: 1,
       })
 
-      const captchaId = this.parseCaptchaId(uploadRes.data)
-      if (!captchaId) {
-        throw new Error(`Failed to upload captcha: ${uploadRes.data}`)
+      const captchaId = uploadRes.data?.request || uploadRes.data?.id
+      if (!captchaId || uploadRes.data?.status === 0) {
+        throw new Error(`Failed to upload captcha: ${JSON.stringify(uploadRes.data)}`)
       }
 
       console.log(`[2CAPTCHA] Captcha ID: ${captchaId}`)
@@ -50,22 +51,21 @@ class CaptchaHandler {
     try {
       console.log('[2CAPTCHA] Solving reCAPTCHA v2...')
 
-      // Submit reCAPTCHA
       const uploadRes = await this.client.post('/in.php', {
         method: 'userrecaptcha',
-        apikey: this.apiKey,
+        key: this.apiKey,
         googlekey: sitekey,
         pageurl,
+        json: 1,
       })
 
-      const captchaId = this.parseCaptchaId(uploadRes.data)
-      if (!captchaId) {
-        throw new Error(`Failed to upload reCAPTCHA: ${uploadRes.data}`)
+      console.log('[2CAPTCHA] Submit response:', JSON.stringify(uploadRes.data))
+      const captchaId = uploadRes.data?.request || uploadRes.data?.id
+      if (!captchaId || uploadRes.data?.status === 0) {
+        throw new Error(`Failed to submit reCAPTCHA: ${JSON.stringify(uploadRes.data)}`)
       }
 
       console.log(`[2CAPTCHA] reCAPTCHA ID: ${captchaId}`)
-
-      // Poll for result (up to 3 minutes)
       return await this.pollResult(captchaId, 180)
     } catch (err) {
       console.error('[2CAPTCHA] Error solving reCAPTCHA v2:', err.message)
@@ -85,14 +85,15 @@ class CaptchaHandler {
 
       const uploadRes = await this.client.post('/in.php', {
         method: 'hcaptcha',
-        apikey: this.apiKey,
+        key: this.apiKey,
         sitekey,
         pageurl,
+        json: 1,
       })
 
-      const captchaId = this.parseCaptchaId(uploadRes.data)
-      if (!captchaId) {
-        throw new Error(`Failed to upload hCaptcha: ${uploadRes.data}`)
+      const captchaId = uploadRes.data?.request || uploadRes.data?.id
+      if (!captchaId || uploadRes.data?.status === 0) {
+        throw new Error(`Failed to upload hCaptcha: ${JSON.stringify(uploadRes.data)}`)
       }
 
       console.log(`[2CAPTCHA] hCaptcha ID: ${captchaId}`)
@@ -116,7 +117,7 @@ class CaptchaHandler {
       try {
         const res = await this.client.get('/res.php', {
           params: {
-            apikey: this.apiKey,
+            key: this.apiKey,
             action: 'get',
             id: captchaId,
             json: 1,
