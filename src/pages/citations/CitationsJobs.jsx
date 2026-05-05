@@ -216,6 +216,22 @@ export default function CitationsJobs() {
 
       <CitationsPackageBar />
 
+      {/* Honest expectations banner */}
+      <div className="mb-6 bg-hub-blue/5 border border-hub-blue/20 rounded-xl px-5 py-4">
+        <div className="flex gap-3">
+          <AlertCircle className="w-4.5 h-4.5 text-hub-blue flex-shrink-0 mt-0.5" />
+          <div className="text-sm">
+            <p className="font-medium text-hub-text mb-1">About automated vs manual submissions</p>
+            <p className="text-hub-text-secondary leading-relaxed">
+              Most top-tier directories (Google, Yelp, Facebook, BBB, Apple Maps) require phone or postcard verification
+              and can only be set up manually — this is industry-standard, not a limitation of our system.
+              Our engine auto-submits to as many directories as possible. Directories that require
+              manual action will show a clear reason in the <Link to="/citations/directories" className="text-hub-blue hover:underline">Directories</Link> view.
+            </p>
+          </div>
+        </div>
+      </div>
+
       {loading ? (
         <Card className="flex items-center justify-center py-16">
           <Loader2 className="w-5 h-5 animate-spin text-hub-text-muted" />

@@ -288,7 +288,10 @@ export default function CitationsDirs() {
                               <Badge variant={cfg.variant}>{cfg.label}</Badge>
                             </div>
                             {dir.errorMessage && (
-                              <p className="text-xs text-hub-red mt-0.5 truncate max-w-[160px]">
+                              <p className={cn(
+                                'text-xs mt-0.5 truncate max-w-[160px]',
+                                dir.status === 'failed' ? 'text-hub-red' : 'text-hub-text-muted'
+                              )}>
                                 {dir.errorMessage}
                               </p>
                             )}
