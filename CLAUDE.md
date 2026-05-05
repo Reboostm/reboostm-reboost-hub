@@ -468,6 +468,74 @@ User upgrades Pro (200 dirs)
 - Vercel auto-deploying Cloud Functions changes
 - Cloud Run container ready for deployment once secrets configured
 
+### Session 10 (May 2026): Citations Engine — Production Bring-Up & Phase 4 Kickoff
+**Completed: full infrastructure stack working end-to-end. Engine submitting real batches.**
+
+1. **403 chain debugged** — `startCitationsJob` was getting HTTP 403 calling Cloud Run. Two stacked bugs:
+   - IAM: Compute SA `587455100779-compute@developer.gserviceaccount.com` lacked `roles/run.invoker`. Granted via Cloud Run console.
+   - Auth code: `triggerCitationsSubmission()` was using plain `axios.post` with no Authorization header. Replaced with `google-auth-library` `getIdTokenClient(audience)`.
+
+2. **`CLOUD_RUN_URL` env var corrected** — was pointing at wrong project number URL. Updated to `https://citations-engine-587455100779.us-central1.run.app`.
+
+3. **`citations-engine` resource bump** — was OOM-killing Chromium. Bumped to: Memory 2 GiB, CPU 2, Request timeout 3600s, Second generation execution environment.
+
+4. **`adminDeleteUser` resilience fix** — each step now wrapped in try/catch, `auth/user-not-found` treated as success.
+
+5. **Runtime config bridge** — `getRuntimeConfig()` + `getEnv(key)` helpers in both `functions/src/index.js` and `cloud-run/src/index.js`. Read admin-editable values from Firestore `settings/functionEnvVars` doc with 60-sec cache + `process.env` fallback.
+
+6. **Admin dashboard** — Added `RESEND_FROM_EMAIL`, `GMAIL_CLIENT_ID`, `GMAIL_CLIENT_SECRET`, `GMAIL_REFRESH_TOKEN` to `ApiKeys.jsx` ENV_VAR_SPECS.
+
+**Verified working end-to-end:** Frontend → `startCitationsJob` → `citations-engine` (no 403) → real-time status updates → pre-submission email arriving via Resend.
+
+**NOT deployed:** `cloud-run` runtime-config code — needs `gcloud auth` as `marketingreboost@gmail.com` + `gcloud builds submit` + `gcloud run deploy`.
+
+### Session 11 (May 2026): Citations Phase 4 — URL Audit + Real Handlers
+**Completed: reconnaissance on 25+ directories + 3 new working handlers + handler fixes**
+
+1. **URL reconnaissance** — Playwright recon scripts in `C:/Users/justi/playwright-recon/` tested 25+ directories:
+   - Found most small directories (Fyple, BizHWY, Zipleaf, Opendi, Tuugo, Cityfos, USCity.net, YellowBot, Oodle, Spoke.com, GetFave) are dead/404/parked domains
+   - Identified correct submit URLs vs homepage URLs that were in handler configs
+   - Tested iBegin, ShowMeLocal, Citysquares, EZlocal, MerchantCircle, Hotfrog, Manta, Brownbook, Cylex
+
+2. **MantaHandler fixed** — was calling `page.goto('https://app.manta.com/companies/new')` causing Cloudflare 403 + Timeout errors on every run. Removed page.goto entirely, now returns `pending` immediately with `automationTag: 'manual_only'`.
+
+3. **HotfrogHandler fixed** — was calling wrong URL. Now returns `pending` with correct URL `hotfrog.com/add`. Tagged `automationTag: 'assisted'`.
+
+4. **EZlocalHandler fixed** — was calling `/register` which is a lookup flow, not a simple form. Returns `pending` with correct URL `ezlocal.com/free-business-listing/`. Tagged `automationTag: 'assisted'`.
+
+5. **CitysquaresHandler** — full working implementation (tested ✅). Creates account at `citysquares.com/users/sign_up`, handles Rails hidden input + checkbox conflict (uses `#user_terms` ID), integrates with `gmailHandler` to auto-click verification email, then opens `add_business` form. Tagged `automationTag: 'assisted'`.
+
+6. **iBeginHandler** — Cloudflare-aware implementation. Uses JS injection via `page.evaluate()` with native setter to fill fields (regular `fill()` times out). Detects Cloudflare challenge page and returns `pending` instead of `failed`. Skips `[name="liame"]` honeypot field. Tagged `automationTag: 'assisted'`.
+
+7. **MerchantCircleHandler** — full reCAPTCHA v2 implementation (reCAPTCHA sitekey: `6LeUcv8SAAAAACMihSqwLVGPms5kQv9FaqVNm34Z`). Multi-step: fills account form via IDs (`#user_firstname`, `#user_email`, etc.), solves reCAPTCHA via `captchaHandler.solveRecaptchaV2()`, submits step 1, fills business details (step 2), selects free plan (step 3). Returns `pending` if no `captchaHandler` with instructions to configure 2Captcha in admin dashboard. Tagged `automationTag: 'automated'`.
+
+8. **Template array cleanup** — removed `'iBegin'` from `generalDirs` and `'Citysquares'` from `localBusinessDirs` (both now have explicit handler classes registered in HANDLERS factory).
+
+9. **Frontend: CitationsDirs.jsx** — error message color now conditional: red only for `status === 'failed'`, muted gray for pending/info messages.
+
+10. **Frontend: CitationsJobs.jsx** — added honest expectations banner explaining automated vs manual submissions and that top-tier directories (Google, Yelp, Facebook, BBB, Apple Maps) require manual setup.
+
+**Key recon findings — handler viability:**
+| Directory | Status | Notes |
+|---|---|---|
+| Citysquares | ✅ Automated account creation | Email verification needed for listing |
+| MerchantCircle | ✅ Full automation (needs 2Captcha) | reCAPTCHA v2 |
+| iBegin | ⚠️ Cloudflare-limited | Returns pending gracefully |
+| ShowMeLocal | 🔍 Needs phone lookup step | Complex pre-verification flow |
+| Hotfrog | ⚠️ Email verification required | Manual follow-up needed |
+| EZlocal | ⚠️ Phone/name lookup flow | Claim existing listing pattern |
+| Manta | ❌ Cloudflare 403 | Manual only |
+| Brownbook | ❌ React-select + country nav breaks | Too complex for Phase 4 |
+| GetFave | ❌ Dead domain (GoDaddy parked) | Remove from future list |
+| Most small dirs | ❌ Dead/404 | Fyple, BizHWY, Zipleaf, Opendi, Tuugo, etc. |
+
+**Still pending (Phase 4 continued):**
+- Deploy `cloud-run` with all handler improvements (needs gcloud auth as `marketingreboost@gmail.com`)
+- ShowMeLocal: implement phone lookup + form fill flow
+- Configure 2Captcha in admin for MerchantCircle to go fully automated
+- Configure Gmail OAuth for CitysquaresHandler auto-click verification
+- Build more handlers: Superpages, eLocal, Cylex (confirmed working URLs in recon)
+
 ---
 
 ## ⚠️ Known Issues & Pending Work
@@ -611,42 +679,51 @@ Copy this into the next Claude chat:
 
 ---
 
-**Session 9 — ReBoost Marketing HUB: Citations Engine Phase 3**
+**Session 12 — ReBoost Marketing HUB: Citations Phase 4 continued (Deploy + More Handlers)**
 
-We're building an automated citations submission system for ReBoost Hub (React 19 + Firebase + Cloud Run). Full context in [CLAUDE.md](CLAUDE.md) — read it first.
+We're continuing Phase 4 of the citations engine. Full context in `CLAUDE.md` — read Session 10 and 11 sections first.
 
-**What was just built (Session 8):**
-- Cloud Run service (Node 22 + Playwright + Chromium) — `cloud-run/` directory
-- Job poller that watches for 'queued' batches every 30s
-- Gmail API integration (watches for verification emails, extracts links)
-- 2Captcha handler (solves image/reCAPTCHA/hCaptcha)
-- Directory handlers framework (factory pattern, stub handlers for 6 dirs)
-- Cloud Functions wiring (startCitationsJob now triggers Cloud Run)
-- Complete deployment guide in `cloud-run/DEPLOYMENT.md`
-
-**Current status:**
-- Phase 1 & 2 complete: infrastructure + job engine + Gmail API + 2Captcha
-- Phase 3: Directory handlers — need to build Playwright scripts for 20-30 directories
-- NOT YET DEPLOYED: Cloud Run service + Cloud Functions update haven't been deployed to Firebase yet
+**TL;DR of current state:**
+- ✅ Citations engine works end-to-end (Sessions 10 fixed all infra bugs)
+- ✅ Session 11 added CitysquaresHandler, iBeginHandler, full MerchantCircleHandler, fixed Manta/Hotfrog/EZlocal
+- ✅ All Session 11 changes committed and pushed to main (Vercel auto-deployed frontend changes)
+- ⚠️ `cloud-run` NOT redeployed yet — runtime-config bridge and new handlers need `gcloud builds submit`
+- ⚠️ gcloud still authed as `reboostai@gmail.com` — needs `marketingreboost@gmail.com` for `reboost-hub` project
 
 **Priority for this session:**
-1. Deploy Cloud Functions to Firebase (set CLOUD_RUN_URL env var first)
-2. Deploy Cloud Run service (build Docker image, push to Artifact Registry, deploy with secrets)
-3. Test end-to-end: user clicks "Start Submission" → batch created → Cloud Run picks it up → real-time status updates
-4. Build first batch of 20-30 directory handlers (Yelp, Yellow Pages, Manta, Hotfrog, etc.)
 
-**Critical rules:**
-- Cloud Run uses dynamic import for Playwright (NEVER top-level import)
-- Directory handlers extend `DirectoryHandler` base class, implement `submit()` method
-- Handlers use Playwright to fill forms + solve CAPTCHAs + handle email verification
-- All Cloud Run code is CommonJS (no ES modules)
-- Manual-only dirs: Google Business Profile, Yelp (phone verification), Facebook, Apple Maps, BBB
-- 2Captcha cost: ~$0.003 per solve (~$1-5 per full batch)
+1. **Deploy cloud-run** with all handler improvements:
+   - Run `gcloud auth login` as `marketingreboost@gmail.com`
+   - `cd cloud-run && gcloud builds submit --tag gcr.io/reboost-hub/citations-engine`
+   - `gcloud run deploy citations-engine --image gcr.io/reboost-hub/citations-engine --region us-central1 --platform managed`
+   - See `cloud-run/DEPLOYMENT.md` for full steps. gcloud is at `C:/Users/justi/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin/gcloud`, needs `CLOUDSDK_PYTHON="C:/Users/justi/AppData/Local/Google/Cloud SDK/google-cloud-sdk/platform/bundledpython/python.exe"`.
+
+2. **Build more handlers** — viable targets from Session 11 recon:
+   - ShowMeLocal: has a phone-lookup-first flow (type phone → system finds listing → claim it). Tested URL: `showmelocal.com/addlisting`. Needs a lookup + claim pattern.
+   - Cylex: confirmed loads at `cylex.us.com/signin?view=register` — existing handler may already work, needs test.
+   - eLocal: needs recon — check if `elocal.com/submit-business` exists or find real URL.
+   - Superpages: stub handler exists, needs real URL + form fill. Try `superpages.com/sign-up`.
+
+3. **Configure 2Captcha** in admin dashboard (`/admin/api-keys`) → key: `TWO_CAPTCHA_API_KEY` → enables MerchantCircleHandler to go fully automated.
+
+4. **Tag cleanup**: audit remaining handlers in HANDLERS factory — any that call dead URLs should be updated to return `pending` immediately rather than timing out.
+
+**Don't touch:**
+- `functions/` — all Cloud Function changes are stable and deployed
+- The firebase-functions `^5.0.0` upgrade warning — cosmetic, ignore
+- Anything outside `cloud-run/` and `src/pages/citations/`
 
 **Key files:**
-- `cloud-run/Dockerfile`, `cloud-run/package.json`
-- `cloud-run/src/index.js` (job engine), `gmailHandler.js`, `captchaHandler.js`, `directoryHandlers.js`
-- `cloud-run/DEPLOYMENT.md` (setup guide), `cloud-run/README.md` (architecture)
-- `functions/src/index.js` (updated with `triggerCitationsSubmission()`)
+- `cloud-run/src/handlers.js` — all handler classes (1900+ lines post-Session 11)
+- `cloud-run/src/handlers/baseHandler.js` — base class with `getBrowser()`, `waitForEmailVerification()`, etc.
+- `cloud-run/src/index.js` — engine + runtime-config bridge
+- `cloud-run/DEPLOYMENT.md` — Docker build + Cloud Run deploy steps
+- `src/pages/citations/CitationsJobs.jsx` — job dashboard
+- `src/pages/citations/CitationsDirs.jsx` — directory list
+
+**Handler patterns to follow (Session 11 reference implementations):**
+- CitysquaresHandler: multi-step account creation + Rails checkbox ID fix + email verification
+- MerchantCircleHandler: reCAPTCHA v2 with 2Captcha + multi-step form + graceful fallback
+- iBeginHandler: JS injection + Cloudflare detection + honeypot avoidance
 
 ---
