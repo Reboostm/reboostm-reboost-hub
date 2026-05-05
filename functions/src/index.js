@@ -394,6 +394,7 @@ const MASTER_DIRECTORIES = [
   { name: 'Manta',                   url: 'https://www.manta.com',                  category: 'Business',       priority: 1 },
   { name: 'Chamber of Commerce',     url: 'https://www.chamberofcommerce.com',      category: 'Business',       priority: 1 },
   { name: 'MerchantCircle',          url: 'https://www.merchantcircle.com',         category: 'General',        priority: 1 },
+  { name: 'Citysquares',             url: 'https://citysquares.com',                category: 'Local',          priority: 1 },
   { name: 'Nextdoor',                url: 'https://nextdoor.com',                   category: 'Local',          priority: 1 },
   { name: 'Alignable',               url: 'https://www.alignable.com',              category: 'Business',       priority: 1 },
   { name: 'Superpages',              url: 'https://www.superpages.com',             category: 'General',        priority: 1 },
@@ -523,7 +524,6 @@ const MASTER_DIRECTORIES = [
   { name: 'YP Dex',                  url: 'https://www.ypdex.com',                  category: 'General',        priority: 3 },
   // ── Premium tier extras (dirs 201–300) ──────────────────────────────────
   { name: 'Bing Local',              url: 'https://www.bing.com/local',             category: 'General',        priority: 3 },
-  { name: 'Citysquares',             url: 'https://citysquares.com',                category: 'Local',          priority: 3 },
   { name: 'Menupages',               url: 'https://www.menupages.com',              category: 'Food & Dining',  priority: 3 },
   { name: 'Urban Spoon',             url: 'https://www.urbanspoon.com',             category: 'Food & Dining',  priority: 3 },
   { name: 'Zagat',                   url: 'https://www.zagat.com',                  category: 'Food & Dining',  priority: 3 },
