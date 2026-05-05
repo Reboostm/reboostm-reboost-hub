@@ -136,6 +136,7 @@ class SubmissionEngine {
             liveUrl: result.liveUrl || null,
             emailUsed: result.emailUsed || null,
             errorMessage: result.errorMessage || null,
+            accountPassword: result.accountPassword || null,
           })
 
           if (result.status === 'live') live++

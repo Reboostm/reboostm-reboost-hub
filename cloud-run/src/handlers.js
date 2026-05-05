@@ -616,10 +616,10 @@ class MerchantCircleHandler extends DirectoryHandler {
         await page.waitForTimeout(1500)
       }
 
-      return { status: 'submitted', liveUrl: 'https://www.merchantcircle.com', emailUsed: email,
+      return { status: 'submitted', liveUrl: 'https://www.merchantcircle.com', emailUsed: email, accountPassword: password,
         errorMessage: 'MerchantCircle account created and basic listing submitted.' }
     } catch (err) {
-      return { status: 'failed', errorMessage: err.message, emailUsed: email }
+      return { status: 'failed', errorMessage: err.message, emailUsed: email, accountPassword: password }
     } finally {
       await page.close()
     }
@@ -682,7 +682,7 @@ class ShowMeLocalHandler extends DirectoryHandler {
 
       // Should now be on add-listing.aspx
       if (!afterRegUrl.includes('add-listing')) {
-        return { status: 'pending', liveUrl: 'https://www.showmelocal.com', emailUsed: email,
+        return { status: 'pending', liveUrl: 'https://www.showmelocal.com', emailUsed: email, accountPassword: password,
           errorMessage: 'ShowMeLocal account created. Visit showmelocal.com/add-listing.aspx to add your business listing.' }
       }
 
@@ -701,10 +701,10 @@ class ShowMeLocalHandler extends DirectoryHandler {
       ])
       await page.waitForTimeout(1500)
 
-      return { status: 'submitted', liveUrl: 'https://www.showmelocal.com', emailUsed: email,
+      return { status: 'submitted', liveUrl: 'https://www.showmelocal.com', emailUsed: email, accountPassword: password,
         errorMessage: 'ShowMeLocal account created and listing submitted.' }
     } catch (err) {
-      return { status: 'failed', errorMessage: err.message, emailUsed: email }
+      return { status: 'failed', errorMessage: err.message, emailUsed: email, accountPassword: password }
     } finally {
       await page.close()
     }
@@ -1009,11 +1009,11 @@ class CitysquaresHandler extends DirectoryHandler {
         if (links.length > 0) {
           await page.goto(links[0], { waitUntil: 'domcontentloaded', timeout: 20000 })
           await page.goto('https://citysquares.com/add_business', { waitUntil: 'domcontentloaded', timeout: 20000 })
-          return { status: 'pending', liveUrl: 'https://citysquares.com', emailUsed: email,
+          return { status: 'pending', liveUrl: 'https://citysquares.com', emailUsed: email, accountPassword: password,
             errorMessage: 'Account verified. Business add form opened — manual completion required.' }
         }
       }
-      return { status: 'pending', liveUrl: resultUrl, emailUsed: email,
+      return { status: 'pending', liveUrl: resultUrl, emailUsed: email, accountPassword: password,
         errorMessage: 'Citysquares account created. Check reboostai inbox for verification email, then add business at citysquares.com/add_business' }
     } catch (err) {
       return { status: 'failed', errorMessage: err.message, emailUsed: email }
@@ -1068,7 +1068,7 @@ class iBeginHandler extends DirectoryHandler {
       if (resultUrl.includes('register')) {
         return { status: 'failed', errorMessage: 'iBegin registration form submission failed — page did not advance.', emailUsed: email }
       }
-      return { status: 'pending', liveUrl: resultUrl, emailUsed: email,
+      return { status: 'pending', liveUrl: resultUrl, emailUsed: email, accountPassword: password,
         errorMessage: 'iBegin account created. Check reboostai inbox for verification email.' }
     } catch (err) {
       const isTimeout = err.message.includes('Timeout') || err.message.includes('timeout')
@@ -1078,6 +1078,7 @@ class iBeginHandler extends DirectoryHandler {
           ? 'iBegin page load timed out (Cloudflare) — will retry on next run or submit manually at ibegin.com/account/register/'
           : err.message,
         emailUsed: email,
+        accountPassword: password,
       }
     } finally {
       await page.close()
