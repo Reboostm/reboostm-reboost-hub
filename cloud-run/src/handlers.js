@@ -728,7 +728,7 @@ class CylexHandler extends DirectoryHandler {
     const browser = await this.getBrowser()
     const page = await browser.newPage()
     try {
-      await page.goto('https://www.cylex.us.com/signin?view=register', { waitUntil: 'domcontentloaded', timeout: 30000 })
+      await page.goto('https://www.cylex.us.com/signin?view=register', { waitUntil: 'domcontentloaded', timeout: 45000 })
 
       // Business name
       await page.waitForSelector('input[name="company"], input[name="business_name"], input[placeholder*="company" i], input[placeholder*="business name" i]', { timeout: 15000 })
@@ -1036,8 +1036,9 @@ class CitysquaresHandler extends DirectoryHandler {
     const password = `Rb${Math.random().toString(36).slice(2, 10)}Cs!`
     try {
       // Step 1: Create account
-      await page.goto('https://citysquares.com/users/sign_up', { waitUntil: 'domcontentloaded', timeout: 25000 })
-      await page.waitForTimeout(1500)
+      await page.goto('https://citysquares.com/users/sign_up', { waitUntil: 'domcontentloaded', timeout: 40000 })
+      await page.waitForSelector('[name="user[email]"]', { timeout: 20000 })
+      await page.waitForTimeout(800)
       const nameParts = (businessData.businessName || 'Business Owner').split(' ')
       await page.fill('[name="user[email]"]', email)
       await page.fill('[name="user[first_name]"]', nameParts[0] || 'Business')
@@ -1173,7 +1174,9 @@ class iBeginHandler extends DirectoryHandler {
       await page.waitForTimeout(1500)
       const resultUrl = page.url()
       if (resultUrl.includes('register')) {
-        return { status: 'failed', errorMessage: 'iBegin registration form submission failed — page did not advance.', emailUsed: email }
+        const errText = await page.locator('.error, .alert, .message, [class*="error"], [class*="alert"]').allTextContents().catch(() => [])
+        const reason = errText.filter(Boolean).join(' ').trim() || 'form did not advance — possible validation error or missing field'
+        return { status: 'failed', errorMessage: `iBegin: ${reason}`, emailUsed: email }
       }
       return { status: 'pending', liveUrl: resultUrl, emailUsed: email, accountPassword: password,
         errorMessage: 'iBegin account created. Check reboostai inbox for verification email.' }

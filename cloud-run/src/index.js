@@ -40,7 +40,7 @@ class SubmissionEngine {
     let fsEnv = {}
     try {
       const snap = await db.collection('settings').doc('functionEnvVars').get()
-      if (snap.exists) fsEnv = snap.data() || {}
+      if (snap.exists) fsEnv = snap.data().vars || {}
       console.log('[ENGINE] Loaded runtime config from Firestore')
     } catch (err) {
       console.warn('[ENGINE] Could not read Firestore config:', err.message)
