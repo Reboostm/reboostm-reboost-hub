@@ -547,6 +547,12 @@ class MerchantCircleHandler extends DirectoryHandler {
       await page.goto(MerchantCircleHandler.SIGNUP_URL, { waitUntil: 'domcontentloaded', timeout: 30000 })
       await page.waitForTimeout(2000)
 
+      const pageTitle = await page.title().catch(() => '')
+      console.log(`[MerchantCircle] Page title: "${pageTitle}"`)
+      if (await this.detectBotChallenge(page)) {
+        return { status: 'pending', errorMessage: 'MerchantCircle blocked by Cloudflare bot challenge — datacenter IP flagged. Retry or submit manually at merchantcircle.com/signup', emailUsed: email }
+      }
+
       // Step 1: fill account form
       const nameParts = (businessData.businessName || 'Business Owner').split(' ')
       const firstName = nameParts[0] || 'Business'
@@ -565,16 +571,8 @@ class MerchantCircleHandler extends DirectoryHandler {
         MerchantCircleHandler.RECAPTCHA_SITEKEY,
         MerchantCircleHandler.SIGNUP_URL
       )
-      await page.evaluate((t) => {
-        const el = document.querySelector('#g-recaptcha-response')
-        if (el) {
-          el.style.display = 'block'
-          el.value = t
-          el.dispatchEvent(new Event('change', { bubbles: true }))
-        }
-        if (typeof window.verifyRecaptchaResponse === 'function') window.verifyRecaptchaResponse(t)
-      }, token)
-      await page.waitForTimeout(500)
+      await this.injectRecaptchaToken(page, token)
+      await page.waitForTimeout(800)
 
       await Promise.all([
         page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {}),
@@ -616,8 +614,8 @@ class MerchantCircleHandler extends DirectoryHandler {
         await page.waitForTimeout(1500)
       }
 
-      return { status: 'submitted', liveUrl: 'https://www.merchantcircle.com', emailUsed: email, accountPassword: password,
-        errorMessage: 'MerchantCircle account created and basic listing submitted.' }
+      return { status: 'pending', liveUrl: 'https://www.merchantcircle.com', emailUsed: email, accountPassword: password,
+        errorMessage: 'MerchantCircle account created and listing submitted — check reboostai inbox for verification email.' }
     } catch (err) {
       return { status: 'failed', errorMessage: err.message, emailUsed: email, accountPassword: password }
     } finally {
@@ -648,6 +646,12 @@ class ShowMeLocalHandler extends DirectoryHandler {
       await page.goto(ShowMeLocalHandler.REGISTER_URL, { waitUntil: 'domcontentloaded', timeout: 30000 })
       await page.waitForTimeout(1500)
 
+      const pageTitle = await page.title().catch(() => '')
+      console.log(`[ShowMeLocal] Page title: "${pageTitle}"`)
+      if (await this.detectBotChallenge(page)) {
+        return { status: 'pending', errorMessage: 'ShowMeLocal blocked by bot challenge — datacenter IP flagged. Retry or submit manually at showmelocal.com/register.aspx', emailUsed: email }
+      }
+
       // Fill registration form (IDs confirmed by recon)
       const nameParts = (businessData.businessName || 'Business Owner').split(' ')
       await page.fill('#ContentPlaceHolder1_txtFirstName', nameParts[0] || 'Business').catch(() => {})
@@ -657,16 +661,8 @@ class ShowMeLocalHandler extends DirectoryHandler {
 
       // Solve reCAPTCHA
       const token = await captchaHandler.solveRecaptchaV2(ShowMeLocalHandler.RECAPTCHA_SITEKEY, ShowMeLocalHandler.REGISTER_URL)
-      await page.evaluate((t) => {
-        const el = document.querySelector('#g-recaptcha-response, textarea[name="g-recaptcha-response"]')
-        if (el) {
-          el.style.display = 'block'
-          el.value = t
-          el.dispatchEvent(new Event('change', { bubbles: true }))
-        }
-        if (typeof window.verifyRecaptchaResponse === 'function') window.verifyRecaptchaResponse(t)
-      }, token)
-      await page.waitForTimeout(500)
+      await this.injectRecaptchaToken(page, token)
+      await page.waitForTimeout(800)
 
       await Promise.all([
         page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 25000 }).catch(() => {}),
@@ -701,8 +697,8 @@ class ShowMeLocalHandler extends DirectoryHandler {
       ])
       await page.waitForTimeout(1500)
 
-      return { status: 'submitted', liveUrl: 'https://www.showmelocal.com', emailUsed: email, accountPassword: password,
-        errorMessage: 'ShowMeLocal account created and listing submitted.' }
+      return { status: 'pending', liveUrl: 'https://www.showmelocal.com', emailUsed: email, accountPassword: password,
+        errorMessage: 'ShowMeLocal account created and listing submitted — check reboostai inbox for verification email.' }
     } catch (err) {
       return { status: 'failed', errorMessage: err.message, emailUsed: email, accountPassword: password }
     } finally {
@@ -729,6 +725,12 @@ class CylexHandler extends DirectoryHandler {
     const page = await browser.newPage()
     try {
       await page.goto('https://www.cylex.us.com/signin?view=register', { waitUntil: 'domcontentloaded', timeout: 45000 })
+
+      const pageTitle = await page.title().catch(() => '')
+      console.log(`[Cylex] Page title: "${pageTitle}"`)
+      if (await this.detectBotChallenge(page)) {
+        return { status: 'pending', errorMessage: 'Cylex blocked by bot challenge — datacenter IP flagged. Submit manually at cylex.us.com/signin?view=register' }
+      }
 
       // Business name
       await page.waitForSelector('input[name="company"], input[name="business_name"], input[placeholder*="company" i], input[placeholder*="business name" i]', { timeout: 15000 })
@@ -1037,6 +1039,11 @@ class CitysquaresHandler extends DirectoryHandler {
     try {
       // Step 1: Create account
       await page.goto('https://citysquares.com/users/sign_up', { waitUntil: 'domcontentloaded', timeout: 40000 })
+      const csTitle = await page.title().catch(() => '')
+      console.log(`[Citysquares] Page title: "${csTitle}"`)
+      if (await this.detectBotChallenge(page)) {
+        return { status: 'pending', errorMessage: 'Citysquares blocked by bot challenge — datacenter IP flagged. Submit manually at citysquares.com/users/sign_up', emailUsed: email, accountPassword: password }
+      }
       await page.waitForSelector('[name="user[email]"]', { timeout: 20000 })
       await page.waitForTimeout(800)
       const nameParts = (businessData.businessName || 'Business Owner').split(' ')

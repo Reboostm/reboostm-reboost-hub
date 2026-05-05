@@ -60,10 +60,17 @@ class DirectoryHandler {
   }
 
   /**
-   * Wait for verification email and extract links
+   * Wait for verification email and extract links.
+   * Starts the watcher if not already watching.
    */
   async waitForEmailVerification(gmailHandler, email, timeoutSec = 300) {
     if (!gmailHandler) return []
+
+    // Start watcher for this inbox if not already running
+    if (!gmailHandler.watchers[email]) {
+      const bizSlug = email.replace(/reboostai\+/, '').replace(/@.*/, '')
+      gmailHandler.watchAlias(bizSlug, email)
+    }
 
     const startTime = Date.now()
     const timeout = timeoutSec * 1000
@@ -75,6 +82,51 @@ class DirectoryHandler {
     }
 
     return []
+  }
+
+  /**
+   * Detect Cloudflare/bot challenge pages — returns true if blocked
+   */
+  async detectBotChallenge(page) {
+    const title = await page.title().catch(() => '')
+    const html = await page.content().catch(() => '')
+    const blocked = title.includes('Just a moment') ||
+      title.includes('Attention Required') ||
+      html.includes('Checking your browser') ||
+      html.includes('cf-browser-verification') ||
+      html.includes('Enable JavaScript and cookies') ||
+      html.includes('cf_chl_opt')
+    if (blocked) {
+      console.log(`[HANDLER] Bot challenge detected on page (title: "${title}")`)
+    }
+    return blocked
+  }
+
+  /**
+   * Inject a solved reCAPTCHA token into the page and trigger the widget callback
+   */
+  async injectRecaptchaToken(page, token) {
+    await page.evaluate((t) => {
+      // Set every g-recaptcha-response textarea on the page
+      document.querySelectorAll('textarea[name="g-recaptcha-response"], #g-recaptcha-response').forEach(el => {
+        el.style.display = 'block'
+        el.value = t
+        el.dispatchEvent(new Event('change', { bubbles: true }))
+        el.dispatchEvent(new Event('input', { bubbles: true }))
+      })
+
+      // Trigger via data-callback attribute (most reliable approach)
+      document.querySelectorAll('[data-callback]').forEach(widget => {
+        const cb = widget.getAttribute('data-callback')
+        if (cb && typeof window[cb] === 'function') window[cb](t)
+      })
+
+      // Try common callback names used by various sites
+      ;['verifyRecaptchaResponse', 'onCaptchaSuccess', 'recaptchaCallback', 'onRecaptchaSuccess',
+        'verifyCallback', 'captchaCallback'].forEach(name => {
+        if (typeof window[name] === 'function') window[name](t)
+      })
+    }, token)
   }
 
   /**
