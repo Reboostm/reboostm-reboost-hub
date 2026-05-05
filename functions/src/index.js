@@ -942,6 +942,23 @@ exports.startCitationsJob = onCall(
   }
 )
 
+function inviteEmailHtml({ displayName, email, appUrl }) {
+  const loginUrl = `${appUrl}/login`
+  return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a;">
+  <h2>Welcome${displayName ? `, ${displayName}` : ''}!</h2>
+  <p>Your ReBoost Marketing HUB account has been created and is ready to go.</p>
+  <div style="background:#f5f5f5;border-radius:8px;padding:16px 24px;margin:20px 0;">
+    <p style="margin:0 0 8px 0;font-size:14px;color:#666;">Your login credentials:</p>
+    <p style="margin:0 0 4px 0;"><strong>Email:</strong> ${email}</p>
+    <p style="margin:0;"><strong>Temporary Password:</strong> <code style="background:#e0e0e0;padding:2px 8px;border-radius:4px;font-size:15px;">123456</code></p>
+  </div>
+  <p style="margin:28px 0;text-align:center;">
+    <a href="${loginUrl}" style="display:inline-block;background:#2563eb;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;">Log In to Your Dashboard</a>
+  </p>
+  <p style="color:#666;font-size:13px;">For security, please change your password after your first login under Settings → Profile.</p>
+</div>`
+}
+
 // ─── adminCreateUser ─────────────────────────────────────────────────────────
 // Admin/staff: create a new Firebase Auth user + Firestore profile in one call.
 
@@ -1002,39 +1019,23 @@ exports.adminCreateUser = onCall({ timeoutSeconds: 30 }, async (request) => {
     updatedAt: FieldValue.serverTimestamp(),
   })
 
-  // Send invite email with password setup link
-  let inviteLink = null
+  // Send invite email with credentials
   if (sendInvite) {
     try {
-      inviteLink = await auth.generatePasswordResetLink(email, {
-        url: `${process.env.APP_URL || 'https://reboost-hub.vercel.app'}/login`,
-      })
-
-      const RESEND_KEY = process.env.RESEND_API_KEY || ''
-      const SENDGRID_KEY = process.env.SENDGRID_API_KEY || ''
+      const RESEND_KEY = await getEnvVar('RESEND_API_KEY') || ''
+      const SENDGRID_KEY = await getEnvVar('SENDGRID_API_KEY') || ''
+      const APP_URL = await getEnvVar('APP_URL') || process.env.APP_URL || 'https://reboost-hub.vercel.app'
+      const FROM_EMAIL = await getEnvVar('RESEND_FROM_EMAIL') || process.env.RESEND_FROM_EMAIL || 'ReBoost Hub <onboarding@resend.dev>'
 
       if (RESEND_KEY) {
         await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: { Authorization: `Bearer ${RESEND_KEY}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            from: process.env.RESEND_FROM_EMAIL || 'ReBoost Hub <onboarding@resend.dev>',
+            from: FROM_EMAIL,
             to: email,
             subject: `You've been invited to ReBoost Marketing HUB`,
-            html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a;">
-  <h2>Welcome${displayName ? `, ${displayName}` : ''}!</h2>
-  <p>Your ReBoost Marketing HUB account has been created and is ready to go.</p>
-  <p><strong>Login here:</strong> <a href="${process.env.APP_URL || 'https://reboost-hub.vercel.app'}/login">${process.env.APP_URL || 'https://reboost-hub.vercel.app'}/login</a></p>
-  <div style="background:#f5f5f5;border-radius:8px;padding:16px 24px;margin:20px 0;">
-    <p style="margin:0 0 8px 0;font-size:14px;color:#666;">Your login credentials:</p>
-    <p style="margin:0 0 4px 0;"><strong>Email:</strong> ${email}</p>
-    <p style="margin:0;"><strong>Temporary Password:</strong> <code style="background:#e0e0e0;padding:2px 8px;border-radius:4px;font-size:15px;">123456</code></p>
-  </div>
-  <p style="margin:28px 0;text-align:center;">
-    <a href="${process.env.APP_URL || 'https://reboost-hub.vercel.app'}/login" style="display:inline-block;background:#2563eb;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;">Log In to Your Dashboard</a>
-  </p>
-  <p style="color:#666;font-size:13px;">Please update your password after your first login under Settings → Profile.</p>
-</div>`,
+            html: inviteEmailHtml({ displayName, email, appUrl: APP_URL }),
           }),
         })
       } else if (SENDGRID_KEY) {
@@ -1045,32 +1046,18 @@ exports.adminCreateUser = onCall({ timeoutSeconds: 30 }, async (request) => {
             personalizations: [{ to: [{ email }] }],
             from: { email: 'noreply@reboosthub.com', name: 'ReBoost Marketing HUB' },
             subject: `You've been invited to ReBoost Marketing HUB`,
-            content: [{
-              type: 'text/html',
-              value: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#1a1a1a;">
-  <h2>Welcome${displayName ? `, ${displayName}` : ''}!</h2>
-  <p>Your ReBoost Marketing HUB account has been created and is ready to go.</p>
-  <p><strong>Login here:</strong> <a href="${process.env.APP_URL || 'https://reboost-hub.vercel.app'}/login">${process.env.APP_URL || 'https://reboost-hub.vercel.app'}/login</a></p>
-  <div style="background:#f5f5f5;border-radius:8px;padding:16px 24px;margin:20px 0;">
-    <p style="margin:0 0 8px 0;font-size:14px;color:#666;">Your login credentials:</p>
-    <p style="margin:0 0 4px 0;"><strong>Email:</strong> ${email}</p>
-    <p style="margin:0;"><strong>Temporary Password:</strong> <code style="background:#e0e0e0;padding:2px 8px;border-radius:4px;font-size:15px;">123456</code></p>
-  </div>
-  <p style="margin:28px 0;text-align:center;">
-    <a href="${process.env.APP_URL || 'https://reboost-hub.vercel.app'}/login" style="display:inline-block;background:#2563eb;color:white;padding:14px 28px;text-decoration:none;border-radius:8px;font-weight:bold;font-size:16px;">Log In to Your Dashboard</a>
-  </p>
-  <p style="color:#666;font-size:13px;">Please update your password after your first login under Settings → Profile.</p>
-</div>`,
-            }],
+            content: [{ type: 'text/html', value: inviteEmailHtml({ displayName, email, appUrl: APP_URL }) }],
           }),
         })
+      } else {
+        console.warn('[adminCreateUser] No email provider configured (RESEND_API_KEY or SENDGRID_API_KEY). Set one in Admin → API Keys.')
       }
     } catch (inviteErr) {
       console.error('Invite email failed (account still created):', inviteErr.message)
     }
   }
 
-  return { uid: user.uid, inviteLink }
+  return { uid: user.uid }
 })
 
 // ─── adminDeleteUser ─────────────────────────────────────────────────────────
